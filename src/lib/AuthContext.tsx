@@ -5,6 +5,9 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signInWithCredential,
   GoogleAuthProvider,
   signOut as fbSignOut,
   updateProfile
@@ -29,8 +32,7 @@ interface AuthContextType {
   signIn: (e: string, p: string) => Promise<void>;
   signUp: (e: string, p: string, name: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  signInWithGoogleDirect: (email: string, customName?: string) => Promise<void>;
-  continueAsGuest: (customName?: string) => Promise<void>;
+  signInWithGoogleCredential?: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -135,6 +137,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    // Check if user just returned from a Google redirect sign-in
+    getRedirectResult(auth)
+      .then(async (cred) => {
+        if (cred && cred.user) {
+          const authUser: AppAuthUser = {
+            uid: cred.user.uid,
+            email: cred.user.email,
+            displayName: cred.user.displayName,
+            photoURL: cred.user.photoURL,
+            emailVerified: cred.user.emailVerified
+          };
+          setUser(authUser);
+          localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+          await fetchProfile(cred.user.uid, cred.user.email || '', cred.user.displayName || undefined);
+        }
+      })
+      .catch((err) => {
+        console.warn('Redirect sign-in result error:', err);
+      });
+
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         const authUser: AppAuthUser = {
@@ -364,26 +386,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (allowRedirectOnBlocked = true) => {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    provider.addScope('email');
+    provider.addScope('profile');
+
     try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
       const cred = await signInWithPopup(auth, provider);
       const authUser: AppAuthUser = {
         uid: cred.user.uid,
         email: cred.user.email,
         displayName: cred.user.displayName,
-        photoURL: cred.user.photoURL
+        photoURL: cred.user.photoURL,
+        emailVerified: cred.user.emailVerified
       };
       setUser(authUser);
       localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
       await fetchProfile(cred.user.uid, cred.user.email || '', cred.user.displayName || undefined);
+      return;
     } catch (err: any) {
       console.error('Google sign-in error:', err);
+      // If popup was blocked by browser, try redirect flow seamlessly
+      if (err?.code === 'auth/popup-blocked' && allowRedirectOnBlocked) {
+        console.log('Popup blocked by browser, initiating redirect sign-in flow...');
+        await signInWithRedirect(auth, provider);
+        return;
+      }
       if (err?.code === 'auth/unauthorized-domain' || err?.message?.includes('unauthorized-domain')) {
         const domain = typeof window !== 'undefined' ? window.location.hostname : 'efootballaihub.com';
         const customErr = new Error(
-          `Domain "${domain}" is pending authorization in Firebase Console. You can enter instantly using the 1-Click Guest Access button below, or sign up with Email & Password.`
+          `Domain "${domain}" is pending authorization in your Firebase Console project. Add it under Authentication > Settings > Authorized domains.`
         );
         (customErr as any).code = 'auth/unauthorized-domain';
         throw customErr;
@@ -392,97 +425,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Sign-in popup was blocked by your browser. Please allow popups for this site and try again.');
       }
       if (err?.code === 'auth/cancelled-popup-request' || err?.code === 'auth/popup-closed-by-user') {
-        throw new Error('Google sign-in popup was closed before completing.');
+        throw new Error('Google sign-in popup was closed before completing. Please click Continue with Google again.');
       }
       throw err;
     }
   };
 
-  const signInWithGoogleDirect = async (email: string, customName?: string) => {
-    const cleanEmail = (email || '').trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      throw new Error('Please enter a valid Google email address.');
-    }
-
-    // Deterministic hash based on email so user always gets the exact same account, squads & credits
-    let hash = 0;
-    for (let i = 0; i < cleanEmail.length; i++) {
-      hash = ((hash << 5) - hash) + cleanEmail.charCodeAt(i);
-      hash |= 0;
-    }
-    const safeHash = Math.abs(hash).toString(36);
-    const googleUid = `goog_${safeHash}_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14)}`;
-
-    const displayName = customName?.trim() || cleanEmail.split('@')[0] || 'Tactician';
-    const photoURL = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10b981&color=ffffff&bold=true`;
-
-    const localProfileKey = `ef_profile_${googleUid}`;
-    let cachedProfile: UserProfile | null = null;
+  const signInWithGoogleCredential = async (idToken: string) => {
     try {
-      const raw = localStorage.getItem(localProfileKey);
-      if (raw) cachedProfile = JSON.parse(raw);
-    } catch {}
-
-    const googleProfile: UserProfile = cachedProfile || {
-      uid: googleUid,
-      email: cleanEmail,
-      displayName,
-      createdAt: new Date().toISOString(),
-      freeAnalysesRemaining: 1,
-      paidCredits: 0,
-      lastFreeResetAt: new Date().toISOString(),
-      role: 'user'
-    };
-
-    saveAccount(cleanEmail, googleUid, displayName, 'google_sso_session');
-
-    const authUser: AppAuthUser = {
-      uid: googleUid,
-      email: cleanEmail,
-      displayName,
-      photoURL,
-      emailVerified: true
-    };
-
-    setUser(authUser);
-    localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
-    setProfile(googleProfile);
-    localStorage.setItem(localProfileKey, JSON.stringify(googleProfile));
-
-    try {
-      await setDoc(doc(db, 'users', googleUid), googleProfile, { merge: true });
-    } catch (e) {
-      console.warn('Notice syncing Google profile to firestore:', e);
+      const credential = GoogleAuthProvider.credential(idToken);
+      const cred = await signInWithCredential(auth, credential);
+      const authUser: AppAuthUser = {
+        uid: cred.user.uid,
+        email: cred.user.email,
+        displayName: cred.user.displayName,
+        photoURL: cred.user.photoURL,
+        emailVerified: cred.user.emailVerified
+      };
+      setUser(authUser);
+      localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+      await fetchProfile(cred.user.uid, cred.user.email || '', cred.user.displayName || undefined);
+    } catch (err: any) {
+      console.error('Credential sign-in error:', err);
+      throw err;
     }
-  };
-
-  const continueAsGuest = async (customName?: string) => {
-    const guestId = 'guest_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
-    const guestEmail = `${guestId}@efootballhub.local`;
-    const guestDisplayName = customName?.trim() || `Tactician_${guestId.slice(-4)}`;
-
-    const guestProf: UserProfile = {
-      uid: guestId,
-      email: guestEmail,
-      displayName: guestDisplayName,
-      createdAt: new Date().toISOString(),
-      freeAnalysesRemaining: 1,
-      paidCredits: 0,
-      lastFreeResetAt: new Date().toISOString(),
-      role: 'user'
-    };
-
-    saveAccount(guestEmail, guestId, guestDisplayName, 'guest_session');
-    const authUser: AppAuthUser = {
-      uid: guestId,
-      email: guestEmail,
-      displayName: guestDisplayName,
-      isAnonymous: true
-    };
-    setUser(authUser);
-    localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
-    setProfile(guestProf);
-    localStorage.setItem(`ef_profile_${guestId}`, JSON.stringify(guestProf));
   };
 
   const logout = async () => {
@@ -507,8 +473,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signIn,
         signUp,
         signInWithGoogle,
-        signInWithGoogleDirect,
-        continueAsGuest,
+        signInWithGoogleCredential,
         logout,
         refreshProfile
       }}

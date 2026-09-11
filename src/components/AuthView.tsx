@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../lib/AuthContext.tsx';
-import { LogIn, UserPlus, AlertCircle, Sparkles, ShieldCheck, Zap, ExternalLink } from 'lucide-react';
+import { LogIn, UserPlus, AlertCircle, ExternalLink, RefreshCw, Lock } from 'lucide-react';
 
 interface AuthModalProps {
   initialMode: 'login' | 'signup';
@@ -9,7 +9,7 @@ interface AuthModalProps {
 }
 
 export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onSwitchMode }) => {
-  const { signIn, signUp, signInWithGoogle, signInWithGoogleDirect, continueAsGuest } = useAuth();
+  const { signIn, signUp, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -17,12 +17,6 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
-  const [guestSubmitting, setGuestSubmitting] = useState(false);
-
-  // Direct Google login fallback
-  const [showGoogleDirect, setShowGoogleDirect] = useState(false);
-  const [googleEmailInput, setGoogleEmailInput] = useState('');
-  const [directGoogleSubmitting, setDirectGoogleSubmitting] = useState(false);
 
   const cleanErrorMessage = (msg: string): string => {
     if (!msg) return 'Authentication error. Please try again.';
@@ -30,16 +24,22 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     if (match && match[1]) {
       const code = match[1];
       if (code === 'auth/unauthorized-domain') {
-        return 'Google OAuth domain whitelist is active on this host. Use Direct Google Login below to sign in instantly!';
+        return 'Firebase domain authorization required. See instructions below to complete Google setup.';
       }
-      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') {
         return 'Invalid email or password. Please verify and try again.';
       }
       if (code === 'auth/user-not-found') {
-        return 'No account found for this email. Please click "Sign up free" below.';
+        return 'No account found for this email. Click "Sign up free" below to create one.';
       }
       if (code === 'auth/email-already-in-use') {
         return 'This email address is already registered. Please log in.';
+      }
+      if (code === 'auth/weak-password') {
+        return 'Password should be at least 6 characters.';
+      }
+      if (code === 'auth/popup-closed-by-user') {
+        return 'Google Sign-In popup was closed. Please try again.';
       }
     }
     return msg;
@@ -58,48 +58,12 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
         err?.message?.includes('unauthorized-domain') ||
         err?.message?.includes('pending authorization');
       if (isUnauth) {
-        setShowGoogleDirect(true);
-        if (email && email.includes('@')) {
-          setGoogleEmailInput(email);
-        }
-        setError('Google popup requires domain authorization. Enter your Google email below to sign in immediately:');
+        setError('unauthorized-domain');
       } else {
         setError(cleanErrorMessage(err?.message || 'Google sign-in failed. Please try again.'));
       }
     } finally {
       setGoogleSubmitting(false);
-    }
-  };
-
-  const handleDirectGoogleLogin = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const cleanG = googleEmailInput.trim().toLowerCase();
-    if (!cleanG || !cleanG.includes('@')) {
-      setError('Please enter a valid Google email address (e.g. manager@gmail.com).');
-      return;
-    }
-    setError(null);
-    setDirectGoogleSubmitting(true);
-    try {
-      await signInWithGoogleDirect(cleanG, name.trim() || undefined);
-      onSuccess();
-    } catch (err: any) {
-      setError(cleanErrorMessage(err?.message || 'Failed to sign in with Google account.'));
-    } finally {
-      setDirectGoogleSubmitting(false);
-    }
-  };
-
-  const handleGuestAccess = async () => {
-    setError(null);
-    setGuestSubmitting(true);
-    try {
-      await continueAsGuest(name.trim() || undefined);
-      onSuccess();
-    } catch (err: any) {
-      setError(cleanErrorMessage(err?.message || 'Guest session initialization failed.'));
-    } finally {
-      setGuestSubmitting(false);
     }
   };
 
@@ -114,7 +78,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     }
 
     if (initialMode === 'signup' && password !== confirmPassword) {
-      setError('Passwords do not match. Please verify.');
+      setError('Passwords do not match. Please check your password confirmation.');
       return;
     }
 
@@ -139,13 +103,8 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     }
   };
 
-  const isUnauthorizedDomain = error && (
-    error.toLowerCase().includes('unauthorized-domain') ||
-    error.toLowerCase().includes('pending authorization') ||
-    error.toLowerCase().includes('authorized domains')
-  );
-
   const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'efootballaihub.com';
+  const isUnauthorizedDomain = error === 'unauthorized-domain' || (error && error.includes('unauthorized-domain'));
 
   return (
     <div className="max-w-md mx-auto py-12 px-4">
@@ -156,98 +115,103 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
           <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/20">
             {initialMode === 'login' ? <LogIn className="w-6 h-6" /> : <UserPlus className="w-6 h-6" />}
           </div>
-          <h2 className="text-2xl font-black text-white">
+          <h2 className="text-2xl font-black text-white tracking-tight">
             {initialMode === 'login' ? 'Welcome Back' : 'Create Manager Account'}
           </h2>
           <p className="text-xs text-neutral-400">
             {initialMode === 'login'
-              ? 'Access your private squads, reports, and tactical setups.'
-              : 'Unlock 1 free weekly analysis, save custom reports & share formations.'}
+              ? 'Access your private squad analyses, tactical setups, and saved reports.'
+              : 'Unlock 1 free weekly tactical analysis, save custom squads & share tactical formations.'}
           </p>
         </div>
 
-        {/* Action 1: 1-Click Instant Guest Access */}
-        <div className="space-y-2.5">
+        {/* Primary SSO: Continue with Google */}
+        <div className="space-y-3">
           <button
             type="button"
-            onClick={handleGuestAccess}
-            disabled={guestSubmitting || googleSubmitting || submitting}
-            className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-neutral-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            onClick={handleGoogleSignIn}
+            disabled={googleSubmitting || submitting}
+            className="w-full py-3 px-4 rounded-xl bg-white hover:bg-neutral-100 text-neutral-900 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50"
           >
-            <Zap className="w-4 h-4 fill-current" />
-            <span>{guestSubmitting ? 'Starting Session...' : '⚡ Instant 1-Click Tactician Access'}</span>
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <path
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+              />
+            </svg>
+            <span>{googleSubmitting ? 'Connecting to Google...' : 'Continue with Google'}</span>
           </button>
-
-          {/* Action 2: Google Sign In & Direct Fallback */}
-          {!showGoogleDirect ? (
-            <div className="space-y-1.5">
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={googleSubmitting || guestSubmitting || submitting}
-                className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white font-semibold text-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
-              >
-                <span className="w-4 h-4 rounded-full bg-white text-neutral-950 font-black text-[10px] flex items-center justify-center">
-                  G
-                </span>
-                <span>{googleSubmitting ? 'Opening Google Sign-In...' : 'Continue with Google Account'}</span>
-              </button>
-              <div className="text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowGoogleDirect(true);
-                    if (email && email.includes('@')) setGoogleEmailInput(email);
-                  }}
-                  className="text-[11px] text-emerald-400/90 hover:text-emerald-300 transition-colors underline cursor-pointer"
-                >
-                  ⚡ Or log in with Google email directly (1-click, bypass domain check)
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-neutral-950 border border-emerald-500/40 rounded-2xl p-4 space-y-3 shadow-xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
-                  <span className="w-4 h-4 rounded-full bg-white text-neutral-950 font-black text-[10px] flex items-center justify-center">
-                    G
-                  </span>
-                  <span>Direct Google Account Sign-In</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowGoogleDirect(false)}
-                  className="text-neutral-500 hover:text-neutral-300 text-[11px] cursor-pointer"
-                >
-                  ✕ Close
-                </button>
-              </div>
-              <p className="text-[11px] text-neutral-400 leading-relaxed">
-                Connect your Google email instantly. Squads and tactical analyses are saved under your Google ID without needing domain approval:
-              </p>
-              <form onSubmit={handleDirectGoogleLogin} className="space-y-2.5">
-                <input
-                  type="email"
-                  value={googleEmailInput}
-                  onChange={(e) => setGoogleEmailInput(e.target.value)}
-                  placeholder="your-google-email@gmail.com"
-                  required
-                  className="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-xl text-white text-xs placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500"
-                  autoFocus
-                />
-                <button
-                  type="submit"
-                  disabled={directGoogleSubmitting || !googleEmailInput.trim()}
-                  className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <Sparkles className="w-3.5 h-3.5 fill-current" />
-                  {directGoogleSubmitting ? 'Authenticating...' : '⚡ Sign In with this Google Account'}
-                </button>
-              </form>
-            </div>
-          )}
         </div>
 
+        {/* Domain Authorization Guidance if unauthorized-domain occurs */}
+        {isUnauthorizedDomain && (
+          <div className="p-4 rounded-2xl bg-neutral-950 border border-amber-500/30 text-xs space-y-3">
+            <div className="flex items-start gap-2.5 text-amber-400">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-bold text-amber-300 block">Google Sign-In: 1 Quick Setup Step Required</span>
+                <p className="text-neutral-300 text-[11px] leading-relaxed">
+                  Firebase Authentication requires custom domains (<code className="text-emerald-400 font-mono bg-neutral-900 px-1 py-0.5 rounded">{currentHost}</code>) to be whitelisted under Authorized Domains.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-neutral-900/90 rounded-xl p-3 border border-neutral-800 text-[11px] space-y-2">
+              <p className="font-semibold text-neutral-200">How to authorize in 30 seconds:</p>
+              <ol className="list-decimal list-inside text-neutral-400 space-y-1 pl-1">
+                <li>
+                  Open{' '}
+                  <a
+                    href="https://console.firebase.google.com/project/emergent-fastness-8lcf1/authentication/settings"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-emerald-400 hover:text-emerald-300 font-semibold underline inline-flex items-center gap-1"
+                  >
+                    Firebase Auth Settings <ExternalLink className="w-3 h-3 inline" />
+                  </a>
+                </li>
+                <li>
+                  Under <strong className="text-neutral-200">"Authorized domains"</strong>, click <strong className="text-neutral-200">"Add domain"</strong>.
+                </li>
+                <li>
+                  Enter <code className="text-emerald-400 font-mono">{currentHost}</code> and click <strong className="text-neutral-200">"Save"</strong>.
+                </li>
+              </ol>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={googleSubmitting}
+              className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${googleSubmitting ? 'animate-spin' : ''}`} />
+              <span>Try Google Sign-In Again</span>
+            </button>
+          </div>
+        )}
+
+        {/* General Error Banner */}
+        {error && !isUnauthorizedDomain && (
+          <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-800/60 text-xs flex items-start gap-2.5 text-rose-300">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <span className="font-medium">{error}</span>
+          </div>
+        )}
+
+        {/* Divider */}
         <div className="relative flex items-center justify-center">
           <div className="border-t border-neutral-800 w-full" />
           <span className="bg-neutral-900 px-3 text-[11px] uppercase tracking-wider text-neutral-500 font-bold absolute">
@@ -255,57 +219,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
           </span>
         </div>
 
-        {error && (
-          <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 text-xs space-y-3">
-            <div className="flex items-start gap-2 text-rose-300">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <span className="font-semibold block">{error}</span>
-              </div>
-            </div>
-
-            {isUnauthorizedDomain && (
-              <div className="pt-2 border-t border-neutral-800/80 space-y-2.5 text-neutral-300">
-                <div className="bg-neutral-900/90 rounded-lg p-2.5 border border-neutral-800 text-[11px] space-y-1.5">
-                  <p className="font-bold text-amber-400">💡 Firebase Domain Authorization Help</p>
-                  <p className="text-neutral-300">
-                    Firebase blocks OAuth popups until <code className="text-emerald-400 font-mono bg-neutral-950 px-1 py-0.5 rounded">{currentHost}</code> is added.
-                  </p>
-                  <a
-                    href="https://console.firebase.google.com/project/emergent-fastness-8lcf1/authentication/settings/domains"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold underline text-[11px] mt-1"
-                  >
-                    Open Firebase Authorized Domains page directly <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowGoogleDirect(true);
-                      if (email) setGoogleEmailInput(email);
-                    }}
-                    className="flex-1 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 fill-current" />
-                    Use Direct Google Login Instead
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleGuestAccess}
-                    className="py-2 px-3 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Zap className="w-3.5 h-3.5 fill-current" />
-                    Guest Access
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
+        {/* Email & Password Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {initialMode === 'signup' && (
             <div>
@@ -318,7 +232,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                 placeholder="e.g. PepGamer24"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
           )}
@@ -333,7 +247,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
               placeholder="manager@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
+              className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors"
             />
           </div>
 
@@ -348,7 +262,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
+              className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors"
             />
           </div>
 
@@ -364,7 +278,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                 placeholder="••••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
           )}
@@ -372,21 +286,22 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            {submitting ? 'Please wait...' : initialMode === 'login' ? 'Sign In with Email' : 'Register with Email'}
+            <Lock className="w-4 h-4" />
+            <span>{submitting ? 'Please wait...' : initialMode === 'login' ? 'Sign In' : 'Create Account'}</span>
           </button>
         </form>
 
-        {/* Switch mode */}
-        <div className="text-center pt-2 border-t border-neutral-800 text-xs text-neutral-400 space-y-2">
+        {/* Mode Switcher */}
+        <div className="text-center pt-2 border-t border-neutral-800 text-xs text-neutral-400">
           {initialMode === 'login' ? (
             <p>
               Don't have an account yet?{' '}
               <button
                 type="button"
                 onClick={() => onSwitchMode('signup')}
-                className="font-bold text-emerald-400 hover:underline"
+                className="font-bold text-emerald-400 hover:underline cursor-pointer"
               >
                 Sign up free
               </button>
@@ -397,22 +312,12 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
               <button
                 type="button"
                 onClick={() => onSwitchMode('login')}
-                className="font-bold text-emerald-400 hover:underline"
+                className="font-bold text-emerald-400 hover:underline cursor-pointer"
               >
                 Log in here
               </button>
             </p>
           )}
-
-          <div>
-            <button
-              type="button"
-              onClick={handleGuestAccess}
-              className="text-neutral-500 hover:text-neutral-300 text-[11px] underline"
-            >
-              Skip sign-in & explore tactical tools as guest
-            </button>
-          </div>
         </div>
 
       </div>
