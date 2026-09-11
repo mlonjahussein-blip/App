@@ -48,7 +48,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   signIn: (identifier: string, p: string) => Promise<void>;
-  signUp: (emailOrPhone: string, p: string, name: string, otpCode?: string) => Promise<void>;
+  signUp: (emailOrPhone: string, p: string, name: string, otpCode?: string, whatsappNumber?: string) => Promise<void>;
   signInWithWhatsApp: (phoneNumber: string, p: string) => Promise<void>;
   signUpWithWhatsApp: (phoneNumber: string, p: string, managerName: string, otpCode?: string) => Promise<void>;
   sendWhatsAppOtpCode: (phoneNumber: string, managerName?: string, purpose?: 'signup' | 'signin') => Promise<{
@@ -123,6 +123,7 @@ interface StoredAccountV2 {
   uid: string;
   email: string;
   displayName: string;
+  whatsappNumber?: string;
   salt: string;
   hash: string;
   createdAt: string;
@@ -141,6 +142,13 @@ function saveAccountV2(account: StoredAccountV2) {
   try {
     const accounts = getStoredAccountsV2();
     accounts[account.email.toLowerCase()] = account;
+    if (account.whatsappNumber) {
+      accounts[account.whatsappNumber] = account;
+      const rawDigits = cleanPhoneDigits(account.whatsappNumber);
+      if (rawDigits) {
+        accounts[rawDigits] = account;
+      }
+    }
     localStorage.setItem(STORAGE_ACCOUNTS_V2_KEY, JSON.stringify(accounts));
   } catch (err) {
     console.warn('Could not save local v2 account record:', err);
@@ -479,41 +487,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
-   * Universal Sign In (Auto-routes WhatsApp number or email)
+   * Universal Sign In (Email or WhatsApp Number + Password)
    */
   const signIn = async (identifier: string, p: string) => {
     const cleanId = (identifier || '').trim();
-    if (!cleanId) throw new Error('Please enter your WhatsApp phone number or email.');
+    if (!cleanId) throw new Error('Please enter your email or WhatsApp phone number.');
     
-    // If it contains only digits, +, spaces, dashes, or no @, route to WhatsApp login
-    if (!cleanId.includes('@') && cleanPhoneDigits(cleanId).length >= 7) {
-      return signInWithWhatsApp(cleanId, p);
-    }
-
-    // Standard Email Login
     const cleanEmail = cleanId.toLowerCase();
     const cleanPassword = (p || '').trim();
+    const rawDigits = cleanPhoneDigits(cleanId);
 
+    // 1. Check v2 accounts (by email or WhatsApp phone number)
     const accountsV2 = getStoredAccountsV2();
-    const accV2 = accountsV2[cleanEmail];
+    const accV2 = accountsV2[cleanEmail] || (rawDigits && rawDigits.length >= 7 ? (accountsV2[cleanId] || accountsV2[rawDigits] || (cleanId.startsWith('+') ? accountsV2[cleanId] : accountsV2['+' + rawDigits])) : undefined);
     if (accV2) {
       const computedHash = await hashPasswordWithSalt(cleanPassword, accV2.salt);
       if (computedHash === accV2.hash) {
         const localUser: AppAuthUser = {
           uid: accV2.uid,
           email: accV2.email,
-          displayName: accV2.displayName
+          displayName: accV2.displayName,
+          whatsappNumber: accV2.whatsappNumber
         };
         setUser(localUser);
         localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(localUser));
-        await fetchProfile(accV2.uid, accV2.email, accV2.displayName);
+        await fetchProfile(accV2.uid, accV2.email, accV2.displayName, undefined, accV2.whatsappNumber);
         return;
       } else {
         throw new Error('Incorrect password. Please verify and try again.');
       }
     }
 
-    // Try Firebase Email Login
+    // 2. If it is a phone number, also check legacy WhatsApp accounts
+    if (!cleanId.includes('@') && rawDigits.length >= 7) {
+      return signInWithWhatsApp(cleanId, p);
+    }
+
+    // 3. Try Firebase Email Login
     try {
       const cred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
       const authUser: AppAuthUser = {
@@ -534,17 +544,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
-   * Universal Sign Up with 6-digit Email Verification
+   * Universal Sign Up with 6-digit Email Verification & Integrated WhatsApp Number
    */
-  const signUp = async (emailOrPhone: string, p: string, name: string, otpCode?: string) => {
+  const signUp = async (
+    emailOrPhone: string,
+    p: string,
+    name: string,
+    otpCode?: string,
+    whatsappNumber?: string
+  ) => {
     const cleanId = (emailOrPhone || '').trim();
-    if (!cleanId.includes('@') && cleanPhoneDigits(cleanId).length >= 7) {
-      throw new Error('For WhatsApp sign-up, please use the WhatsApp registration form to verify your 6-digit code.');
-    }
-
     const cleanEmail = cleanId.toLowerCase();
     const cleanPassword = (p || '').trim();
     const cleanName = (name || '').trim() || cleanEmail.split('@')[0] || 'Tactician';
+    const cleanWhatsApp = (whatsappNumber || '').trim();
 
     if (!cleanPassword || cleanPassword.length < 6) {
       throw new Error('Password must be at least 6 characters long.');
@@ -568,6 +581,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       uid: newUid,
       email: cleanEmail,
       displayName: cleanName,
+      whatsappNumber: cleanWhatsApp || undefined,
       salt,
       hash,
       createdAt: new Date().toISOString()
@@ -578,6 +592,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       uid: newUid,
       email: cleanEmail,
       displayName: cleanName,
+      whatsappNumber: cleanWhatsApp || undefined,
       createdAt: new Date().toISOString(),
       freeAnalysesRemaining: 1,
       paidCredits: 0,
@@ -597,7 +612,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const authUser: AppAuthUser = {
       uid: newUid,
       email: cleanEmail,
-      displayName: cleanName
+      displayName: cleanName,
+      whatsappNumber: cleanWhatsApp || undefined
     };
     setUser(authUser);
     localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
