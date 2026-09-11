@@ -432,11 +432,12 @@ Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach c
         } catch (err: any) {
           lastError = err;
           const errMsg = err?.message || String(err);
-          const isTemporary = errMsg.includes('503') || errMsg.includes('UNAVAILABLE') || errMsg.includes('high demand') || errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED');
+          // Only retry on temporary 503 errors, not on hard quota limits (429/RESOURCE_EXHAUSTED)
+          const isRetryable = errMsg.includes('503') || errMsg.includes('UNAVAILABLE') || errMsg.includes('high demand');
           
           console.warn(`Vision model ${modelName} attempt ${attempt} warning:`, errMsg);
 
-          if (isTemporary && attempt < 2) {
+          if (isRetryable && attempt < 2) {
             console.log(`Retrying ${modelName} after 1.5s delay due to temporary capacity spike...`);
             await new Promise((res) => setTimeout(res, 1500));
             continue;
