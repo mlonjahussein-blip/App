@@ -7,19 +7,19 @@ import {
   cleanPhoneDigits
 } from '../lib/whatsappAuth.ts';
 import {
-  Phone,
   User,
   Lock,
+  Mail,
   Eye,
   EyeOff,
   AlertCircle,
   CheckCircle2,
   ArrowLeft,
   RefreshCw,
-  Sparkles,
   ShieldCheck,
   ExternalLink,
-  MessageCircle
+  MessageCircle,
+  Sparkles
 } from 'lucide-react';
 
 interface AuthModalProps {
@@ -30,43 +30,46 @@ interface AuthModalProps {
 
 export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onSwitchMode }) => {
   const {
+    signIn,
+    signUp,
     signInWithWhatsApp,
     signUpWithWhatsApp,
     sendWhatsAppOtpCode,
-    signInWithWhatsAppOtp,
-    signIn
+    signInWithWhatsAppOtp
   } = useAuth();
 
-  // Mode: login or signup
-  const mode = initialMode;
+  const mode = initialMode; // 'login' | 'signup'
 
-  // Form Fields
-  const [selectedCountry, setSelectedCountry] = useState<CountryCodeItem>(POPULAR_COUNTRIES[0]); // Default Tanzania (+255)
+  // Selected Auth Method: 'email' (Option 2) or 'whatsapp' (Option 1)
+  const [authMethod, setAuthMethod] = useState<'whatsapp' | 'email'>('whatsapp');
+
+  // Option 1: WhatsApp States
+  const [selectedCountry, setSelectedCountry] = useState<CountryCodeItem>(POPULAR_COUNTRIES[0]); // Tanzania (+255)
   const [localPhone, setLocalPhone] = useState('');
-  const [managerName, setManagerName] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-
-  // OTP Verification Step
-  const [step, setStep] = useState<'form' | 'otp'>('form');
+  const [waManagerName, setWaManagerName] = useState('');
+  const [waPassword, setWaPassword] = useState('');
+  const [waConfirmPassword, setWaConfirmPassword] = useState('');
+  const [showWaPassword, setShowWaPassword] = useState(false);
+  
+  // WhatsApp OTP Verification Step
+  const [waStep, setWaStep] = useState<'form' | 'otp'>('form');
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [otpSentPhone, setOtpSentPhone] = useState<string>('');
-  const [latestCode, setLatestCode] = useState<string | null>(null);
   const [whatsappLink, setWhatsappLink] = useState<string>('');
   const [resendCooldown, setResendCooldown] = useState<number>(0);
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Alternative login toggle (for users who previously used email)
-  const [showEmailLogin, setShowEmailLogin] = useState(false);
-  const [emailInput, setEmailInput] = useState('');
+  // Option 2: Email & Password States (Salted SHA-256)
+  const [email, setEmail] = useState('');
+  const [emailManagerName, setEmailManagerName] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [emailConfirmPassword, setEmailConfirmPassword] = useState('');
+  const [showEmailPassword, setShowEmailPassword] = useState(false);
 
-  // UI States
+  // Status & Notifications
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  // OTP input refs
-  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Timer countdown for resend
   useEffect(() => {
@@ -79,24 +82,26 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
 
   // Focus first OTP box when entering OTP step
   useEffect(() => {
-    if (step === 'otp') {
+    if (waStep === 'otp') {
       setTimeout(() => {
         otpInputRefs.current[0]?.focus();
       }, 100);
     }
-  }, [step]);
+  }, [waStep]);
 
-  const getFullPhoneNumber = (): string => {
+  const getFullWhatsAppNumber = (): string => {
     return formatFullWhatsAppNumber(selectedCountry.dialCode, localPhone);
   };
 
-  // 1. Trigger WhatsApp OTP Dispatch (Step 1 -> Step 2)
-  const handleRequestOtp = async (e: React.FormEvent) => {
+  // --- WHATSAPP FLOW HANDLERS (OPTION 1) ---
+
+  // Request 6-digit WhatsApp code (Sign Up or Sign In via OTP)
+  const handleRequestWhatsAppOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setInfoMessage(null);
 
-    const fullPhone = getFullPhoneNumber();
+    const fullPhone = getFullWhatsAppNumber();
     const digits = cleanPhoneDigits(fullPhone);
 
     if (digits.length < 7) {
@@ -105,15 +110,15 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     }
 
     if (mode === 'signup') {
-      if (!managerName.trim()) {
+      if (!waManagerName.trim()) {
         setError('Please enter your Manager / Gamer name (e.g. PepGamer24).');
         return;
       }
-      if (!password || password.length < 6) {
+      if (!waPassword || waPassword.length < 6) {
         setError('Password must be at least 6 characters long.');
         return;
       }
-      if (password !== confirmPassword) {
+      if (waPassword !== waConfirmPassword) {
         setError('Passwords do not match. Please verify.');
         return;
       }
@@ -123,58 +128,57 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     try {
       const resp = await sendWhatsAppOtpCode(
         fullPhone,
-        managerName.trim() || undefined,
+        waManagerName.trim() || undefined,
         mode === 'signup' ? 'signup' : 'signin'
       );
       setOtpSentPhone(fullPhone);
-      setLatestCode(resp.code);
       setWhatsappLink(resp.whatsappLink);
       setResendCooldown(60);
-      setStep('otp');
+      setWaStep('otp');
       setInfoMessage(`We sent a 6-digit verification code to your WhatsApp: ${fullPhone}`);
     } catch (err: any) {
-      setError(err.message || 'Failed to dispatch verification code. Please try again.');
+      setError(err.message || 'Failed to dispatch WhatsApp verification code. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // 2. Sign In With WhatsApp Number & Password (Standard Login)
-  const handleStandardWhatsAppLogin = async (e: React.FormEvent) => {
+  // Standard WhatsApp Login with Password
+  const handleWhatsAppPasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setInfoMessage(null);
 
-    const fullPhone = getFullPhoneNumber();
+    const fullPhone = getFullWhatsAppNumber();
     const digits = cleanPhoneDigits(fullPhone);
 
     if (digits.length < 7) {
       setError('Please enter your registered WhatsApp phone number.');
       return;
     }
-    if (!password) {
+    if (!waPassword) {
       setError('Please enter your password.');
       return;
     }
 
     setSubmitting(true);
     try {
-      await signInWithWhatsApp(fullPhone, password);
+      await signInWithWhatsApp(fullPhone, waPassword);
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Incorrect WhatsApp number or password. Please verify.');
+      setError(err.message || 'Incorrect WhatsApp number or password.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // 3. Verify OTP and Complete Registration or Login (Step 2)
+  // Verify WhatsApp 6-digit OTP
   const handleVerifyOtp = async (codeToVerify?: string) => {
     setError(null);
     const code = codeToVerify || otpDigits.join('');
 
     if (code.length !== 6) {
-      setError('Please enter all 6 numbers of the verification code.');
+      setError('Please enter the complete 6-digit verification code.');
       return;
     }
 
@@ -183,12 +187,11 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       if (mode === 'signup') {
         await signUpWithWhatsApp(
           otpSentPhone,
-          password,
-          managerName.trim(),
+          waPassword,
+          waManagerName.trim(),
           code
         );
       } else {
-        // Sign in via WhatsApp OTP code
         await signInWithWhatsAppOtp(otpSentPhone, code);
       }
       onSuccess();
@@ -199,7 +202,6 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     }
   };
 
-  // Handle individual digit input
   const handleOtpDigitChange = (index: number, val: string) => {
     const char = val.slice(-1).replace(/[^0-9]/g, '');
     const newDigits = [...otpDigits];
@@ -210,8 +212,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       otpInputRefs.current[index + 1]?.focus();
     }
 
-    // Auto verify when 6th digit filled
-    if (char && index === 5 && newDigits.every(d => d !== '')) {
+    if (char && index === 5 && newDigits.every((d) => d !== '')) {
       handleVerifyOtp(newDigits.join(''));
     }
   };
@@ -248,10 +249,9 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     try {
       const resp = await sendWhatsAppOtpCode(
         otpSentPhone,
-        managerName.trim() || undefined,
+        waManagerName.trim() || undefined,
         mode === 'signup' ? 'signup' : 'signin'
       );
-      setLatestCode(resp.code);
       setWhatsappLink(resp.whatsappLink);
       setResendCooldown(60);
       setInfoMessage(`New 6-digit verification code sent to ${otpSentPhone}`);
@@ -262,57 +262,122 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     }
   };
 
-  // Email login fallback handler
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  // --- EMAIL & PASSWORD FLOW HANDLERS (OPTION 2: SALTED SHA-256) ---
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!emailInput.trim()) {
+    setInfoMessage(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
       setError('Please enter your email address.');
       return;
     }
-    if (!password) {
+
+    if (!emailPassword) {
       setError('Please enter your password.');
       return;
     }
+
+    if (mode === 'signup') {
+      if (!emailManagerName.trim()) {
+        setError('Please enter your Manager / Gamer name.');
+        return;
+      }
+      if (emailPassword.length < 6) {
+        setError('Password must be at least 6 characters long.');
+        return;
+      }
+      if (emailPassword !== emailConfirmPassword) {
+        setError('Passwords do not match. Please verify.');
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
-      await signIn(emailInput.trim(), password);
+      if (mode === 'signup') {
+        await signUp(cleanEmail, emailPassword, emailManagerName.trim());
+      } else {
+        await signIn(cleanEmail, emailPassword);
+      }
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in with email. Please verify credentials.');
+      setError(err.message || 'Authentication failed. Please verify your credentials.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto py-10 px-4">
+    <div className="max-w-md mx-auto py-8 px-4">
       <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
         
-        {/* Header with WhatsApp Theme */}
-        <div className="text-center space-y-2">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10">
-            <MessageCircle className="w-8 h-8 text-emerald-400" />
+        {/* Header */}
+        <div className="text-center space-y-1.5">
+          <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10">
+            {authMethod === 'whatsapp' ? (
+              <MessageCircle className="w-6 h-6 text-emerald-400" />
+            ) : (
+              <Mail className="w-6 h-6 text-emerald-400" />
+            )}
           </div>
-          
+
           <h1 className="text-2xl font-black text-white tracking-tight">
-            {step === 'otp'
+            {waStep === 'otp' && authMethod === 'whatsapp'
               ? 'Verify WhatsApp Code'
               : mode === 'login'
-              ? 'Sign In with WhatsApp'
-              : 'Sign Up with WhatsApp'}
+              ? 'Sign In to AI Hub'
+              : 'Create Manager Account'}
           </h1>
-          
+
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">
-            {step === 'otp'
+            {waStep === 'otp' && authMethod === 'whatsapp'
               ? `Enter the 6-digit verification code sent to your WhatsApp (${otpSentPhone})`
               : mode === 'login'
-              ? 'Enter your registered WhatsApp number and password to access your manager dashboard.'
-              : 'Register with your WhatsApp number, manager name, and password.'}
+              ? 'Choose your preferred sign-in method to access squad analysis & tactics.'
+              : 'Choose Option 1 (WhatsApp) or Option 2 (Email & Password) to sign up.'}
           </p>
         </div>
 
-        {/* Error Notification Banner */}
+        {/* Method Selector Tabs: Option 1 (WhatsApp) & Option 2 (Email & Password) */}
+        {waStep !== 'otp' && (
+          <div className="grid grid-cols-2 gap-2 p-1 bg-neutral-950 rounded-2xl border border-neutral-800 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setAuthMethod('whatsapp');
+              }}
+              className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                authMethod === 'whatsapp'
+                  ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/20 font-black'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>1. WhatsApp</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setAuthMethod('email');
+              }}
+              className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                authMethod === 'email'
+                  ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/20 font-black'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Mail className="w-4 h-4" />
+              <span>2. Email & Password</span>
+            </button>
+          </div>
+        )}
+
+        {/* Error Alert Banner */}
         {error && (
           <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-800/60 text-xs flex items-start gap-2.5 text-rose-300 animate-fade-in">
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
@@ -320,7 +385,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
           </div>
         )}
 
-        {/* Success / Info Notification Banner */}
+        {/* Info / Success Alert Banner */}
         {infoMessage && !error && (
           <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-xs flex items-start gap-2.5 text-emerald-300 animate-fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
@@ -328,220 +393,276 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
           </div>
         )}
 
-        {/* STEP 2: 6-DIGIT OTP VERIFICATION SCREEN */}
-        {step === 'otp' ? (
-          <div className="space-y-6 animate-fade-in">
-            
-            {/* 6 Digit Input Boxes */}
-            <div className="space-y-2">
-              <label className="block text-center text-xs font-bold uppercase text-neutral-400 tracking-wider">
-                Enter 6-Digit Code
-              </label>
+        {/* --- OPTION 1: WHATSAPP AUTHENTICATION --- */}
+        {authMethod === 'whatsapp' && (
+          <>
+            {waStep === 'otp' ? (
+              /* WhatsApp Step 2: 6-Digit Verification Code Screen */
+              <div className="space-y-5 animate-fade-in">
+                
+                {/* 6 Digit Numeric Boxes */}
+                <div className="space-y-2">
+                  <label className="block text-center text-xs font-bold uppercase text-neutral-400 tracking-wider">
+                    Enter 6-Digit Code
+                  </label>
 
-              <div className="flex justify-center items-center gap-2 sm:gap-2.5" onPaste={handleOtpPaste}>
-                {otpDigits.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    ref={(el) => (otpInputRefs.current[idx] = el)}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
-                    onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                    className="w-11 h-13 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-black bg-neutral-950 border border-neutral-800 focus:border-emerald-500 rounded-xl text-white outline-none transition-all shadow-inner focus:ring-2 focus:ring-emerald-500/20"
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Direct WhatsApp Message helper (1-click code delivery) */}
-            <div className="p-4 rounded-2xl bg-neutral-950 border border-emerald-500/30 text-xs space-y-3">
-              <div className="flex items-start gap-2.5 text-emerald-400">
-                <MessageCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <span className="font-bold text-neutral-200 block">WhatsApp Code Delivery</span>
-                  <p className="text-neutral-400 text-[11px] leading-relaxed">
-                    Open your WhatsApp app to view the code, or click below to receive it directly in WhatsApp chat:
-                  </p>
-                </div>
-              </div>
-
-              {whatsappLink && (
-                <a
-                  href={whatsappLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full py-2 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold flex items-center justify-center gap-2 transition-all"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Open in WhatsApp</span>
-                </a>
-              )}
-
-              {latestCode && (
-                <div className="pt-1 flex items-center justify-between text-[11px] border-t border-neutral-800">
-                  <span className="text-neutral-400">Instant verification code:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const digits = latestCode.split('');
-                      setOtpDigits(digits);
-                      handleVerifyOtp(latestCode);
-                    }}
-                    className="font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-neutral-900 px-2 py-0.5 rounded border border-neutral-800 hover:border-emerald-500 transition-colors"
-                  >
-                    {latestCode} (Click to auto-fill)
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Submit Verification Button */}
-            <button
-              type="button"
-              onClick={() => handleVerifyOtp()}
-              disabled={submitting || otpDigits.some((d) => d === '')}
-              className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
-            >
-              {submitting ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Verifying Code...</span>
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>
-                    {mode === 'signup' ? 'Verify & Register Account' : 'Verify & Sign In'}
-                  </span>
-                </>
-              )}
-            </button>
-
-            {/* Resend and Edit Controls */}
-            <div className="flex items-center justify-between text-xs pt-1">
-              <button
-                type="button"
-                onClick={() => setStep('form')}
-                className="text-neutral-400 hover:text-white flex items-center gap-1 transition-colors"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Change Number</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleResendCode}
-                disabled={resendCooldown > 0 || submitting}
-                className="text-emerald-400 hover:text-emerald-300 font-semibold disabled:text-neutral-600 transition-colors"
-              >
-                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
-              </button>
-            </div>
-          </div>
-        ) : showEmailLogin ? (
-          /* EMAIL LOGIN FALLBACK */
-          <form onSubmit={handleEmailLogin} className="space-y-4 animate-fade-in">
-            <div>
-              <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
-                Email Address
-              </label>
-              <input
-                type="email"
-                required
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
-                placeholder="manager@example.com"
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              <Lock className="w-4 h-4" />
-              <span>{submitting ? 'Signing In...' : 'Sign In with Email'}</span>
-            </button>
-
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={() => setShowEmailLogin(false)}
-                className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold"
-              >
-                ← Back to WhatsApp Sign In
-              </button>
-            </div>
-          </form>
-        ) : (
-          /* STEP 1: WHATSAPP SIGN UP OR SIGN IN FORM */
-          <form
-            onSubmit={mode === 'signup' ? handleRequestOtp : handleStandardWhatsAppLogin}
-            className="space-y-4 animate-fade-in"
-          >
-            {/* WhatsApp Phone Number Input with Country Code Selector */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
-                WhatsApp Phone Number
-              </label>
-
-              <div className="flex gap-2">
-                {/* Country Code Dropdown */}
-                <div className="relative w-36 shrink-0">
-                  <select
-                    value={selectedCountry.code}
-                    onChange={(e) => {
-                      const found = POPULAR_COUNTRIES.find((c) => c.code === e.target.value);
-                      if (found) setSelectedCountry(found);
-                    }}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-3 text-white text-xs font-bold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all appearance-none cursor-pointer"
-                  >
-                    {POPULAR_COUNTRIES.map((c) => (
-                      <option key={c.code} value={c.code} className="bg-neutral-900 text-white">
-                        {c.flag} {c.dialCode} ({c.name})
-                      </option>
+                  <div className="flex justify-center items-center gap-2 sm:gap-2.5" onPaste={handleOtpPaste}>
+                    {otpDigits.map((digit, idx) => (
+                      <input
+                        key={idx}
+                        ref={(el) => (otpInputRefs.current[idx] = el)}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={digit}
+                        onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                        className="w-11 h-13 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-black bg-neutral-950 border border-neutral-800 focus:border-emerald-500 rounded-xl text-white outline-none transition-all shadow-inner focus:ring-2 focus:ring-emerald-500/20"
+                      />
                     ))}
-                  </select>
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400 text-xs">
-                    ▼
                   </div>
                 </div>
 
-                {/* Local Phone Number Input */}
-                <div className="relative flex-1">
-                  <input
-                    type="tel"
-                    required
-                    value={localPhone}
-                    onChange={(e) => setLocalPhone(e.target.value)}
-                    placeholder={selectedCountry.placeholder}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white text-sm font-semibold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
-                  />
+                {/* Direct WhatsApp Open Link */}
+                <div className="p-4 rounded-2xl bg-neutral-950 border border-emerald-500/30 text-xs space-y-3">
+                  <div className="flex items-start gap-2.5 text-emerald-400">
+                    <MessageCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <span className="font-bold text-neutral-200 block">WhatsApp Verification Code Sent</span>
+                      <p className="text-neutral-400 text-[11px] leading-relaxed">
+                        Please check your WhatsApp on <strong className="text-white">{otpSentPhone}</strong>. You can also tap below to open WhatsApp directly:
+                      </p>
+                    </div>
+                  </div>
+
+                  {whatsappLink && (
+                    <a
+                      href={whatsappLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full py-2.5 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold flex items-center justify-center gap-2 transition-all"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open in WhatsApp</span>
+                    </a>
+                  )}
+                </div>
+
+                {/* Submit Verification Button */}
+                <button
+                  type="button"
+                  onClick={() => handleVerifyOtp()}
+                  disabled={submitting || otpDigits.some((d) => d === '')}
+                  className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
+                >
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Verifying Code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>
+                        {mode === 'signup' ? 'Verify & Register Account' : 'Verify & Sign In'}
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                {/* Resend and Change Number */}
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setWaStep('form');
+                    }}
+                    className="text-neutral-400 hover:text-white flex items-center gap-1 transition-colors"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Change Number</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResendCode}
+                    disabled={resendCooldown > 0 || submitting}
+                    className="text-emerald-400 hover:text-emerald-300 font-semibold disabled:text-neutral-600 transition-colors"
+                  >
+                    {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+                  </button>
                 </div>
               </div>
-              <p className="text-[11px] text-neutral-500 mt-1 pl-1">
-                Full WhatsApp ID: <span className="text-neutral-300 font-mono font-semibold">{getFullPhoneNumber()}</span>
-              </p>
-            </div>
+            ) : (
+              /* WhatsApp Step 1: Phone & Details Form */
+              <form
+                onSubmit={mode === 'signup' ? handleRequestWhatsAppOtp : handleWhatsAppPasswordLogin}
+                className="space-y-4 animate-fade-in"
+              >
+                {/* Phone Number Input */}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                    WhatsApp Phone Number
+                  </label>
 
-            {/* Manager / Gamer Name (Sign Up only) */}
+                  <div className="flex gap-2">
+                    {/* Country Code Picker */}
+                    <div className="relative w-36 shrink-0">
+                      <select
+                        value={selectedCountry.code}
+                        onChange={(e) => {
+                          const found = POPULAR_COUNTRIES.find((c) => c.code === e.target.value);
+                          if (found) setSelectedCountry(found);
+                        }}
+                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-3 text-white text-xs font-bold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all appearance-none cursor-pointer"
+                      >
+                        {POPULAR_COUNTRIES.map((c) => (
+                          <option key={c.code} value={c.code} className="bg-neutral-900 text-white">
+                            {c.flag} {c.dialCode} ({c.name})
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400 text-xs">
+                        ▼
+                      </div>
+                    </div>
+
+                    {/* Local Phone Input */}
+                    <div className="relative flex-1">
+                      <input
+                        type="tel"
+                        required
+                        value={localPhone}
+                        onChange={(e) => setLocalPhone(e.target.value)}
+                        placeholder={selectedCountry.placeholder}
+                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-white text-sm font-semibold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-neutral-500 mt-1 pl-1">
+                    Full WhatsApp Number:{' '}
+                    <span className="text-neutral-300 font-mono font-semibold">
+                      {getFullWhatsAppNumber()}
+                    </span>
+                  </p>
+                </div>
+
+                {/* Manager Name (Sign Up only) */}
+                {mode === 'signup' && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                      Manager / Gamer Name
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                        <User className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={waManagerName}
+                        onChange={(e) => setWaManagerName(e.target.value)}
+                        placeholder="e.g. PepGamer24"
+                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Password Input */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider">
+                      Password
+                    </label>
+                    {mode === 'login' && (
+                      <button
+                        type="button"
+                        onClick={handleRequestWhatsAppOtp}
+                        className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold"
+                      >
+                        Sign in with 6-digit code
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <input
+                      type={showWaPassword ? 'text' : 'password'}
+                      required
+                      value={waPassword}
+                      onChange={(e) => setWaPassword(e.target.value)}
+                      placeholder={mode === 'signup' ? 'Min. 6 characters' : '••••••••'}
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-10 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowWaPassword(!showWaPassword)}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-neutral-500 hover:text-neutral-300"
+                    >
+                      {showWaPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm Password (Sign Up only) */}
+                {mode === 'signup' && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                      Confirm Password
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                        <Lock className="w-4 h-4" />
+                      </div>
+                      <input
+                        type={showWaPassword ? 'text' : 'password'}
+                        required
+                        value={waConfirmPassword}
+                        onChange={(e) => setWaConfirmPassword(e.target.value)}
+                        placeholder="Repeat your password"
+                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Submit Action */}
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Please wait...</span>
+                    </>
+                  ) : mode === 'signup' ? (
+                    <>
+                      <MessageCircle className="w-4 h-4" />
+                      <span>Send 6-Digit WhatsApp Code</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Sign In with WhatsApp</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+          </>
+        )}
+
+        {/* --- OPTION 2: STANDARD EMAIL & PASSWORD WITH CRYPTOGRAPHIC SALTING & HASHING --- */}
+        {authMethod === 'email' && (
+          <form onSubmit={handleEmailSubmit} className="space-y-4 animate-fade-in">
+            {/* Manager Name (Sign Up only) */}
             {mode === 'signup' && (
               <div>
                 <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
@@ -554,50 +675,58 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                   <input
                     type="text"
                     required
-                    value={managerName}
-                    onChange={(e) => setManagerName(e.target.value)}
-                    placeholder="e.g. PepGamer24 or KingTactician"
+                    value={emailManagerName}
+                    onChange={(e) => setEmailManagerName(e.target.value)}
+                    placeholder="e.g. PepGamer24"
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
                   />
                 </div>
               </div>
             )}
 
-            {/* Password Field */}
+            {/* Email Address */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider">
-                  Password
-                </label>
-                {mode === 'login' && (
-                  <button
-                    type="button"
-                    onClick={handleRequestOtp}
-                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold"
-                  >
-                    Sign in with WhatsApp code
-                  </button>
-                )}
+              <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                Email Address
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="manager@example.com"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
+                />
               </div>
+            </div>
 
+            {/* Password */}
+            <div>
+              <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                Password
+              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={showEmailPassword ? 'text' : 'password'}
                   required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={emailPassword}
+                  onChange={(e) => setEmailPassword(e.target.value)}
                   placeholder={mode === 'signup' ? 'Min. 6 characters' : '••••••••'}
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-10 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => setShowEmailPassword(!showEmailPassword)}
                   className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-neutral-500 hover:text-neutral-300"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showEmailPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
@@ -613,10 +742,10 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                     <Lock className="w-4 h-4" />
                   </div>
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type={showEmailPassword ? 'text' : 'password'}
                     required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    value={emailConfirmPassword}
+                    onChange={(e) => setEmailConfirmPassword(e.target.value)}
                     placeholder="Repeat your password"
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
                   />
@@ -624,7 +753,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
               </div>
             )}
 
-            {/* Submit Action Button */}
+            {/* Submit Email Action */}
             <button
               type="submit"
               disabled={submitting}
@@ -637,66 +766,59 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                 </>
               ) : mode === 'signup' ? (
                 <>
-                  <MessageCircle className="w-4 h-4" />
-                  <span>Get 6-Digit WhatsApp Code</span>
+                  <User className="w-4 h-4" />
+                  <span>Sign Up with Email & Password</span>
                 </>
               ) : (
                 <>
                   <Lock className="w-4 h-4" />
-                  <span>Sign In with WhatsApp</span>
+                  <span>Sign In with Email</span>
                 </>
               )}
             </button>
+
+            <p className="text-[11px] text-center text-neutral-500 flex items-center justify-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Protected by Salted SHA-256 Web Crypto Hashing</span>
+            </p>
           </form>
         )}
 
-        {/* Footer Mode Switcher */}
-        <div className="pt-2 border-t border-neutral-800/80 text-center space-y-2">
+        {/* Footer: Toggle Login vs Sign Up */}
+        <div className="pt-2 border-t border-neutral-800 text-center">
           {mode === 'login' ? (
             <p className="text-xs text-neutral-400">
-              Don't have a manager account?{' '}
+              Don't have an account yet?{' '}
               <button
                 type="button"
                 onClick={() => {
                   setError(null);
-                  setStep('form');
+                  setWaStep('form');
                   onSwitchMode('signup');
                 }}
                 className="text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
               >
-                Sign up with WhatsApp
+                Sign up free
               </button>
             </p>
           ) : (
             <p className="text-xs text-neutral-400">
-              Already registered your WhatsApp?{' '}
+              Already have an account?{' '}
               <button
                 type="button"
                 onClick={() => {
                   setError(null);
-                  setStep('form');
+                  setWaStep('form');
                   onSwitchMode('login');
                 }}
                 className="text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
               >
-                Sign in with WhatsApp
+                Sign in
               </button>
             </p>
           )}
-
-          {/* Fallback link to sign in with email if previously registered */}
-          {!showEmailLogin && step !== 'otp' && (
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowEmailLogin(true)}
-                className="text-[11px] text-neutral-500 hover:text-neutral-300 transition-colors"
-              >
-                Or sign in with email address
-              </button>
-            </div>
-          )}
         </div>
+
       </div>
     </div>
   );
