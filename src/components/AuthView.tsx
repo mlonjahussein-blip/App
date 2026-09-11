@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { useAuth } from '../lib/AuthContext.tsx';
-import { LogIn, UserPlus, AlertCircle, ExternalLink, RefreshCw, Lock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useAuth, GOOGLE_CLIENT_ID, parseJwt } from '../lib/AuthContext.tsx';
+import { LogIn, UserPlus, AlertCircle, Lock, Sparkles, CheckCircle2 } from 'lucide-react';
 
 interface AuthModalProps {
   initialMode: 'login' | 'signup';
@@ -9,7 +9,7 @@ interface AuthModalProps {
 }
 
 export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onSwitchMode }) => {
-  const { signIn, signUp, signInWithGoogle } = useAuth();
+  const { signIn, signUp, signInWithGoogle, authenticateWithGooglePayload } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -17,17 +17,74 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const googleBtnRef = useRef<HTMLDivElement | null>(null);
+
+  // Initialize Google Identity Services (GIS)
+  useEffect(() => {
+    let checkInterval: any = null;
+    const setupGis = () => {
+      if (typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
+        try {
+          (window as any).google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: async (response: any) => {
+              if (response?.credential) {
+                const payload = parseJwt(response.credential);
+                if (payload && payload.email) {
+                  setGoogleSubmitting(true);
+                  setError(null);
+                  try {
+                    await authenticateWithGooglePayload({
+                      sub: payload.sub,
+                      email: payload.email,
+                      name: payload.name,
+                      picture: payload.picture
+                    });
+                    onSuccess();
+                  } catch (err: any) {
+                    setError(err.message || 'Failed to authenticate with Google.');
+                  } finally {
+                    setGoogleSubmitting(false);
+                  }
+                }
+              }
+            },
+            auto_select: false,
+            cancel_on_tap_outside: true
+          });
+
+          // Attempt to prompt One Tap if user is already signed into Google
+          try {
+            (window as any).google.accounts.id.prompt();
+          } catch {}
+        } catch (e) {
+          console.warn('GIS init warning:', e);
+        }
+        return true;
+      }
+      return false;
+    };
+
+    if (!setupGis()) {
+      checkInterval = setInterval(() => {
+        if (setupGis()) {
+          clearInterval(checkInterval);
+        }
+      }, 500);
+    }
+
+    return () => {
+      if (checkInterval) clearInterval(checkInterval);
+    };
+  }, []);
 
   const cleanErrorMessage = (msg: string): string => {
     if (!msg) return 'Authentication error. Please try again.';
     const match = msg.match(/Firebase:\s*Error\s*\(([^)]+)\)\.?/i);
     if (match && match[1]) {
       const code = match[1];
-      if (code === 'auth/unauthorized-domain') {
-        return 'Firebase domain authorization required. See instructions below to complete Google setup.';
-      }
       if (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') {
-        return 'Invalid email or password. Please verify and try again.';
+        return 'Incorrect email or password. Please verify and try again.';
       }
       if (code === 'auth/user-not-found') {
         return 'No account found for this email. Click "Sign up free" below to create one.';
@@ -53,15 +110,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       onSuccess();
     } catch (err: any) {
       console.error('Google auth error:', err);
-      const isUnauth =
-        err?.code === 'auth/unauthorized-domain' ||
-        err?.message?.includes('unauthorized-domain') ||
-        err?.message?.includes('pending authorization');
-      if (isUnauth) {
-        setError('unauthorized-domain');
-      } else {
-        setError(cleanErrorMessage(err?.message || 'Google sign-in failed. Please try again.'));
-      }
+      setError(cleanErrorMessage(err?.message || 'Google sign-in could not complete. Please try again.'));
     } finally {
       setGoogleSubmitting(false);
     }
@@ -103,9 +152,6 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     }
   };
 
-  const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'efootballaihub.com';
-  const isUnauthorizedDomain = error === 'unauthorized-domain' || (error && error.includes('unauthorized-domain'));
-
   return (
     <div className="max-w-md mx-auto py-12 px-4">
       <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
@@ -125,15 +171,16 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
           </p>
         </div>
 
-        {/* Primary SSO: Continue with Google */}
-        <div className="space-y-3">
+        {/* Option 2: Continue with Google (Direct Google Identity Services) */}
+        <div className="space-y-2">
+          <div ref={googleBtnRef} className="hidden" />
           <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={googleSubmitting || submitting}
-            className="w-full py-3 px-4 rounded-xl bg-white hover:bg-neutral-100 text-neutral-900 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50"
+            className="w-full py-3 px-4 rounded-xl bg-white hover:bg-neutral-100 text-neutral-900 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50 hover:shadow-lg"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -153,59 +200,15 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
             </svg>
             <span>{googleSubmitting ? 'Connecting to Google...' : 'Continue with Google'}</span>
           </button>
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-neutral-500">
+            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+            <span>Instant Google Single Sign-On (Direct &amp; Free)</span>
+          </div>
         </div>
 
-        {/* Domain Authorization Guidance if unauthorized-domain occurs */}
-        {isUnauthorizedDomain && (
-          <div className="p-4 rounded-2xl bg-neutral-950 border border-amber-500/30 text-xs space-y-3">
-            <div className="flex items-start gap-2.5 text-amber-400">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <span className="font-bold text-amber-300 block">Google Sign-In: 1 Quick Setup Step Required</span>
-                <p className="text-neutral-300 text-[11px] leading-relaxed">
-                  Firebase Authentication requires custom domains (<code className="text-emerald-400 font-mono bg-neutral-900 px-1 py-0.5 rounded">{currentHost}</code>) to be whitelisted under Authorized Domains.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-neutral-900/90 rounded-xl p-3 border border-neutral-800 text-[11px] space-y-2">
-              <p className="font-semibold text-neutral-200">How to authorize in 30 seconds:</p>
-              <ol className="list-decimal list-inside text-neutral-400 space-y-1 pl-1">
-                <li>
-                  Open{' '}
-                  <a
-                    href="https://console.firebase.google.com/project/emergent-fastness-8lcf1/authentication/settings"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-emerald-400 hover:text-emerald-300 font-semibold underline inline-flex items-center gap-1"
-                  >
-                    Firebase Auth Settings <ExternalLink className="w-3 h-3 inline" />
-                  </a>
-                </li>
-                <li>
-                  Under <strong className="text-neutral-200">"Authorized domains"</strong>, click <strong className="text-neutral-200">"Add domain"</strong>.
-                </li>
-                <li>
-                  Enter <code className="text-emerald-400 font-mono">{currentHost}</code> and click <strong className="text-neutral-200">"Save"</strong>.
-                </li>
-              </ol>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={googleSubmitting}
-              className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${googleSubmitting ? 'animate-spin' : ''}`} />
-              <span>Try Google Sign-In Again</span>
-            </button>
-          </div>
-        )}
-
-        {/* General Error Banner */}
-        {error && !isUnauthorizedDomain && (
-          <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-800/60 text-xs flex items-start gap-2.5 text-rose-300">
+        {/* Error Notification */}
+        {error && (
+          <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-800/60 text-xs flex items-start gap-2.5 text-rose-300 animate-fade-in">
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
             <span className="font-medium">{error}</span>
           </div>
@@ -219,7 +222,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
           </span>
         </div>
 
-        {/* Email & Password Form */}
+        {/* Option 1: Standard Email & Password Form (Zero Firebase lock, secure salted hash) */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {initialMode === 'signup' && (
             <div>
@@ -289,7 +292,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
             className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <Lock className="w-4 h-4" />
-            <span>{submitting ? 'Please wait...' : initialMode === 'login' ? 'Sign In' : 'Create Account'}</span>
+            <span>{submitting ? 'Please wait...' : initialMode === 'login' ? 'Sign In' : 'Create Free Account'}</span>
           </button>
         </form>
 
@@ -324,3 +327,4 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     </div>
   );
 };
+
