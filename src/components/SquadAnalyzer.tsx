@@ -312,43 +312,75 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           <span className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0 mt-0.5">
             <Info className="w-5 h-5" />
           </span>
-          <div className="space-y-2 text-sm text-neutral-300">
-            <h2 className="text-base font-bold text-white tracking-tight">Add your squad</h2>
-            <p className="text-neutral-400 text-xs sm:text-sm">
-              Upload screenshots or take clear photos of your eFootball screen.
-            </p>
-            <div className="pt-1">
-              <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
-                For best results:
+          {activeInputTab === 'screenshots' ? (
+            <div className="space-y-2 text-sm text-neutral-300">
+              <h2 className="text-base font-bold text-white tracking-tight">Add your squad</h2>
+              <p className="text-neutral-400 text-xs sm:text-sm">
+                Upload screenshots or take clear photos of your eFootball screen.
               </p>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-neutral-300">
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  Keep the screen fully visible.
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  Hold the camera straight in front of the screen.
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  Avoid reflections and glare.
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  Use good lighting.
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  Move closer if player names are too small.
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  Make sure player names and ratings are visible.
-                </li>
-              </ul>
+              <div className="pt-1">
+                <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
+                  For best results:
+                </p>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-neutral-300">
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    Keep the screen fully visible.
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    Hold the camera straight in front of the screen.
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    Avoid reflections and glare.
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    Use good lighting.
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    Move closer if player names are too small.
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    Make sure player names and ratings are visible.
+                  </li>
+                </ul>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2 text-sm text-neutral-300">
+              <h2 className="text-base font-bold text-white tracking-tight">Enter your Squad & Manager Details</h2>
+              <p className="text-neutral-400 text-xs sm:text-sm">
+                Manually configure your eFootball Starting XI, Substitutes bench, and Manager profile for instant tactical breakdown and synergy evaluation.
+              </p>
+              <div className="pt-1">
+                <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
+                  Tips for optimal squad analysis:
+                </p>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-neutral-300">
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    Provide manager proficiency values to get accurate team chemistry scores.
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    Add all 11 Starting XI players with their respective positions and card types.
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    Add up to 12 substitutes for game-changing bench depth analysis.
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    Include player club affiliations to check potential team boosts.
+                  </li>
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
