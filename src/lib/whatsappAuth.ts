@@ -97,8 +97,8 @@ export async function sendWhatsAppVerificationCode(
   const rawDigits = cleanPhoneDigits(cleanPhone);
   const messageText = `🎮 *eFootball AI Hub Verification*\n\nHello ${managerName ? `*${managerName}*` : 'Manager'}!\nYour 6-digit WhatsApp verification code is:\n\n👉 *${randomCode}*\n\n(Valid for 10 minutes. Enter this code to complete registration).`;
   
-  // Use official WhatsApp API deep link targeting the recipient's number
-  const whatsappLink = `https://api.whatsapp.com/send?phone=${rawDigits}&text=${encodeURIComponent(messageText)}`;
+  // Use official WhatsApp universal link
+  const whatsappLink = `https://wa.me/${rawDigits}?text=${encodeURIComponent(messageText)}`;
 
   let hasGateway = false;
   let serverMessage = '';
@@ -115,20 +115,27 @@ export async function sendWhatsAppVerificationCode(
         purpose
       })
     });
-    if (res.ok) {
-      const data = await res.json();
-      hasGateway = data.gateway !== 'direct_verification';
-      serverMessage = data.message || '';
+
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok && data.success) {
+      hasGateway = true;
+      serverMessage = data.message || `Verification code sent to your WhatsApp (+${rawDigits}).`;
+    } else {
+      console.warn('[WhatsApp Auth] Backend dispatch note:', data?.error || data?.message);
+      // If gateway is not configured or failed, we gracefully proceed with direct WhatsApp link
+      hasGateway = false;
+      serverMessage = `Verification code ready. Open WhatsApp below to receive your 6-digit code for +${rawDigits}.`;
     }
-  } catch (err) {
-    console.warn('Backend WhatsApp dispatch notice:', err);
+  } catch (err: any) {
+    console.warn('[WhatsApp Auth] Backend dispatch offline or error, falling back to direct link:', err);
+    hasGateway = false;
+    serverMessage = `Verification code ready. Open WhatsApp below to receive your 6-digit code for +${rawDigits}.`;
   }
 
   return {
     success: true,
-    message: hasGateway
-      ? `Verification code dispatched to your WhatsApp (+${rawDigits}).`
-      : `WhatsApp code generated. Open WhatsApp or use the code to complete registration.`,
+    message: serverMessage || `Verification code ready for WhatsApp (+${rawDigits}).`,
     code: randomCode,
     expiresAt,
     whatsappLink,

@@ -58,7 +58,6 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [otpSentPhone, setOtpSentPhone] = useState<string>('');
   const [whatsappLink, setWhatsappLink] = useState<string>('');
-  const [latestCode, setLatestCode] = useState<string>('');
   const [hasGateway, setHasGateway] = useState<boolean>(false);
   const [resendCooldown, setResendCooldown] = useState<number>(0);
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -74,7 +73,6 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
   const [emailStep, setEmailStep] = useState<'form' | 'otp'>('form');
   const [emailOtpDigits, setEmailOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [emailOtpSentTo, setEmailOtpSentTo] = useState<string>('');
-  const [emailLatestCode, setEmailLatestCode] = useState<string>('');
   const [emailResendCooldown, setEmailResendCooldown] = useState<number>(0);
   const emailOtpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -211,24 +209,12 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       );
       setOtpSentPhone(fullPhone);
       setWhatsappLink(resp.whatsappLink);
-      setLatestCode(resp.code);
       setHasGateway(!!resp.hasGateway);
       setResendCooldown(60);
       setWaStep('otp');
 
-      // Attempt to open WhatsApp directly with the verification message
-      if (typeof window !== 'undefined' && resp.whatsappLink) {
-        try {
-          window.open(resp.whatsappLink, '_blank');
-        } catch (openErr) {
-          console.warn('Popup blocked, user can tap the Open WhatsApp button:', openErr);
-        }
-      }
-
       setInfoMessage(
-        resp.hasGateway
-          ? `We sent a 6-digit verification code to your WhatsApp: ${fullPhone}`
-          : `WhatsApp verification started for ${fullPhone}. Tap "Open WhatsApp" below to get your code.`
+        resp.message || `We sent a 6-digit verification code to your WhatsApp: ${fullPhone}`
       );
     } catch (err: any) {
       setError(err.message || 'Failed to dispatch WhatsApp verification code. Please try again.');
@@ -347,7 +333,6 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
         mode === 'signup' ? 'signup' : 'signin'
       );
       setWhatsappLink(resp.whatsappLink);
-      setLatestCode(resp.code);
       setHasGateway(!!resp.hasGateway);
       setResendCooldown(60);
 
@@ -401,7 +386,6 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       try {
         const resp = await sendEmailOtpCode(cleanEmail, emailManagerName.trim());
         setEmailOtpSentTo(cleanEmail);
-        setEmailLatestCode(resp.code);
         setEmailResendCooldown(60);
         setEmailStep('otp');
         setInfoMessage(`We sent a 6-digit verification code from info@efootballaihub.com to ${cleanEmail}`);
@@ -491,8 +475,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     setError(null);
     setSubmitting(true);
     try {
-      const resp = await sendEmailOtpCode(emailOtpSentTo, emailManagerName.trim() || undefined);
-      setEmailLatestCode(resp.code);
+      await sendEmailOtpCode(emailOtpSentTo, emailManagerName.trim() || undefined);
       setEmailResendCooldown(60);
       setInfoMessage(`New 6-digit verification code sent from info@efootballaihub.com to ${emailOtpSentTo}`);
     } catch (err: any) {
@@ -645,24 +628,6 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                       <span>Open WhatsApp to Receive 6-Digit Code</span>
                       <ExternalLink className="w-3.5 h-3.5 opacity-70" />
                     </a>
-                  )}
-
-                  {/* Fallback code assistant for environments without paid SMS Gateway */}
-                  {latestCode && (
-                    <div className="pt-2 border-t border-neutral-800 flex items-center justify-between text-[11px]">
-                      <span className="text-neutral-400">Didn't receive SMS?</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const digits = latestCode.split('');
-                          setOtpDigits(digits);
-                          handleVerifyOtp(latestCode);
-                        }}
-                        className="font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-neutral-900 hover:bg-neutral-800 px-2.5 py-1 rounded-lg border border-neutral-800 hover:border-emerald-500/50 transition-colors"
-                      >
-                        Code: {latestCode} (Auto-Fill)
-                      </button>
-                    </div>
                   )}
                 </div>
 
@@ -1048,24 +1013,6 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                       </p>
                     </div>
                   </div>
-
-                  {/* Instant auto-fill assistant if code is generated */}
-                  {emailLatestCode && (
-                    <div className="pt-2 border-t border-neutral-800 flex items-center justify-between text-[11px]">
-                      <span className="text-neutral-400">Quick Verification Helper:</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const digits = emailLatestCode.split('');
-                          setEmailOtpDigits(digits);
-                          handleVerifyEmailOtp(emailLatestCode);
-                        }}
-                        className="font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-neutral-900 hover:bg-neutral-800 px-2.5 py-1 rounded-lg border border-neutral-800 hover:border-emerald-500/50 transition-colors"
-                      >
-                        Code: {emailLatestCode} (Auto-Fill)
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 {/* Submit Email Verification Button */}

@@ -38,13 +38,90 @@ app.post('/api/auth/send-whatsapp-otp', async (req, res) => {
   }
 
   const otpCode = code || Math.floor(100000 + Math.random() * 900000).toString();
+  const greeting = managerName ? `Hello ${managerName}!` : 'Hello Manager!';
+  const messageBody = `🎮 eFootball AI Hub: ${greeting} Your 6-digit WhatsApp verification code is: ${otpCode}. Valid for 10 minutes. Enter this code to complete registration.`;
 
-  // Meta Cloud API if configured
+  // 1. Twilio WhatsApp Gateway
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+  const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
+  const twilioFrom = process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER;
+
+  if (twilioSid && twilioAuth) {
+    try {
+      const fromNumber = twilioFrom
+        ? (twilioFrom.startsWith('whatsapp:') ? twilioFrom : `whatsapp:${twilioFrom.startsWith('+') ? twilioFrom : '+' + twilioFrom}`)
+        : 'whatsapp:+14155238886'; // Twilio official WhatsApp Sandbox sender
+
+      const toNumber = `whatsapp:+${cleanDigits}`;
+
+      const twilioParams = new URLSearchParams();
+      twilioParams.append('From', fromNumber);
+      twilioParams.append('To', toNumber);
+      twilioParams.append('Body', messageBody);
+
+      const twilioResp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Basic ' + Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64'),
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: twilioParams.toString()
+      });
+
+      const twilioData = await twilioResp.json();
+
+      if (twilioResp.ok) {
+        console.log(`[WhatsApp Gateway] Successfully sent Twilio WhatsApp message to +${cleanDigits} (SID: ${twilioData.sid})`);
+        return res.json({
+          success: true,
+          gateway: 'twilio_whatsapp',
+          phoneNumber: '+' + cleanDigits,
+          message: `Verification code sent to your WhatsApp (+${cleanDigits}).`
+        });
+      } else {
+        console.warn('[WhatsApp Gateway] Twilio WhatsApp dispatch warning:', twilioData);
+        // If WhatsApp failed (e.g. user hasn't joined sandbox), try direct SMS fallback if available
+        if (twilioFrom && !twilioFrom.startsWith('whatsapp:')) {
+          const smsParams = new URLSearchParams();
+          smsParams.append('From', twilioFrom.startsWith('+') ? twilioFrom : '+' + twilioFrom);
+          smsParams.append('To', `+${cleanDigits}`);
+          smsParams.append('Body', messageBody);
+
+          const smsResp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Basic ' + Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64'),
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: smsParams.toString()
+          });
+
+          if (smsResp.ok) {
+            return res.json({
+              success: true,
+              gateway: 'twilio_sms',
+              phoneNumber: '+' + cleanDigits,
+              message: `Verification code sent to your phone (+${cleanDigits}) via SMS.`
+            });
+          }
+        }
+
+        return res.status(400).json({
+          success: false,
+          error: `Twilio delivery failed: ${twilioData.message || 'Check recipient phone number and Twilio WhatsApp sender setup.'}`
+        });
+      }
+    } catch (e: any) {
+      console.error('[WhatsApp Gateway] Twilio dispatch exception:', e);
+    }
+  }
+
+  // 2. Meta WhatsApp Cloud API (Graph API)
   const metaToken = process.env.WHATSAPP_CLOUD_API_TOKEN || process.env.WHATSAPP_TOKEN;
   const metaPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (metaToken && metaPhoneId) {
     try {
-      const metaResp = await fetch(`https://graph.facebook.com/v19.0/${metaPhoneId}/messages`, {
+      const metaResp = await fetch(`https://graph.facebook.com/v20.0/${metaPhoneId}/messages`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${metaToken}`,
@@ -52,33 +129,44 @@ app.post('/api/auth/send-whatsapp-otp', async (req, res) => {
         },
         body: JSON.stringify({
           messaging_product: 'whatsapp',
+          recipient_type: 'individual',
           to: cleanDigits,
           type: 'text',
           text: {
             preview_url: false,
-            body: `🎮 eFootball AI Hub: Your 6-digit verification code is ${otpCode}. Valid for 10 minutes.`
+            body: messageBody
           }
         })
       });
+
+      const metaData = await metaResp.json();
       if (metaResp.ok) {
+        console.log(`[WhatsApp Gateway] Sent Meta WhatsApp Cloud message to +${cleanDigits}`);
         return res.json({
           success: true,
           gateway: 'meta_cloud_api',
           phoneNumber: '+' + cleanDigits,
           message: 'Verification code sent via WhatsApp Cloud API.'
         });
+      } else {
+        console.warn('[WhatsApp Gateway] Meta Cloud API error:', metaData);
+        return res.status(400).json({
+          success: false,
+          error: `Meta WhatsApp Cloud API error: ${metaData?.error?.message || 'Check WhatsApp Business access token and phone number ID.'}`
+        });
       }
-    } catch (e) {
-      console.warn('Meta WhatsApp error:', e);
+    } catch (e: any) {
+      console.error('[WhatsApp Gateway] Meta dispatch exception:', e);
     }
   }
 
-  return res.json({
-    success: true,
-    gateway: 'direct_verification',
+  // 3. Neither Gateway Configured
+  console.warn(`[WhatsApp Gateway] No active WhatsApp Gateway credentials found. (TWILIO_ACCOUNT_SID or WHATSAPP_CLOUD_API_TOKEN missing).`);
+  return res.status(400).json({
+    success: false,
+    gatewayConfigured: false,
     phoneNumber: '+' + cleanDigits,
-    code: otpCode,
-    message: `Verification code generated for WhatsApp (+${cleanDigits}).`
+    error: 'Automated WhatsApp text delivery requires a WhatsApp Gateway (Twilio or Meta WhatsApp Cloud API) configured in environment variables. Because no gateway credentials (TWILIO_ACCOUNT_SID or WHATSAPP_CLOUD_API_TOKEN) are set yet, an automated text cannot be sent to your WhatsApp. Please sign up or sign in using Option 2 (Email & Password) to receive your verification code at your email from info@efootballaihub.com, or configure your WhatsApp Gateway.'
   });
 });
 
