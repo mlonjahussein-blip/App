@@ -80,7 +80,7 @@ export async function sendEmailVerificationCode(
 
       return {
         success: true,
-        message: data.message || `Verification code sent to ${cleanEmail} from ${from}.`,
+        message: data.message || `Code sent to your email. Please check your inbox and spam folder.`,
         code: finalCode,
         expiresAt,
         from
@@ -102,7 +102,7 @@ export async function sendEmailVerificationCode(
 
     return {
       success: true,
-      message: `Verification code dispatched to ${cleanEmail} from info@efootballaihub.com.`,
+      message: `Code sent to your email. Please check your inbox and spam folder.`,
       code: fallbackCode,
       expiresAt: fallbackExpiresAt,
       from: 'info@efootballaihub.com'

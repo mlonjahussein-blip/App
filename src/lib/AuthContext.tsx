@@ -565,7 +565,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Verify 6-digit Email Verification Code
     if (!otpCode || otpCode.trim().length !== 6) {
-      throw new Error('Please enter the 6-digit verification code sent to your email from info@efootballaihub.com.');
+      throw new Error('Please enter the 6-digit verification code sent to your email.');
     }
 
     const isCodeValid = await verifyEmailVerificationCode(cleanEmail, otpCode.trim());

@@ -151,7 +151,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       await sendEmailOtpCode(cleanEmail, cleanName);
       setStep('otp');
       setResendCooldown(60);
-      setInfoMessage(`A 6-digit verification code was sent from info@efootballaihub.com to ${cleanEmail}`);
+      setInfoMessage(`A 6-digit verification code was sent to ${cleanEmail}`);
     } catch (err: any) {
       setError(err.message || 'Failed to dispatch verification email. Please try again.');
     } finally {
@@ -199,7 +199,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       const cleanEmail = email.trim().toLowerCase();
       await sendEmailOtpCode(cleanEmail, managerName.trim() || undefined);
       setResendCooldown(60);
-      setInfoMessage(`New 6-digit verification code sent from info@efootballaihub.com to ${cleanEmail}`);
+      setInfoMessage(`New 6-digit verification code sent to ${cleanEmail}`);
     } catch (err: any) {
       setError(err.message || 'Failed to resend code. Please try again.');
     } finally {
@@ -554,7 +554,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
             <div className="p-3.5 rounded-xl bg-neutral-950 border border-emerald-500/20 text-xs flex items-start gap-2.5 text-neutral-400">
               <Mail className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
               <p className="text-[11px] leading-relaxed">
-                Code sent from <strong className="text-emerald-400">info@efootballaihub.com</strong>. Please check your inbox and spam folder.
+                Code sent to your email. Please check your inbox and spam folder.
               </p>
             </div>
 

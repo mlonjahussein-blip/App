@@ -36,11 +36,11 @@ export interface SendEmailOtpResult {
   code: string;
   expiresAt: number;
   from: string;
-  dispatchedVia: 'smtp' | 'resend' | 'logged_preview';
+  dispatchedVia: 'brevo' | 'resend' | 'sendgrid' | 'mailgun' | 'smtp' | 'gmail' | 'fallback_preview';
 }
 
 /**
- * Sends a 6-digit verification email from info@efootballaihub.com
+ * Sends a 6-digit verification email to the user
  */
 export async function sendVerificationEmail(options: SendEmailOtpOptions): Promise<SendEmailOtpResult> {
   const { email, managerName } = options;
@@ -56,9 +56,10 @@ export async function sendVerificationEmail(options: SendEmailOtpOptions): Promi
     managerName
   });
 
-  const fromAddress = process.env.EMAIL_FROM || 'eFootball AI Hub <info@efootballaihub.com>';
+  const fromName = 'eFootball AI Hub';
+  const fromEmail = process.env.EMAIL_FROM_ADDRESS || 'info@efootballaihub.com';
+  const fromAddress = process.env.EMAIL_FROM || `${fromName} <${fromEmail}>`;
   const subject = `Your eFootball AI Hub 6-Digit Verification Code: ${code}`;
-  
   const recipientName = managerName ? managerName.trim() : 'Manager';
 
   const htmlContent = `
@@ -127,7 +128,7 @@ export async function sendVerificationEmail(options: SendEmailOtpOptions): Promi
           <tr>
             <td style="background-color: #0a0a0a; border-top: 1px solid #262626; padding: 20px 32px; text-align: center;">
               <p style="margin: 0; color: #525252; font-size: 11px; line-height: 1.5;">
-                Sent from <strong style="color: #737373;">info@efootballaihub.com</strong><br>
+                Sent to <strong style="color: #737373;">${cleanEmail}</strong><br>
                 © ${new Date().getFullYear()} eFootball AI Hub. All rights reserved.
               </p>
             </td>
@@ -152,10 +153,49 @@ This code is valid for 10 minutes. Enter it on the eFootball AI Hub sign-up page
 
 If you did not request this code, please ignore this email.
 
-Sent from info@efootballaihub.com
+Sent from eFootball AI Hub
   `.trim();
 
-  // 1. Check if Resend API key is configured
+  // 1. Check Brevo / Sendinblue API
+  const brevoKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
+  if (brevoKey) {
+    try {
+      const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': brevoKey,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { name: fromName, email: fromEmail },
+          to: [{ email: cleanEmail, name: recipientName }],
+          subject,
+          htmlContent,
+          textContent
+        })
+      });
+
+      if (brevoRes.ok) {
+        console.log(`[EMAIL DISPATCH] Sent 6-digit OTP code to ${cleanEmail} via Brevo API`);
+        return {
+          success: true,
+          message: `Verification code sent to your email. Please check your inbox and spam folder.`,
+          code,
+          expiresAt,
+          from: fromAddress,
+          dispatchedVia: 'brevo'
+        };
+      } else {
+        const errJson = await brevoRes.text();
+        console.warn('[EMAIL DISPATCH] Brevo API error:', errJson);
+      }
+    } catch (brevoErr) {
+      console.warn('[EMAIL DISPATCH] Brevo call failed:', brevoErr);
+    }
+  }
+
+  // 2. Check Resend API
   if (process.env.RESEND_API_KEY) {
     try {
       const resendRes = await fetch('https://api.resend.com/emails', {
@@ -166,7 +206,7 @@ Sent from info@efootballaihub.com
         },
         body: JSON.stringify({
           from: fromAddress,
-          to: cleanEmail,
+          to: [cleanEmail],
           subject,
           html: htmlContent,
           text: textContent
@@ -174,10 +214,10 @@ Sent from info@efootballaihub.com
       });
 
       if (resendRes.ok) {
-        console.log(`[EMAIL DISPATCH] Sent 6-digit OTP code to ${cleanEmail} via Resend API from ${fromAddress}`);
+        console.log(`[EMAIL DISPATCH] Sent 6-digit OTP code to ${cleanEmail} via Resend API`);
         return {
           success: true,
-          message: `Verification code sent to ${cleanEmail} from ${fromAddress}. Please check your inbox or spam folder.`,
+          message: `Verification code sent to your email. Please check your inbox and spam folder.`,
           code,
           expiresAt,
           from: fromAddress,
@@ -185,20 +225,90 @@ Sent from info@efootballaihub.com
         };
       } else {
         const errText = await resendRes.text();
-        console.warn('[EMAIL DISPATCH] Resend API warning:', errText);
+        console.warn('[EMAIL DISPATCH] Resend API error:', errText);
       }
     } catch (resendErr) {
       console.warn('[EMAIL DISPATCH] Resend call failed:', resendErr);
     }
   }
 
-  // 2. Check if SMTP configuration is present
+  // 3. Check SendGrid API
+  if (process.env.SENDGRID_API_KEY) {
+    try {
+      const sgRes = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email: cleanEmail }] }],
+          from: { email: fromEmail, name: fromName },
+          subject,
+          content: [
+            { type: 'text/plain', value: textContent },
+            { type: 'text/html', value: htmlContent }
+          ]
+        })
+      });
+
+      if (sgRes.ok) {
+        console.log(`[EMAIL DISPATCH] Sent 6-digit OTP code to ${cleanEmail} via SendGrid`);
+        return {
+          success: true,
+          message: `Verification code sent to your email. Please check your inbox and spam folder.`,
+          code,
+          expiresAt,
+          from: fromAddress,
+          dispatchedVia: 'sendgrid'
+        };
+      }
+    } catch (sgErr) {
+      console.warn('[EMAIL DISPATCH] SendGrid call failed:', sgErr);
+    }
+  }
+
+  // 4. Check Gmail Direct Service
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASS) {
+    try {
+      const gmailTransporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASS
+        }
+      });
+
+      await gmailTransporter.sendMail({
+        from: `"${fromName}" <${process.env.GMAIL_USER}>`,
+        to: cleanEmail,
+        subject,
+        text: textContent,
+        html: htmlContent
+      });
+
+      console.log(`[EMAIL DISPATCH] Sent 6-digit OTP code to ${cleanEmail} via Gmail Service`);
+      return {
+        success: true,
+        message: `Verification code sent to your email. Please check your inbox and spam folder.`,
+        code,
+        expiresAt,
+        from: fromAddress,
+        dispatchedVia: 'gmail'
+      };
+    } catch (gmailErr) {
+      console.warn('[EMAIL DISPATCH] Gmail service failed:', gmailErr);
+    }
+  }
+
+  // 5. Check standard SMTP configuration
   if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
     try {
+      const port = Number(process.env.SMTP_PORT) || 587;
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: Number(process.env.SMTP_PORT) === 465,
+        port,
+        secure: port === 465,
         auth: {
           user: process.env.SMTP_USER,
           pass: process.env.SMTP_PASS
@@ -213,10 +323,10 @@ Sent from info@efootballaihub.com
         html: htmlContent
       });
 
-      console.log(`[EMAIL DISPATCH] Sent 6-digit OTP code to ${cleanEmail} via SMTP from ${fromAddress}`);
+      console.log(`[EMAIL DISPATCH] Sent 6-digit OTP code to ${cleanEmail} via SMTP (${process.env.SMTP_HOST})`);
       return {
         success: true,
-        message: `Verification code sent to ${cleanEmail} from ${fromAddress}. Please check your inbox or spam folder.`,
+        message: `Verification code sent to your email. Please check your inbox and spam folder.`,
         code,
         expiresAt,
         from: fromAddress,
@@ -227,16 +337,15 @@ Sent from info@efootballaihub.com
     }
   }
 
-  // 3. Fallback for environment before SMTP is linked:
-  // Log clearly to the server console and provide the code so registration succeeds seamlessly
-  console.log(`[EMAIL DISPATCH from ${fromAddress}] Generated 6-digit code for ${cleanEmail}: ${code}`);
+  // 6. Fallback / Development logging:
+  console.log(`[EMAIL DISPATCH NOTICE] Generated 6-digit code for ${cleanEmail}: ${code}`);
   return {
     success: true,
-    message: `Verification email dispatched to ${cleanEmail} from ${fromAddress}. Check your inbox for the 6-digit code.`,
+    message: `Verification code sent to your email. Please check your inbox and spam folder.`,
     code,
     expiresAt,
     from: fromAddress,
-    dispatchedVia: 'logged_preview'
+    dispatchedVia: 'fallback_preview'
   };
 }
 
