@@ -35,6 +35,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     signInWithWhatsApp,
     signUpWithWhatsApp,
     sendWhatsAppOtpCode,
+    sendEmailOtpCode,
     signInWithWhatsAppOtp
   } = useAuth();
 
@@ -68,6 +69,14 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
   const [emailConfirmPassword, setEmailConfirmPassword] = useState('');
   const [showEmailPassword, setShowEmailPassword] = useState(false);
 
+  // Email OTP Verification Step
+  const [emailStep, setEmailStep] = useState<'form' | 'otp'>('form');
+  const [emailOtpDigits, setEmailOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [emailOtpSentTo, setEmailOtpSentTo] = useState<string>('');
+  const [emailLatestCode, setEmailLatestCode] = useState<string>('');
+  const [emailResendCooldown, setEmailResendCooldown] = useState<number>(0);
+  const emailOtpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
   // Status & Notifications
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
@@ -82,7 +91,16 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
-  // Focus first OTP box when entering OTP step
+  // Timer countdown for email resend
+  useEffect(() => {
+    if (emailResendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setEmailResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [emailResendCooldown]);
+
+  // Focus first OTP box when entering WhatsApp OTP step
   useEffect(() => {
     if (waStep === 'otp') {
       setTimeout(() => {
@@ -90,6 +108,15 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       }, 100);
     }
   }, [waStep]);
+
+  // Focus first OTP box when entering Email OTP step
+  useEffect(() => {
+    if (emailStep === 'otp') {
+      setTimeout(() => {
+        emailOtpInputRefs.current[0]?.focus();
+      }, 100);
+    }
+  }, [emailStep]);
 
   const getFullWhatsAppNumber = (): string => {
     return formatFullWhatsAppNumber(selectedCountry.dialCode, localPhone);
@@ -129,13 +156,14 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       }
     }
 
+    if (mode === 'signup') {
+      // In sign up, require 6-digit WhatsApp verification code
+      return handleRequestWhatsAppOtp(e);
+    }
+
     setSubmitting(true);
     try {
-      if (mode === 'signup') {
-        await signUpWithWhatsApp(fullPhone, waPassword, waManagerName.trim());
-      } else {
-        await signInWithWhatsApp(fullPhone, waPassword);
-      }
+      await signInWithWhatsApp(fullPhone, waPassword);
       onSuccess();
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Please check your credentials.');
@@ -367,18 +395,107 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
         setError('Passwords do not match. Please verify.');
         return;
       }
+
+      setSubmitting(true);
+      try {
+        const resp = await sendEmailOtpCode(cleanEmail, emailManagerName.trim());
+        setEmailOtpSentTo(cleanEmail);
+        setEmailLatestCode(resp.code);
+        setEmailResendCooldown(60);
+        setEmailStep('otp');
+        setInfoMessage(`We sent a 6-digit verification code from info@efootballaihub.com to ${cleanEmail}`);
+      } catch (err: any) {
+        setError(err.message || 'Failed to dispatch email verification code. Please try again.');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // Login mode directly verifies password
+    setSubmitting(true);
+    try {
+      await signIn(cleanEmail, emailPassword);
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message || 'Authentication failed. Please verify your credentials.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Verify Email 6-digit OTP
+  const handleVerifyEmailOtp = async (codeToVerify?: string) => {
+    setError(null);
+    const code = codeToVerify || emailOtpDigits.join('');
+
+    if (code.length !== 6) {
+      setError('Please enter the complete 6-digit verification code.');
+      return;
     }
 
     setSubmitting(true);
     try {
-      if (mode === 'signup') {
-        await signUp(cleanEmail, emailPassword, emailManagerName.trim());
-      } else {
-        await signIn(cleanEmail, emailPassword);
-      }
+      await signUp(emailOtpSentTo, emailPassword, emailManagerName.trim(), code);
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please verify your credentials.');
+      setError(err.message || 'Invalid or expired 6-digit verification code. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEmailOtpDigitChange = (index: number, val: string) => {
+    const char = val.slice(-1).replace(/[^0-9]/g, '');
+    const newDigits = [...emailOtpDigits];
+    newDigits[index] = char;
+    setEmailOtpDigits(newDigits);
+
+    if (char && index < 5) {
+      emailOtpInputRefs.current[index + 1]?.focus();
+    }
+
+    if (char && index === 5 && newDigits.every((d) => d !== '')) {
+      handleVerifyEmailOtp(newDigits.join(''));
+    }
+  };
+
+  const handleEmailOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !emailOtpDigits[index] && index > 0) {
+      emailOtpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleEmailOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6);
+    if (!pasted) return;
+
+    const newDigits = [...emailOtpDigits];
+    for (let i = 0; i < 6; i++) {
+      newDigits[i] = pasted[i] || '';
+    }
+    setEmailOtpDigits(newDigits);
+
+    if (pasted.length === 6) {
+      handleVerifyEmailOtp(pasted);
+    } else if (pasted.length > 0) {
+      const nextIdx = Math.min(pasted.length, 5);
+      emailOtpInputRefs.current[nextIdx]?.focus();
+    }
+  };
+
+  const handleResendEmailOtp = async () => {
+    if (emailResendCooldown > 0 || submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const resp = await sendEmailOtpCode(emailOtpSentTo, emailManagerName.trim() || undefined);
+      setEmailLatestCode(resp.code);
+      setEmailResendCooldown(60);
+      setInfoMessage(`New 6-digit verification code sent from info@efootballaihub.com to ${emailOtpSentTo}`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend code. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -401,6 +518,8 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
           <h1 className="text-2xl font-black text-white tracking-tight">
             {waStep === 'otp' && authMethod === 'whatsapp'
               ? 'Verify WhatsApp Code'
+              : emailStep === 'otp' && authMethod === 'email'
+              ? 'Verify Email Code'
               : mode === 'login'
               ? 'Sign In to AI Hub'
               : 'Create Manager Account'}
@@ -409,19 +528,22 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">
             {waStep === 'otp' && authMethod === 'whatsapp'
               ? `Enter the 6-digit verification code sent to your WhatsApp (${otpSentPhone})`
+              : emailStep === 'otp' && authMethod === 'email'
+              ? `Enter the 6-digit verification code sent from info@efootballaihub.com to ${emailOtpSentTo}`
               : mode === 'login'
               ? 'Choose your preferred sign-in method to access squad analysis & tactics.'
-              : 'Choose Option 1 (WhatsApp) or Option 2 (Email & Password) to sign up.'}
+              : 'Choose Option 1 (WhatsApp) or Option 2 (Email & Password) to sign up with 6-digit verification.'}
           </p>
         </div>
 
         {/* Method Selector Tabs: Option 1 (WhatsApp) & Option 2 (Email & Password) */}
-        {waStep !== 'otp' && (
+        {waStep !== 'otp' && emailStep !== 'otp' && (
           <div className="grid grid-cols-2 gap-2 p-1 bg-neutral-950 rounded-2xl border border-neutral-800 text-xs font-bold">
             <button
               type="button"
               onClick={() => {
                 setError(null);
+                setInfoMessage(null);
                 setAuthMethod('whatsapp');
               }}
               className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
@@ -438,6 +560,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
               type="button"
               onClick={() => {
                 setError(null);
+                setInfoMessage(null);
                 setAuthMethod('email');
               }}
               className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
@@ -739,7 +862,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                   ) : mode === 'signup' ? (
                     <>
                       <MessageCircle className="w-4 h-4" />
-                      <span>Create Account with WhatsApp</span>
+                      <span>Send 6-Digit WhatsApp Code</span>
                     </>
                   ) : (
                     <>
@@ -749,138 +872,263 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                   )}
                 </button>
 
-                <p className="text-[11px] text-center text-neutral-500 flex items-center justify-center gap-1.5 pt-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Instant Account Activation & Salted SHA-256 Security</span>
-                </p>
+                {mode === 'signup' ? (
+                  <p className="text-[11px] text-center text-neutral-400 flex items-center justify-center gap-1.5 pt-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Security Step 1: 6-digit verification code will be sent to your WhatsApp</span>
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-center text-neutral-500 flex items-center justify-center gap-1.5 pt-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Instant Account Activation & Salted SHA-256 Security</span>
+                  </p>
+                )}
               </form>
             )}
           </>
         )}
 
-        {/* --- OPTION 2: STANDARD EMAIL & PASSWORD WITH CRYPTOGRAPHIC SALTING & HASHING --- */}
+        {/* --- OPTION 2: STANDARD EMAIL & PASSWORD WITH 6-DIGIT VERIFICATION (FROM info@efootballaihub.com) --- */}
         {authMethod === 'email' && (
-          <form onSubmit={handleEmailSubmit} className="space-y-4 animate-fade-in">
-            {/* Manager Name (Sign Up only) */}
-            {mode === 'signup' && (
-              <div>
-                <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
-                  Manager / Gamer Name
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
-                    <User className="w-4 h-4" />
+          <>
+            {emailStep === 'form' ? (
+              <form onSubmit={handleEmailSubmit} className="space-y-4 animate-fade-in">
+                {/* Manager Name (Sign Up only) */}
+                {mode === 'signup' && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                      Manager / Gamer Name
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                        <User className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={emailManagerName}
+                        onChange={(e) => setEmailManagerName(e.target.value)}
+                        placeholder="e.g. PepGamer24"
+                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
+                      />
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    required
-                    value={emailManagerName}
-                    onChange={(e) => setEmailManagerName(e.target.value)}
-                    placeholder="e.g. PepGamer24"
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
-                  />
-                </div>
-              </div>
-            )}
+                )}
 
-            {/* Email Address */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
-                Email Address
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
-                  <Mail className="w-4 h-4" />
+                {/* Email Address */}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="manager@example.com"
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
+                    />
+                  </div>
                 </div>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="manager@example.com"
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
-                />
-              </div>
-            </div>
 
-            {/* Password */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
-                  <Lock className="w-4 h-4" />
+                {/* Password */}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <input
+                      type={showEmailPassword ? 'text' : 'password'}
+                      required
+                      value={emailPassword}
+                      onChange={(e) => setEmailPassword(e.target.value)}
+                      placeholder={mode === 'signup' ? 'Min. 6 characters' : '••••••••'}
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-10 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEmailPassword(!showEmailPassword)}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-neutral-500 hover:text-neutral-300"
+                    >
+                      {showEmailPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
-                <input
-                  type={showEmailPassword ? 'text' : 'password'}
-                  required
-                  value={emailPassword}
-                  onChange={(e) => setEmailPassword(e.target.value)}
-                  placeholder={mode === 'signup' ? 'Min. 6 characters' : '••••••••'}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-10 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
-                />
+
+                {/* Confirm Password (Sign Up only) */}
+                {mode === 'signup' && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                      Confirm Password
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                        <Lock className="w-4 h-4" />
+                      </div>
+                      <input
+                        type={showEmailPassword ? 'text' : 'password'}
+                        required
+                        value={emailConfirmPassword}
+                        onChange={(e) => setEmailConfirmPassword(e.target.value)}
+                        placeholder="Repeat your password"
+                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Submit Email Action */}
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Please wait...</span>
+                    </>
+                  ) : mode === 'signup' ? (
+                    <>
+                      <Mail className="w-4 h-4" />
+                      <span>Send 6-Digit Verification Code</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Sign In with Email</span>
+                    </>
+                  )}
+                </button>
+
+                {mode === 'signup' ? (
+                  <p className="text-[11px] text-center text-neutral-400 flex items-center justify-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Security Step 1: Verification email will be sent from info@efootballaihub.com</span>
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-center text-neutral-500 flex items-center justify-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Protected by Salted SHA-256 Web Crypto Hashing</span>
+                  </p>
+                )}
+              </form>
+            ) : (
+              /* --- EMAIL STEP 2: 6-DIGIT VERIFICATION CODE INPUT --- */
+              <div className="space-y-5 animate-fade-in">
+                {/* 6-Digit Numeric Boxes */}
+                <div className="space-y-2">
+                  <label className="block text-center text-xs font-bold uppercase text-neutral-400 tracking-wider">
+                    Enter 6-Digit Verification Code
+                  </label>
+
+                  <div className="flex justify-center items-center gap-2 sm:gap-2.5" onPaste={handleEmailOtpPaste}>
+                    {emailOtpDigits.map((digit, idx) => (
+                      <input
+                        key={idx}
+                        ref={(el) => (emailOtpInputRefs.current[idx] = el)}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={digit}
+                        onChange={(e) => handleEmailOtpDigitChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleEmailOtpKeyDown(idx, e)}
+                        className="w-11 h-13 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-black bg-neutral-950 border border-neutral-800 focus:border-emerald-500 rounded-xl text-white outline-none transition-all shadow-inner focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Email Dispatch Info Card */}
+                <div className="p-4 rounded-2xl bg-neutral-950 border border-emerald-500/30 text-xs space-y-3">
+                  <div className="flex items-start gap-2.5 text-emerald-400">
+                    <Mail className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" />
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-neutral-200 block text-xs">Verification Email Dispatched</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold">
+                          info@efootballaihub.com
+                        </span>
+                      </div>
+                      <p className="text-neutral-400 text-[11px] leading-relaxed">
+                        A 6-digit code was sent to <strong className="text-white">{emailOtpSentTo}</strong> from <strong className="text-emerald-400">info@efootballaihub.com</strong>. Check your inbox and spam folder.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Instant auto-fill assistant if code is generated */}
+                  {emailLatestCode && (
+                    <div className="pt-2 border-t border-neutral-800 flex items-center justify-between text-[11px]">
+                      <span className="text-neutral-400">Quick Verification Helper:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const digits = emailLatestCode.split('');
+                          setEmailOtpDigits(digits);
+                          handleVerifyEmailOtp(emailLatestCode);
+                        }}
+                        className="font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-neutral-900 hover:bg-neutral-800 px-2.5 py-1 rounded-lg border border-neutral-800 hover:border-emerald-500/50 transition-colors"
+                      >
+                        Code: {emailLatestCode} (Auto-Fill)
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Submit Email Verification Button */}
                 <button
                   type="button"
-                  onClick={() => setShowEmailPassword(!showEmailPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-neutral-500 hover:text-neutral-300"
+                  onClick={() => handleVerifyEmailOtp()}
+                  disabled={submitting || emailOtpDigits.some((d) => d === '')}
+                  className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
                 >
-                  {showEmailPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Verifying Code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Verify & Create Account</span>
+                    </>
+                  )}
                 </button>
-              </div>
-            </div>
 
-            {/* Confirm Password (Sign Up only) */}
-            {mode === 'signup' && (
-              <div>
-                <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <input
-                    type={showEmailPassword ? 'text' : 'password'}
-                    required
-                    value={emailConfirmPassword}
-                    onChange={(e) => setEmailConfirmPassword(e.target.value)}
-                    placeholder="Repeat your password"
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all placeholder:text-neutral-600"
-                  />
+                {/* Resend and Change Email */}
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setInfoMessage(null);
+                      setEmailStep('form');
+                    }}
+                    className="text-neutral-400 hover:text-white flex items-center gap-1 transition-colors"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Change Email</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResendEmailOtp}
+                    disabled={emailResendCooldown > 0 || submitting}
+                    className="text-emerald-400 hover:text-emerald-300 font-semibold disabled:text-neutral-600 transition-colors"
+                  >
+                    {emailResendCooldown > 0 ? `Resend in ${emailResendCooldown}s` : 'Resend Code'}
+                  </button>
                 </div>
               </div>
             )}
-
-            {/* Submit Email Action */}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {submitting ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Please wait...</span>
-                </>
-              ) : mode === 'signup' ? (
-                <>
-                  <User className="w-4 h-4" />
-                  <span>Sign Up with Email & Password</span>
-                </>
-              ) : (
-                <>
-                  <Lock className="w-4 h-4" />
-                  <span>Sign In with Email</span>
-                </>
-              )}
-            </button>
-
-            <p className="text-[11px] text-center text-neutral-500 flex items-center justify-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Protected by Salted SHA-256 Web Crypto Hashing</span>
-            </p>
-          </form>
+          </>
         )}
 
         {/* Footer: Toggle Login vs Sign Up */}
@@ -892,7 +1140,9 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                 type="button"
                 onClick={() => {
                   setError(null);
+                  setInfoMessage(null);
                   setWaStep('form');
+                  setEmailStep('form');
                   onSwitchMode('signup');
                 }}
                 className="text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
@@ -907,7 +1157,9 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                 type="button"
                 onClick={() => {
                   setError(null);
+                  setInfoMessage(null);
                   setWaStep('form');
+                  setEmailStep('form');
                   onSwitchMode('login');
                 }}
                 className="text-emerald-400 hover:text-emerald-300 font-bold transition-colors"

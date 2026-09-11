@@ -3,6 +3,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { performSquadAnalysis, AnalyzeSquadPayload } from './server/accuracyPipeline.ts';
+import { sendVerificationEmail, verifyEmailOtp } from './server/emailService.ts';
 
 dotenv.config();
 
@@ -79,6 +80,57 @@ app.post('/api/auth/send-whatsapp-otp', async (req, res) => {
     code: otpCode,
     message: `Verification code generated for WhatsApp (+${cleanDigits}).`
   });
+});
+
+// Email OTP Verification Code endpoint (from info@efootballaihub.com)
+app.post('/api/auth/send-email-otp', async (req, res) => {
+  try {
+    const { email, managerName, code } = req.body || {};
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Valid email address is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail.includes('@') || cleanEmail.length < 5) {
+      return res.status(400).json({ error: 'Invalid email address format.' });
+    }
+
+    const result = await sendVerificationEmail({
+      email: cleanEmail,
+      managerName,
+      code
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error in /api/auth/send-email-otp:', error);
+    res.status(500).json({ error: error?.message || 'Failed to dispatch verification email.' });
+  }
+});
+
+// Verify 6-digit email OTP endpoint
+app.post('/api/auth/verify-email-otp', (req, res) => {
+  try {
+    const { email, code } = req.body || {};
+
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and 6-digit verification code are required.' });
+    }
+
+    const isValid = verifyEmailOtp(email, String(code));
+    if (isValid) {
+      res.json({ success: true, verified: true, message: 'Email verified successfully.' });
+    } else {
+      res.status(400).json({
+        success: false,
+        verified: false,
+        error: 'Invalid or expired 6-digit code. Please verify the code or click Resend.'
+      });
+    }
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || 'Failed to verify email code.' });
+  }
 });
 
 // User usage status & payment eligibility endpoint

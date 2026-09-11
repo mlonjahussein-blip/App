@@ -16,6 +16,11 @@ import {
   cleanPhoneDigits,
   normalizeWhatsAppNumber
 } from './whatsappAuth.ts';
+import {
+  sendEmailVerificationCode,
+  verifyEmailVerificationCode,
+  SendEmailOtpResponse
+} from './emailAuth.ts';
 
 export interface AppAuthUser {
   uid: string;
@@ -33,9 +38,9 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   signIn: (identifier: string, p: string) => Promise<void>;
-  signUp: (emailOrPhone: string, p: string, name: string) => Promise<void>;
+  signUp: (emailOrPhone: string, p: string, name: string, otpCode?: string) => Promise<void>;
   signInWithWhatsApp: (phoneNumber: string, p: string) => Promise<void>;
-  signUpWithWhatsApp: (phoneNumber: string, p: string, managerName: string, otpCode?: string) => Promise<void>;
+  signUpWithWhatsApp: (phoneNumber: string, p: string, managerName: string, otpCode: string) => Promise<void>;
   sendWhatsAppOtpCode: (phoneNumber: string, managerName?: string, purpose?: 'signup' | 'signin') => Promise<{
     success: boolean;
     message: string;
@@ -44,6 +49,7 @@ interface AuthContextType {
     whatsappLink: string;
     hasGateway?: boolean;
   }>;
+  sendEmailOtpCode: (email: string, managerName?: string) => Promise<SendEmailOtpResponse>;
   signInWithWhatsAppOtp: (phoneNumber: string, otpCode: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -285,12 +291,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Password must be at least 6 characters long.');
     }
 
-    // Verify OTP code if one was provided in the flow
-    if (otpCode && otpCode.trim().length > 0) {
-      const isCodeValid = verifyWhatsAppCode(cleanPhone, otpCode.trim());
-      if (!isCodeValid) {
-        throw new Error('Invalid or expired 6-digit verification code. Please request a new code or proceed with direct password registration.');
-      }
+    // Verify OTP code strictly (Mandatory for registration security)
+    if (!otpCode || otpCode.trim().length !== 6) {
+      throw new Error('Please enter the complete 6-digit WhatsApp verification code to complete sign up.');
+    }
+    const isCodeValid = verifyWhatsAppCode(cleanPhone, otpCode.trim());
+    if (!isCodeValid) {
+      throw new Error('Invalid or expired 6-digit verification code. Please request a new code.');
     }
 
     // Generate Salted Hash
@@ -512,10 +519,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const sendEmailOtpCode = async (email: string, managerName?: string) => {
+    return sendEmailVerificationCode(email, managerName);
+  };
+
   /**
-   * Universal Sign Up
+   * Universal Sign Up with 6-digit Email Verification
    */
-  const signUp = async (emailOrPhone: string, p: string, name: string) => {
+  const signUp = async (emailOrPhone: string, p: string, name: string, otpCode?: string) => {
     const cleanId = (emailOrPhone || '').trim();
     if (!cleanId.includes('@') && cleanPhoneDigits(cleanId).length >= 7) {
       throw new Error('For WhatsApp sign-up, please use the WhatsApp registration form to verify your 6-digit code.');
@@ -527,6 +538,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (!cleanPassword || cleanPassword.length < 6) {
       throw new Error('Password must be at least 6 characters long.');
+    }
+
+    // Verify 6-digit Email Verification Code
+    if (!otpCode || otpCode.trim().length !== 6) {
+      throw new Error('Please enter the 6-digit verification code sent to your email from info@efootballaihub.com.');
+    }
+
+    const isCodeValid = await verifyEmailVerificationCode(cleanEmail, otpCode.trim());
+    if (!isCodeValid) {
+      throw new Error('Invalid or expired 6-digit email verification code. Please check your inbox or click Resend.');
     }
 
     const salt = generateSalt();
@@ -602,6 +623,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signInWithWhatsApp,
         signUpWithWhatsApp,
         sendWhatsAppOtpCode,
+        sendEmailOtpCode,
         signInWithWhatsAppOtp,
         logout,
         refreshProfile
