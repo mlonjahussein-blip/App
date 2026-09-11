@@ -35,7 +35,7 @@ interface AuthContextType {
   signIn: (identifier: string, p: string) => Promise<void>;
   signUp: (emailOrPhone: string, p: string, name: string) => Promise<void>;
   signInWithWhatsApp: (phoneNumber: string, p: string) => Promise<void>;
-  signUpWithWhatsApp: (phoneNumber: string, p: string, managerName: string, otpCode: string) => Promise<void>;
+  signUpWithWhatsApp: (phoneNumber: string, p: string, managerName: string, otpCode?: string) => Promise<void>;
   sendWhatsAppOtpCode: (phoneNumber: string, managerName?: string, purpose?: 'signup' | 'signin') => Promise<{
     success: boolean;
     message: string;
@@ -279,14 +279,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!cleanPassword || cleanPassword.length < 6) {
       throw new Error('Password must be at least 6 characters long.');
     }
-    if (!otpCode || otpCode.trim().length !== 6) {
-      throw new Error('Please enter the 6-digit verification code sent to your WhatsApp.');
-    }
 
-    // Verify OTP code
-    const isCodeValid = verifyWhatsAppCode(cleanPhone, otpCode);
-    if (!isCodeValid) {
-      throw new Error('Invalid or expired 6-digit verification code. Please check your WhatsApp or request a new code.');
+    // Verify OTP code if one was provided in the flow
+    if (otpCode && otpCode.trim().length > 0) {
+      const isCodeValid = verifyWhatsAppCode(cleanPhone, otpCode.trim());
+      if (!isCodeValid) {
+        throw new Error('Invalid or expired 6-digit verification code. Please request a new code or proceed with direct password registration.');
+      }
     }
 
     // Generate Salted Hash

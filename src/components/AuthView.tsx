@@ -95,9 +95,56 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     return formatFullWhatsAppNumber(selectedCountry.dialCode, localPhone);
   };
 
-  // --- WHATSAPP FLOW HANDLERS (OPTION 1) ---
+  // Direct WhatsApp Sign Up & Login with Password
+  const handleWhatsAppSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setInfoMessage(null);
 
-  // Request 6-digit WhatsApp code (Sign Up or Sign In via OTP)
+    const fullPhone = getFullWhatsAppNumber();
+    const digits = cleanPhoneDigits(fullPhone);
+
+    if (digits.length < 7) {
+      setError('Please enter a valid WhatsApp phone number.');
+      return;
+    }
+
+    if (!waPassword) {
+      setError('Please enter your password.');
+      return;
+    }
+
+    if (mode === 'signup') {
+      if (!waManagerName.trim()) {
+        setError('Please enter your Manager / Gamer name (e.g. PepGamer24).');
+        return;
+      }
+      if (waPassword.length < 6) {
+        setError('Password must be at least 6 characters long.');
+        return;
+      }
+      if (waPassword !== waConfirmPassword) {
+        setError('Passwords do not match. Please verify.');
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    try {
+      if (mode === 'signup') {
+        await signUpWithWhatsApp(fullPhone, waPassword, waManagerName.trim());
+      } else {
+        await signInWithWhatsApp(fullPhone, waPassword);
+      }
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message || 'Authentication failed. Please check your credentials.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Optional 6-digit WhatsApp OTP verification flow (if requested)
   const handleRequestWhatsAppOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -544,7 +591,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
             ) : (
               /* WhatsApp Step 1: Phone & Details Form */
               <form
-                onSubmit={mode === 'signup' ? handleRequestWhatsAppOtp : handleWhatsAppPasswordLogin}
+                onSubmit={handleWhatsAppSubmit}
                 className="space-y-4 animate-fade-in"
               >
                 {/* Phone Number Input */}
@@ -692,7 +739,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                   ) : mode === 'signup' ? (
                     <>
                       <MessageCircle className="w-4 h-4" />
-                      <span>Send 6-Digit WhatsApp Code</span>
+                      <span>Create Account with WhatsApp</span>
                     </>
                   ) : (
                     <>
@@ -701,6 +748,11 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                     </>
                   )}
                 </button>
+
+                <p className="text-[11px] text-center text-neutral-500 flex items-center justify-center gap-1.5 pt-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Instant Account Activation & Salted SHA-256 Security</span>
+                </p>
               </form>
             )}
           </>
