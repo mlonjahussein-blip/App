@@ -19,7 +19,7 @@ import {
   Keyboard,
   Layers
 } from 'lucide-react';
-import { AnalysisResult, UploadedImageItem, ImageSourceType, TypedPlayerInput } from '../types.ts';
+import { AnalysisResult, UploadedImageItem, ImageSourceType, TypedPlayerInput, ManagerInputDetails } from '../types.ts';
 import { CameraCaptureModal } from './CameraCaptureModal.tsx';
 import { ManualPlayerInput } from './ManualPlayerInput.tsx';
 import { preprocessImage } from '../lib/imagePreprocessing.ts';
@@ -31,7 +31,19 @@ interface AnalyzerProps {
 export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) => {
   const [files, setFiles] = useState<UploadedImageItem[]>([]);
   const [typedPlayers, setTypedPlayers] = useState<TypedPlayerInput[]>([]);
-  const [activeInputTab, setActiveInputTab] = useState<'screenshots' | 'type_players' | 'both'>('screenshots');
+  const [managerDetails, setManagerDetails] = useState<ManagerInputDetails>({
+    name: '',
+    nationality: '',
+    team: '',
+    playstyleProficiencies: {
+      possessionGame: 85,
+      quickCounter: 87,
+      longBallCounter: 85,
+      outWide: 80,
+      longBall: 75
+    }
+  });
+  const [activeInputTab, setActiveInputTab] = useState<'screenshots' | 'enter_players'>('screenshots');
   const [preferredPlaystyle, setPreferredPlaystyle] = useState('Quick Counter');
   const [preferredFormation, setPreferredFormation] = useState('Auto-Detect / Balanced');
   const [tacticalPreference, setTacticalPreference] = useState('');
@@ -164,10 +176,11 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           nationality: p.nationality,
           skills: p.skills
         })),
+        managerDetails: activeInputTab === 'enter_players' && managerDetails.name.trim() ? managerDetails : undefined,
         preferredPlaystyle,
         preferredFormation,
         tacticalPreference,
-        hasCoachScreenshot: isCoachScreenshotIncluded
+        hasCoachScreenshot: activeInputTab === 'screenshots' ? isCoachScreenshotIncluded : false
       };
 
       const resp = await fetch('/api/analyze-squad', {
@@ -246,16 +259,16 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           </h1>
         </div>
         <p className="text-sm text-neutral-400 mt-1">
-          Upload up to 5 eFootball screenshots, take camera photos, or type player names with predictive card matching and overall rating verification.
+          Upload up to 5 eFootball screenshots, take camera photos, or enter your Starting XI and Substitution squad players with manager details.
         </p>
       </div>
 
       {/* Input Mode Selector Tabs */}
-      <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-1.5 flex flex-wrap gap-1 shadow-lg">
+      <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5 shadow-lg">
         <button
           type="button"
           onClick={() => setActiveInputTab('screenshots')}
-          className={`flex-1 min-w-[130px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 min-w-[160px] py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
             activeInputTab === 'screenshots'
               ? 'bg-emerald-500 text-neutral-950 shadow-md'
               : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60'
@@ -264,50 +277,30 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           <ImageIcon className="w-4 h-4" />
           <span>Upload Screenshots</span>
           {files.length > 0 && (
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
               activeInputTab === 'screenshots' ? 'bg-neutral-950 text-emerald-400' : 'bg-neutral-800 text-white'
             }`}>
-              {files.length}
+              {files.length} / 5
             </span>
           )}
         </button>
 
         <button
           type="button"
-          onClick={() => setActiveInputTab('type_players')}
-          className={`flex-1 min-w-[130px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-            activeInputTab === 'type_players'
+          onClick={() => setActiveInputTab('enter_players')}
+          className={`flex-1 min-w-[160px] py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            activeInputTab === 'enter_players'
               ? 'bg-emerald-500 text-neutral-950 shadow-md'
               : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60'
           }`}
         >
           <Keyboard className="w-4 h-4" />
-          <span>Type & Predict Players</span>
+          <span>Enter Squad Players</span>
           {typedPlayers.length > 0 && (
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-              activeInputTab === 'type_players' ? 'bg-neutral-950 text-emerald-400' : 'bg-neutral-800 text-white'
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+              activeInputTab === 'enter_players' ? 'bg-neutral-950 text-emerald-400' : 'bg-neutral-800 text-white'
             }`}>
-              {typedPlayers.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveInputTab('both')}
-          className={`flex-1 min-w-[130px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-            activeInputTab === 'both'
-              ? 'bg-emerald-500 text-neutral-950 shadow-md'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>Combined / Hybrid</span>
-          {(files.length > 0 || typedPlayers.length > 0) && (
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-              activeInputTab === 'both' ? 'bg-neutral-950 text-emerald-400' : 'bg-neutral-800 text-white'
-            }`}>
-              {files.length} img + {typedPlayers.length} ply
+              {typedPlayers.length} / 23
             </span>
           )}
         </button>
@@ -620,12 +613,14 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
             </div>
           )}
 
-          {/* Section 2: Type Squad Players (Shown if active tab is type_players or both) */}
-          {(activeInputTab === 'type_players' || activeInputTab === 'both') && (
+          {/* Section 2: Enter Squad Players (Shown if active tab is enter_players) */}
+          {activeInputTab === 'enter_players' && (
             <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
               <ManualPlayerInput
                 typedPlayers={typedPlayers}
                 onChange={setTypedPlayers}
+                managerDetails={managerDetails}
+                onManagerChange={setManagerDetails}
               />
             </div>
           )}
@@ -634,7 +629,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Info className="w-5 h-5 text-cyan-400" />
-              Tactical Preferences & Coach Details
+              Tactical Preferences
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -676,25 +671,27 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
                 </select>
               </div>
 
-              {/* Coach Screenshot Confirmation Checkbox */}
-              <div className="md:col-span-2 pt-2">
-                <label className="flex items-center gap-3 p-3 rounded-xl bg-neutral-950 border border-neutral-800 cursor-pointer hover:border-neutral-700">
-                  <input
-                    type="checkbox"
-                    checked={isCoachScreenshotIncluded}
-                    onChange={(e) => setIsCoachScreenshotIncluded(e.target.checked)}
-                    className="w-4 h-4 rounded text-emerald-500 bg-neutral-900 border-neutral-700 focus:ring-emerald-500"
-                  />
-                  <div className="text-xs">
-                    <span className="font-bold text-white block">
-                      One of my uploaded screenshots or photos contains my Coach/Manager
-                    </span>
-                    <span className="text-neutral-400 block mt-0.5">
-                      If checked, the AI will inspect the coach's tactical affinity from your image; otherwise, it provides a general recommendation.
-                    </span>
-                  </div>
-                </label>
-              </div>
+              {/* Coach Screenshot Confirmation Checkbox (ONLY for screenshots mode) */}
+              {activeInputTab === 'screenshots' && (
+                <div className="md:col-span-2 pt-2">
+                  <label className="flex items-center gap-3 p-3 rounded-xl bg-neutral-950 border border-neutral-800 cursor-pointer hover:border-neutral-700">
+                    <input
+                      type="checkbox"
+                      checked={isCoachScreenshotIncluded}
+                      onChange={(e) => setIsCoachScreenshotIncluded(e.target.checked)}
+                      className="w-4 h-4 rounded text-emerald-500 bg-neutral-900 border-neutral-700 focus:ring-emerald-500"
+                    />
+                    <div className="text-xs">
+                      <span className="font-bold text-white block">
+                        One of my uploaded screenshots or photos contains my Coach/Manager
+                      </span>
+                      <span className="text-neutral-400 block mt-0.5">
+                        If checked, the AI will inspect the coach's tactical affinity from your image; otherwise, it provides a general recommendation.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              )}
 
               {/* Freeform Tactical Note */}
               <div className="md:col-span-2">
@@ -718,28 +715,28 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
             <div>
               <p className="text-sm font-bold text-white">Ready for comprehensive AI evaluation?</p>
               <p className="text-xs text-neutral-400">
-                {files.length > 0 && typedPlayers.length > 0
-                  ? `Hybrid mode: ${files.length} screenshot(s) + ${typedPlayers.length} typed player(s) loaded.`
-                  : files.length > 0
-                  ? `${files.length} squad screenshot(s) / photo(s) loaded.`
+                {activeInputTab === 'screenshots'
+                  ? files.length > 0
+                    ? `${files.length} squad screenshot(s) / photo(s) loaded.`
+                    : 'Add up to 5 screenshots or camera photos to start analysis.'
                   : typedPlayers.length > 0
-                  ? `${typedPlayers.length} typed player(s) loaded.`
-                  : 'Add screenshots or type players to start analysis.'}
+                    ? `${typedPlayers.length} player(s) loaded in squad${managerDetails.name ? ` • Manager: ${managerDetails.name}` : ''}.`
+                    : 'Enter Starting XI or Substitution players to start analysis.'}
               </p>
             </div>
 
             <button
               id="start-squad-analysis-btn"
               onClick={handleStartAnalysis}
-              disabled={files.length === 0 && typedPlayers.length === 0}
+              disabled={activeInputTab === 'screenshots' ? files.length === 0 : typedPlayers.length === 0}
               className={`w-full sm:w-auto px-8 py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-lg ${
-                files.length > 0 || typedPlayers.length > 0
+                (activeInputTab === 'screenshots' && files.length > 0) || (activeInputTab === 'enter_players' && typedPlayers.length > 0)
                   ? 'bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-emerald-500/20 cursor-pointer'
                   : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
               }`}
             >
               <Sparkles className="w-4 h-4" />
-              Analyze My Squad {files.length + typedPlayers.length > 0 ? `(${files.length + typedPlayers.length} items)` : ''}
+              Analyze My Squad {activeInputTab === 'screenshots' && files.length > 0 ? `(${files.length} images)` : activeInputTab === 'enter_players' && typedPlayers.length > 0 ? `(${typedPlayers.length} players)` : ''}
             </button>
           </div>
 

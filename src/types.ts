@@ -296,6 +296,19 @@ export interface SavedSquad {
   sourceCollection?: 'userSquads' | 'savedAnalyses';
 }
 
+export interface ManagerInputDetails {
+  name: string;
+  nationality?: string;
+  team?: string;
+  playstyleProficiencies?: {
+    possessionGame: number;
+    quickCounter: number;
+    longBallCounter: number;
+    outWide: number;
+    longBall: number;
+  };
+}
+
 export interface TypedPlayerInput {
   id: string;
   name: string;
@@ -306,6 +319,7 @@ export interface TypedPlayerInput {
   club?: string;
   nationality?: string;
   skills?: string[];
+  role?: 'starting_xi' | 'substitute';
 }
 
 export interface AnalyzeSquadRequestPayload {
@@ -318,6 +332,7 @@ export interface AnalyzeSquadRequestPayload {
     qualityWarning?: string | null;
   }>;
   typedPlayers?: TypedPlayerInput[];
+  managerDetails?: ManagerInputDetails;
   preferredPlaystyle?: string;
   preferredFormation?: string;
   tacticalPreference?: string;
