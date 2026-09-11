@@ -23,6 +23,64 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// WhatsApp OTP Verification Code endpoint
+app.post('/api/auth/send-whatsapp-otp', async (req, res) => {
+  const { phoneNumber, managerName, code, purpose } = req.body || {};
+
+  if (!phoneNumber) {
+    return res.status(400).json({ error: 'WhatsApp phone number is required.' });
+  }
+
+  const cleanDigits = String(phoneNumber).replace(/[^0-9]/g, '');
+  if (cleanDigits.length < 7) {
+    return res.status(400).json({ error: 'Invalid phone number format.' });
+  }
+
+  const otpCode = code || Math.floor(100000 + Math.random() * 900000).toString();
+
+  // Meta Cloud API if configured
+  const metaToken = process.env.WHATSAPP_CLOUD_API_TOKEN || process.env.WHATSAPP_TOKEN;
+  const metaPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (metaToken && metaPhoneId) {
+    try {
+      const metaResp = await fetch(`https://graph.facebook.com/v19.0/${metaPhoneId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${metaToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: cleanDigits,
+          type: 'text',
+          text: {
+            preview_url: false,
+            body: `🎮 eFootball AI Hub: Your 6-digit verification code is ${otpCode}. Valid for 10 minutes.`
+          }
+        })
+      });
+      if (metaResp.ok) {
+        return res.json({
+          success: true,
+          gateway: 'meta_cloud_api',
+          phoneNumber: '+' + cleanDigits,
+          message: 'Verification code sent via WhatsApp Cloud API.'
+        });
+      }
+    } catch (e) {
+      console.warn('Meta WhatsApp error:', e);
+    }
+  }
+
+  return res.json({
+    success: true,
+    gateway: 'direct_verification',
+    phoneNumber: '+' + cleanDigits,
+    code: otpCode,
+    message: `Verification code generated for WhatsApp (+${cleanDigits}).`
+  });
+});
+
 // User usage status & payment eligibility endpoint
 app.get('/api/user/usage-status', (req, res) => {
   const userId = (req.query.userId as string) || 'guest';

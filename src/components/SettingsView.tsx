@@ -79,31 +79,31 @@ export const SettingsView: React.FC<SettingsProps> = ({ onLogout, onNavigateToAn
           <div className="space-y-4 max-w-lg text-sm">
             <div>
               <label className="block text-xs font-bold uppercase text-neutral-500 tracking-wider mb-1">
-                Display Name
+                Manager / Gamer Name
               </label>
               <input
                 type="text"
                 readOnly
-                value={profile?.displayName || user?.email?.split('@')[0] || 'Tactician'}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:outline-none"
+                value={profile?.displayName || user?.displayName || 'Tactician'}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white font-semibold focus:outline-none"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold uppercase text-neutral-500 tracking-wider mb-1">
-                Registered Email Address
+                Registered WhatsApp / Contact
               </label>
               <input
                 type="text"
                 readOnly
-                value={user?.email || ''}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-300 focus:outline-none"
+                value={profile?.whatsappNumber || user?.whatsappNumber || user?.phoneNumber || user?.email || 'Registered'}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-emerald-400 font-mono focus:outline-none"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold uppercase text-neutral-500 tracking-wider mb-1">
-                Authentication User ID (Firebase UID)
+                Manager Account ID
               </label>
               <p className="font-mono text-xs text-neutral-400 bg-neutral-950 p-3 rounded-xl border border-neutral-800 break-all">
                 {user?.uid || 'Not authenticated'}
