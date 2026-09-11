@@ -377,9 +377,10 @@ OUTPUT FORMAT: Strict JSON matching this schema:
 
     // Supported vision models according to @google/genai guidelines
     const candidateModels = [
+      'gemini-3.1-flash-lite',
       'gemini-flash-latest',
       'gemini-3.8-flash',
-      'gemini-3.1-flash-lite'
+      'gemini-3.1-pro-preview'
     ];
 
     let response: any = null;
@@ -415,7 +416,7 @@ Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach c
 
           let timer: any;
           const timeoutPromise = new Promise((_, reject) => {
-            timer = setTimeout(() => reject(new Error(`Timeout: ${modelName} did not respond within 35s`)), 35000);
+            timer = setTimeout(() => reject(new Error(`Timeout: ${modelName} did not respond within 30s`)), 30000);
           });
 
           try {
@@ -436,8 +437,8 @@ Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach c
           console.warn(`Vision model ${modelName} attempt ${attempt} warning:`, errMsg);
 
           if (isTemporary && attempt < 2) {
-            console.log(`Retrying ${modelName} after 1s delay due to temporary capacity spike...`);
-            await new Promise((res) => setTimeout(res, 1000));
+            console.log(`Retrying ${modelName} after 1.5s delay due to temporary capacity spike...`);
+            await new Promise((res) => setTimeout(res, 1500));
             continue;
           }
           break; // Move to next candidate model if non-temporary error or max attempts reached
