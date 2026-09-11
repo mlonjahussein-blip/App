@@ -268,32 +268,34 @@ Sent from eFootball AI Hub
     }
   }
 
-  // 4. Check Gmail Direct Service
-  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASS) {
+  // 4. Check Gmail Direct Service (efootballaihub@gmail.com)
+  const gmailUser = process.env.GMAIL_USER || 'efootballaihub@gmail.com';
+  const gmailPass = process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASSWORD;
+  if (gmailPass) {
     try {
       const gmailTransporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_APP_PASS
+          user: gmailUser,
+          pass: gmailPass.replace(/\s+/g, '') // Strip spaces from Google 16-char app password
         }
       });
 
       await gmailTransporter.sendMail({
-        from: `"${fromName}" <${process.env.GMAIL_USER}>`,
+        from: `"${fromName}" <${gmailUser}>`,
         to: cleanEmail,
         subject,
         text: textContent,
         html: htmlContent
       });
 
-      console.log(`[EMAIL DISPATCH] Sent 6-digit OTP code to ${cleanEmail} via Gmail Service`);
+      console.log(`[EMAIL DISPATCH] Sent 6-digit OTP code to ${cleanEmail} via Gmail (${gmailUser})`);
       return {
         success: true,
-        message: `Verification code sent to your email. Please check your inbox and spam folder.`,
+        message: `Code sent to your email. Please check your inbox and spam folder.`,
         code,
         expiresAt,
-        from: fromAddress,
+        from: gmailUser,
         dispatchedVia: 'gmail'
       };
     } catch (gmailErr) {
