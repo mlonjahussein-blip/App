@@ -50,7 +50,7 @@ interface AuthContextType {
   signIn: (identifier: string, p: string) => Promise<void>;
   signUp: (emailOrPhone: string, p: string, name: string, otpCode?: string) => Promise<void>;
   signInWithWhatsApp: (phoneNumber: string, p: string) => Promise<void>;
-  signUpWithWhatsApp: (phoneNumber: string, p: string, managerName: string, otpCode: string) => Promise<void>;
+  signUpWithWhatsApp: (phoneNumber: string, p: string, managerName: string, otpCode?: string) => Promise<void>;
   sendWhatsAppOtpCode: (phoneNumber: string, managerName?: string, purpose?: 'signup' | 'signin') => Promise<{
     success: boolean;
     message: string;
@@ -288,7 +288,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     phoneNumber: string,
     password: string,
     managerName: string,
-    otpCode: string
+    otpCode?: string
   ) => {
     const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : '+' + cleanPhoneDigits(phoneNumber);
     const rawDigits = cleanPhoneDigits(cleanPhone);
@@ -302,13 +302,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Password must be at least 6 characters long.');
     }
 
-    // Verify OTP code strictly (Mandatory for registration security)
-    if (!otpCode || otpCode.trim().length !== 6) {
-      throw new Error('Please enter the complete 6-digit WhatsApp verification code to complete sign up.');
-    }
-    const isCodeValid = verifyWhatsAppCode(cleanPhone, otpCode.trim());
-    if (!isCodeValid) {
-      throw new Error('Invalid or expired 6-digit verification code. Please request a new code.');
+    // If an OTP code is explicitly supplied and not 'DIRECT', verify it
+    if (otpCode && otpCode !== 'DIRECT') {
+      const isCodeValid = verifyWhatsAppCode(cleanPhone, otpCode.trim());
+      if (!isCodeValid) {
+        throw new Error('Invalid or expired 6-digit verification code. Please request a new code.');
+      }
     }
 
     // Generate Salted Hash

@@ -155,14 +155,13 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       }
     }
 
-    if (mode === 'signup') {
-      // In sign up, require 6-digit WhatsApp verification code
-      return handleRequestWhatsAppOtp(e);
-    }
-
     setSubmitting(true);
     try {
-      await signInWithWhatsApp(fullPhone, waPassword);
+      if (mode === 'signup') {
+        await signUpWithWhatsApp(fullPhone, waPassword, waManagerName.trim());
+      } else {
+        await signInWithWhatsApp(fullPhone, waPassword);
+      }
       onSuccess();
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Please check your credentials.');
@@ -603,32 +602,6 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                       />
                     ))}
                   </div>
-                </div>
-
-                {/* Direct WhatsApp Open Link & Verification Assistant */}
-                <div className="p-4 rounded-2xl bg-neutral-950 border border-emerald-500/30 text-xs space-y-3">
-                  <div className="flex items-start gap-2.5 text-emerald-400">
-                    <MessageCircle className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" />
-                    <div className="space-y-1">
-                      <span className="font-bold text-neutral-200 block text-xs">WhatsApp Verification Ready</span>
-                      <p className="text-neutral-400 text-[11px] leading-relaxed">
-                        To receive or view your 6-digit code on <strong className="text-white">{otpSentPhone}</strong>, tap the button below to open WhatsApp:
-                      </p>
-                    </div>
-                  </div>
-
-                  {whatsappLink && (
-                    <a
-                      href={whatsappLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15 transition-all"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      <span>Open WhatsApp to Receive 6-Digit Code</span>
-                      <ExternalLink className="w-3.5 h-3.5 opacity-70" />
-                    </a>
-                  )}
                 </div>
 
                 {/* Submit Verification Button */}
