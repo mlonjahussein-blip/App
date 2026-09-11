@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile and Usage",
+      "description": "User profile with analysis counters, weekly quota reset, and role info.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "freeAnalysesRemaining": { "type": "number" },
+        "paidCredits": { "type": "number" },
+        "lastFreeResetAt": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] }
+      },
+      "required": ["email", "displayName", "createdAt"]
+    },
+    "savedAnalyses": {
+      "title": "Saved Squad Analysis Report",
+      "description": "Complete saved analysis report including squad rating, identified players, tactics, and simulation specs.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "screenshotCount": { "type": "number" },
+        "coachScreenshotUploaded": { "type": "boolean" },
+        "isFreeAnalysis": { "type": "boolean" },
+        "paymentStatus": { "type": "string", "enum": ["free", "paid", "disabled"] },
+        "squadRating": { "type": "number" },
+        "analysisData": { "type": "object" },
+        "isShared": { "type": "boolean" }
+      },
+      "required": ["userId", "createdAt", "squadRating", "analysisData"]
+    },
+    "userSquads": {
+      "title": "User Active Squad",
+      "description": "The persistent active squad for the user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "squadName": { "type": "string" },
+        "formation": { "type": "string" },
+        "playstyle": { "type": "string" },
+        "players": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "squadName", "updatedAt"]
+    },
+    "communityPosts": {
+      "title": "Community Squad Share Post",
+      "description": "Public post sharing squad, tactics, and analysis with the community.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "formation": { "type": "string" },
+        "playstyle": { "type": "string" },
+        "squadRating": { "type": "number" },
+        "keyPlayers": { "type": "array" },
+        "analysisSummary": { "type": "string" },
+        "likesCount": { "type": "number" },
+        "commentsCount": { "type": "number" }
+      },
+      "required": ["userId", "authorName", "createdAt", "title"]
+    },
+    "postLikes": {
+      "title": "Post Likes",
+      "description": "Tracks which user liked which post.",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["postId", "userId"]
+    },
+    "postComments": {
+      "title": "Post Comments",
+      "description": "Comments left on community posts.",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string" },
+        "userId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["postId", "userId", "authorName", "content", "createdAt"]
+    },
+    "paymentRecords": {
+      "title": "Payment History Record",
+      "description": "Architected payment history records (empty or future provider).",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "product": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "transactionId", "amount", "status", "createdAt"]
+    }
+  }
+}

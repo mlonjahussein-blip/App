@@ -1,0 +1,6 @@
+{
+  "name": "eFootball AI Hub",
+  "description": "AI-powered eFootball squad analysis, player recommendations, tactical coaching and squad improvement tools.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
