@@ -377,6 +377,10 @@ OUTPUT FORMAT: Strict JSON matching this schema:
 
     // Supported vision models according to @google/genai guidelines
     const candidateModels = [
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-flash-lite-latest',
       'gemini-3.8-flash'
     ];
 
