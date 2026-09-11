@@ -43,14 +43,7 @@ let aiClient: GoogleGenAI | null = null;
 function getGenAI(): GoogleGenAI {
   if (!aiClient) {
     const apiKey = process.env.GEMINI_API_KEY;
-    aiClient = new GoogleGenAI({ 
-      apiKey: apiKey || 'dummy-key',
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build'
-        }
-      }
-    });
+    aiClient = new GoogleGenAI({ apiKey: apiKey || '' });
   }
   return aiClient;
 }
@@ -375,9 +368,8 @@ OUTPUT FORMAT: Strict JSON matching this schema:
 }
 `;
 
-    // Supported vision models
+    // Supported vision models according to @google/genai guidelines
     const candidateModels = [
-      'gemini-2.5-flash',
       'gemini-3.8-flash',
       'gemini-3.1-flash-lite',
       'gemini-flash-latest'
@@ -391,7 +383,6 @@ OUTPUT FORMAT: Strict JSON matching this schema:
         console.log(`Executing multi-stage player detection & evidence extraction with ${modelName}...`);
         
         const contentsArray: any[] = [
-          { text: verificationSystemPrompt },
           {
             text: `Analyze these ${images.length} eFootball screenshots.
 IMPORTANT: Note that player cards often DO NOT have text names! Detect card regions, isolate face portraits, extract ratings and positions, and match candidates using multi-signal evidence.
@@ -405,13 +396,9 @@ Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach c
 
         const generatePromise = ai.models.generateContent({
           model: modelName,
-          contents: [
-            {
-              role: 'user',
-              parts: contentsArray
-            }
-          ],
+          contents: contentsArray,
           config: {
+            systemInstruction: verificationSystemPrompt,
             responseMimeType: 'application/json',
             temperature: 0.1
           }
