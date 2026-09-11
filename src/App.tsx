@@ -17,8 +17,8 @@ import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
 import { ShieldAlert, Sparkles, Heart } from 'lucide-react';
 import { MaintenanceView } from './components/MaintenanceView.tsx';
 
-// Temporary maintenance mode flag
-export const IS_MAINTENANCE_MODE = true;
+// Temporary maintenance mode flag (set to false to reactivate)
+export const IS_MAINTENANCE_MODE = false;
 
 function AppContent() {
   const { user, profile, logout } = useAuth();
