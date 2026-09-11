@@ -296,3 +296,31 @@ export interface SavedSquad {
   sourceCollection?: 'userSquads' | 'savedAnalyses';
 }
 
+export interface TypedPlayerInput {
+  id: string;
+  name: string;
+  position: string;
+  rating: number;
+  cardType?: string;
+  playstyle?: string;
+  club?: string;
+  nationality?: string;
+  skills?: string[];
+}
+
+export interface AnalyzeSquadRequestPayload {
+  images?: Array<{
+    base64Data: string;
+    mimeType: string;
+    name?: string;
+    source?: 'screenshot' | 'camera' | 'file';
+    dimensions?: { width: number; height: number };
+    qualityWarning?: string | null;
+  }>;
+  typedPlayers?: TypedPlayerInput[];
+  preferredPlaystyle?: string;
+  preferredFormation?: string;
+  tacticalPreference?: string;
+  hasCoachScreenshot?: boolean;
+}
+

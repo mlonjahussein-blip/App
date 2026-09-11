@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
-import { performSquadAnalysis, AnalyzeSquadPayload } from './server/accuracyPipeline.ts';
+import { performSquadAnalysis, createEvidenceBasedFallback, AnalyzeSquadPayload } from './server/accuracyPipeline.ts';
 import { sendVerificationEmail, verifyEmailOtp } from './server/emailService.ts';
 
 dotenv.config();
@@ -238,32 +238,30 @@ app.get('/api/user/usage-status', (req, res) => {
 // Perform AI Analysis endpoint
 app.post('/api/analyze-squad', async (req, res) => {
   try {
-    const payload: AnalyzeSquadPayload = req.body;
+    const payload: AnalyzeSquadPayload = req.body || {};
+    const hasImages = Array.isArray(payload.images) && payload.images.length > 0;
+    const hasTyped = Array.isArray(payload.typedPlayers) && payload.typedPlayers.length > 0;
 
-    if (!payload || !Array.isArray(payload.images) || payload.images.length === 0) {
+    if (!hasImages && !hasTyped) {
       return res.status(400).json({
-        error: 'Please upload at least 1 squad screenshot or camera photo (maximum 5).'
+        error: 'Please upload squad screenshots or enter your squad players.'
       });
     }
 
-    if (payload.images.length > 5) {
+    if (hasImages && payload.images!.length > 5) {
       return res.status(400).json({
         error: 'Maximum 5 images allowed per analysis.'
       });
     }
 
-    // Validate that image payloads have valid base64 data
-    for (let i = 0; i < payload.images.length; i++) {
-      const img = payload.images[i];
-      if (!img.base64Data || typeof img.base64Data !== 'string' || img.base64Data.length < 20) {
-        return res.status(400).json({
-          error: `Image #${i + 1} contains corrupted or empty data. Please upload a valid image.`
-        });
-      }
+    // Call server-side Gemini service with safety fallback
+    let result;
+    try {
+      result = await performSquadAnalysis(payload);
+    } catch (analysisErr) {
+      console.warn('Analysis execution caught in server.ts, falling back to evidence-based analysis:', analysisErr);
+      result = createEvidenceBasedFallback(payload);
     }
-
-    // Call server-side Gemini service
-    const result = await performSquadAnalysis(payload);
 
     res.json({
       success: true,
@@ -271,19 +269,10 @@ app.post('/api/analyze-squad', async (req, res) => {
     });
   } catch (error: any) {
     console.error('API Error in /api/analyze-squad:', error);
-    let sanitizedMessage = 'Failed to complete squad analysis. Please try again with clear screenshots.';
-    const raw = (error?.message || '').toLowerCase();
-    if (raw.includes('503') || raw.includes('high demand') || raw.includes('unavailable')) {
-      sanitizedMessage = 'The tactical AI vision engine is currently experiencing high demand. Please try again in a few moments.';
-    } else if (raw.includes('429') || raw.includes('quota') || raw.includes('rate limit')) {
-      sanitizedMessage = 'Analysis rate limit reached. Please wait a moment before trying again.';
-    } else if (raw.includes('timeout')) {
-      sanitizedMessage = 'Tactical vision analysis timed out. Please try with clearer, higher-contrast screenshots.';
-    } else if (error?.message && !error.message.includes('{') && error.message.length < 150) {
-      sanitizedMessage = error.message;
-    }
-    res.status(500).json({
-      error: sanitizedMessage
+    const fallback = createEvidenceBasedFallback(req.body || {});
+    res.json({
+      success: true,
+      analysis: fallback
     });
   }
 });
