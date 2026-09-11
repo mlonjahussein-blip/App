@@ -270,14 +270,16 @@ Sent from eFootball AI Hub
 
   // 4. Check Gmail Direct Service (efootballaihub@gmail.com)
   const gmailUser = process.env.GMAIL_USER || 'efootballaihub@gmail.com';
-  const gmailPass = process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASSWORD;
+  const gmailPass = (process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || 'otblyzhyhemwaxws').replace(/\s+/g, '');
   if (gmailPass) {
     try {
       const gmailTransporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
         auth: {
           user: gmailUser,
-          pass: gmailPass.replace(/\s+/g, '') // Strip spaces from Google 16-char app password
+          pass: gmailPass
         }
       });
 

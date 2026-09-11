@@ -28,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const fromName = 'eFootball AI Hub';
   const gmailUser = process.env.GMAIL_USER || 'efootballaihub@gmail.com';
-  const gmailPass = process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASSWORD;
+  const gmailPass = (process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || 'otblyzhyhemwaxws').replace(/\s+/g, '');
   const fromAddress = process.env.EMAIL_FROM || `"${fromName}" <${gmailUser}>`;
 
   const subject = `Your eFootball AI Hub 6-Digit Verification Code: ${otpCode}`;
@@ -131,10 +131,12 @@ Sent from eFootball AI Hub (${gmailUser})
   if (gmailPass) {
     try {
       const transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
         auth: {
           user: gmailUser,
-          pass: gmailPass.replace(/\s+/g, '') // remove spaces from Google app password
+          pass: gmailPass
         }
       });
 
