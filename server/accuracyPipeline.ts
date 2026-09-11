@@ -43,7 +43,14 @@ let aiClient: GoogleGenAI | null = null;
 function getGenAI(): GoogleGenAI {
   if (!aiClient) {
     const apiKey = process.env.GEMINI_API_KEY;
-    aiClient = new GoogleGenAI({ apiKey: apiKey || '' });
+    aiClient = new GoogleGenAI({ 
+      apiKey: apiKey || '',
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
   }
   return aiClient;
 }
@@ -370,9 +377,7 @@ OUTPUT FORMAT: Strict JSON matching this schema:
 
     // Supported vision models according to @google/genai guidelines
     const candidateModels = [
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash'
+      'gemini-3.8-flash'
     ];
 
     let response: any = null;
