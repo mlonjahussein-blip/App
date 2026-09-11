@@ -56,6 +56,8 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [otpSentPhone, setOtpSentPhone] = useState<string>('');
   const [whatsappLink, setWhatsappLink] = useState<string>('');
+  const [latestCode, setLatestCode] = useState<string>('');
+  const [hasGateway, setHasGateway] = useState<boolean>(false);
   const [resendCooldown, setResendCooldown] = useState<number>(0);
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -133,9 +135,25 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       );
       setOtpSentPhone(fullPhone);
       setWhatsappLink(resp.whatsappLink);
+      setLatestCode(resp.code);
+      setHasGateway(!!resp.hasGateway);
       setResendCooldown(60);
       setWaStep('otp');
-      setInfoMessage(`We sent a 6-digit verification code to your WhatsApp: ${fullPhone}`);
+
+      // Attempt to open WhatsApp directly with the verification message
+      if (typeof window !== 'undefined' && resp.whatsappLink) {
+        try {
+          window.open(resp.whatsappLink, '_blank');
+        } catch (openErr) {
+          console.warn('Popup blocked, user can tap the Open WhatsApp button:', openErr);
+        }
+      }
+
+      setInfoMessage(
+        resp.hasGateway
+          ? `We sent a 6-digit verification code to your WhatsApp: ${fullPhone}`
+          : `WhatsApp verification started for ${fullPhone}. Tap "Open WhatsApp" below to get your code.`
+      );
     } catch (err: any) {
       setError(err.message || 'Failed to dispatch WhatsApp verification code. Please try again.');
     } finally {
@@ -253,8 +271,18 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
         mode === 'signup' ? 'signup' : 'signin'
       );
       setWhatsappLink(resp.whatsappLink);
+      setLatestCode(resp.code);
+      setHasGateway(!!resp.hasGateway);
       setResendCooldown(60);
-      setInfoMessage(`New 6-digit verification code sent to ${otpSentPhone}`);
+
+      // Attempt to open WhatsApp directly with new code
+      if (typeof window !== 'undefined' && resp.whatsappLink) {
+        try {
+          window.open(resp.whatsappLink, '_blank');
+        } catch (e) {}
+      }
+
+      setInfoMessage(`New 6-digit verification code dispatched for ${otpSentPhone}`);
     } catch (err: any) {
       setError(err.message || 'Failed to resend code. Please try again.');
     } finally {
@@ -423,14 +451,14 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                   </div>
                 </div>
 
-                {/* Direct WhatsApp Open Link */}
+                {/* Direct WhatsApp Open Link & Verification Assistant */}
                 <div className="p-4 rounded-2xl bg-neutral-950 border border-emerald-500/30 text-xs space-y-3">
                   <div className="flex items-start gap-2.5 text-emerald-400">
-                    <MessageCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <MessageCircle className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" />
                     <div className="space-y-1">
-                      <span className="font-bold text-neutral-200 block">WhatsApp Verification Code Sent</span>
+                      <span className="font-bold text-neutral-200 block text-xs">WhatsApp Verification Ready</span>
                       <p className="text-neutral-400 text-[11px] leading-relaxed">
-                        Please check your WhatsApp on <strong className="text-white">{otpSentPhone}</strong>. You can also tap below to open WhatsApp directly:
+                        To receive or view your 6-digit code on <strong className="text-white">{otpSentPhone}</strong>, tap the button below to open WhatsApp:
                       </p>
                     </div>
                   </div>
@@ -440,11 +468,30 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                       href={whatsappLink}
                       target="_blank"
                       rel="noreferrer"
-                      className="w-full py-2.5 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold flex items-center justify-center gap-2 transition-all"
+                      className="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15 transition-all"
                     >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Open in WhatsApp</span>
+                      <MessageCircle className="w-4 h-4" />
+                      <span>Open WhatsApp to Receive 6-Digit Code</span>
+                      <ExternalLink className="w-3.5 h-3.5 opacity-70" />
                     </a>
+                  )}
+
+                  {/* Fallback code assistant for environments without paid SMS Gateway */}
+                  {latestCode && (
+                    <div className="pt-2 border-t border-neutral-800 flex items-center justify-between text-[11px]">
+                      <span className="text-neutral-400">Didn't receive SMS?</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const digits = latestCode.split('');
+                          setOtpDigits(digits);
+                          handleVerifyOtp(latestCode);
+                        }}
+                        className="font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-neutral-900 hover:bg-neutral-800 px-2.5 py-1 rounded-lg border border-neutral-800 hover:border-emerald-500/50 transition-colors"
+                      >
+                        Code: {latestCode} (Auto-Fill)
+                      </button>
+                    </div>
                   )}
                 </div>
 

@@ -42,6 +42,7 @@ interface AuthContextType {
     code: string;
     expiresAt: number;
     whatsappLink: string;
+    hasGateway?: boolean;
   }>;
   signInWithWhatsAppOtp: (phoneNumber: string, otpCode: string) => Promise<void>;
   logout: () => Promise<void>;

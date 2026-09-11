@@ -99,7 +99,7 @@ export async function sendWhatsAppVerificationCode(
   phoneNumber: string,
   managerName?: string,
   purpose: 'signup' | 'signin' = 'signup'
-): Promise<{ success: boolean; message: string; code: string; expiresAt: number; whatsappLink: string }> {
+): Promise<{ success: boolean; message: string; code: string; expiresAt: number; whatsappLink: string; hasGateway?: boolean }> {
   const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : '+' + cleanPhoneDigits(phoneNumber);
   
   if (cleanPhoneDigits(cleanPhone).length < 7) {
@@ -118,13 +118,19 @@ export async function sendWhatsAppVerificationCode(
     managerName
   });
 
-  // Prepare direct WhatsApp message link
-  const messageText = `🎮 *eFootball AI Hub Verification*\n\nHello ${managerName ? `*${managerName}*` : 'Manager'}!\nYour 6-digit WhatsApp verification code is:\n\n👉 *${randomCode}*\n\n(Valid for 10 minutes. Do not share this code with anyone).`;
-  const whatsappLink = `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+  // Prepare direct WhatsApp message links with the recipient's phone number
+  const rawDigits = cleanPhoneDigits(cleanPhone);
+  const messageText = `🎮 *eFootball AI Hub Verification*\n\nHello ${managerName ? `*${managerName}*` : 'Manager'}!\nYour 6-digit WhatsApp verification code is:\n\n👉 *${randomCode}*\n\n(Valid for 10 minutes. Enter this code to complete registration).`;
+  
+  // Use official WhatsApp API deep link targeting the recipient's number
+  const whatsappLink = `https://api.whatsapp.com/send?phone=${rawDigits}&text=${encodeURIComponent(messageText)}`;
 
-  // Also call backend API to dispatch if WhatsApp Business / Twilio gateway is configured
+  let hasGateway = false;
+  let serverMessage = '';
+
+  // Call backend API to dispatch if WhatsApp Business / Twilio gateway is configured
   try {
-    await fetch('/api/auth/send-whatsapp-otp', {
+    const res = await fetch('/api/auth/send-whatsapp-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -133,17 +139,25 @@ export async function sendWhatsAppVerificationCode(
         code: randomCode,
         purpose
       })
-    }).catch(() => {});
+    });
+    if (res.ok) {
+      const data = await res.json();
+      hasGateway = data.gateway !== 'direct_verification';
+      serverMessage = data.message || '';
+    }
   } catch (err) {
     console.warn('Backend WhatsApp dispatch notice:', err);
   }
 
   return {
     success: true,
-    message: `Verification code sent to WhatsApp: ${cleanPhone}`,
+    message: hasGateway
+      ? `Verification code dispatched to your WhatsApp (+${rawDigits}).`
+      : `WhatsApp code generated. Open WhatsApp or use the code to complete registration.`,
     code: randomCode,
     expiresAt,
-    whatsappLink
+    whatsappLink,
+    hasGateway
   };
 }
 
