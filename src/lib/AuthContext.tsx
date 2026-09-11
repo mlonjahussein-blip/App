@@ -149,6 +149,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (raw) cachedProfile = JSON.parse(raw);
     } catch {}
 
+    // Eagerly set cached profile for instantaneous render & full offline support
+    if (cachedProfile) {
+      setProfile(cachedProfile);
+    }
+
     try {
       const ref = doc(db, 'users', uid);
       const snap = await getDoc(ref);
