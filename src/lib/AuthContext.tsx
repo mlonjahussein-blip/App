@@ -5,9 +5,19 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as fbSignOut,
-  updateProfile
+  updateProfile,
+  deleteUser
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  collection,
+  query,
+  where,
+  getDocs
+} from 'firebase/firestore';
 import { auth, db } from './firebase.ts';
 import { UserProfile } from '../types.ts';
 import {
@@ -52,6 +62,7 @@ interface AuthContextType {
   sendEmailOtpCode: (email: string, managerName?: string) => Promise<SendEmailOtpResponse>;
   signInWithWhatsAppOtp: (phoneNumber: string, otpCode: string) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -600,6 +611,83 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(null);
   };
 
+  const deleteAccount = async () => {
+    if (!user) return;
+    const currentUid = user.uid;
+    const currentEmail = user.email ? user.email.toLowerCase() : '';
+    const currentWhatsApp = user.whatsappNumber || '';
+
+    // 1. Delete user profile document from Firestore
+    try {
+      await deleteDoc(doc(db, 'users', currentUid));
+    } catch (e) {
+      console.warn('Could not delete user doc from Firestore:', e);
+    }
+
+    // 2. Delete user squads and saved analyses in Firestore
+    try {
+      const squadsQuery = query(collection(db, 'userSquads'), where('userId', '==', currentUid));
+      const squadSnaps = await getDocs(squadsQuery);
+      for (const sDoc of squadSnaps.docs) {
+        await deleteDoc(doc(db, 'userSquads', sDoc.id)).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Could not delete user squads from Firestore:', e);
+    }
+
+    try {
+      const reportsQuery = query(collection(db, 'savedAnalyses'), where('userId', '==', currentUid));
+      const reportSnaps = await getDocs(reportsQuery);
+      for (const rDoc of reportSnaps.docs) {
+        await deleteDoc(doc(db, 'savedAnalyses', rDoc.id)).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Could not delete saved analyses from Firestore:', e);
+    }
+
+    // 3. Delete from Firebase Auth if current Firebase user
+    if (auth.currentUser) {
+      try {
+        await deleteUser(auth.currentUser);
+      } catch (e) {
+        console.warn('Firebase auth deleteUser error:', e);
+      }
+    }
+
+    // 4. Remove local credential stores
+    try {
+      if (currentEmail) {
+        const emailAccounts = getStoredAccountsV2();
+        delete emailAccounts[currentEmail];
+        localStorage.setItem(STORAGE_ACCOUNTS_V2_KEY, JSON.stringify(emailAccounts));
+      }
+      if (currentWhatsApp) {
+        const waAccounts = getStoredWhatsAppAccounts();
+        delete waAccounts[currentWhatsApp];
+        delete waAccounts[cleanPhoneDigits(currentWhatsApp)];
+        localStorage.setItem(STORAGE_WHATSAPP_ACCOUNTS_KEY, JSON.stringify(waAccounts));
+      }
+      const legacyRaw = localStorage.getItem(STORAGE_LEGACY_ACCOUNTS_KEY);
+      if (legacyRaw) {
+        const legacy = JSON.parse(legacyRaw);
+        if (currentEmail && legacy[currentEmail]) delete legacy[currentEmail];
+        localStorage.setItem(STORAGE_LEGACY_ACCOUNTS_KEY, JSON.stringify(legacy));
+      }
+    } catch (err) {
+      console.warn('Error clearing local stored accounts:', err);
+    }
+
+    // 5. Clear all local user session & cached profile data
+    localStorage.removeItem(STORAGE_SESSION_KEY);
+    localStorage.removeItem(`ef_profile_${currentUid}`);
+    localStorage.removeItem(`ef_user_squads_${currentUid}`);
+
+    // 6. Sign out & reset state
+    await fbSignOut(auth).catch(() => {});
+    setUser(null);
+    setProfile(null);
+  };
+
   const refreshProfile = async () => {
     if (user) {
       await fetchProfile(
@@ -626,6 +714,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sendEmailOtpCode,
         signInWithWhatsAppOtp,
         logout,
+        deleteAccount,
         refreshProfile
       }}
     >

@@ -7,17 +7,57 @@ import {
   Activity, 
   AlertCircle, 
   LogOut,
-  Sparkles
+  Sparkles,
+  Trash2,
+  AlertTriangle,
+  RefreshCw,
+  ShieldAlert,
+  X
 } from 'lucide-react';
 
 interface SettingsProps {
   onLogout: () => void;
   onNavigateToAnalyzer: () => void;
+  onAccountDeleted?: () => void;
 }
 
-export const SettingsView: React.FC<SettingsProps> = ({ onLogout, onNavigateToAnalyzer }) => {
-  const { user, profile } = useAuth();
+export const SettingsView: React.FC<SettingsProps> = ({
+  onLogout,
+  onNavigateToAnalyzer,
+  onAccountDeleted
+}) => {
+  const { user, profile, deleteAccount } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<'account' | 'usage' | 'payments'>('account');
+
+  // Account deletion states
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState<string>('');
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmationText.trim().toUpperCase() !== 'DELETE') {
+      setDeleteError('Please type DELETE to confirm account deletion.');
+      return;
+    }
+
+    setDeleteError(null);
+    setIsDeleting(true);
+
+    try {
+      await deleteAccount();
+      setShowDeleteModal(false);
+      if (onAccountDeleted) {
+        onAccountDeleted();
+      } else {
+        onLogout();
+      }
+    } catch (err: any) {
+      console.error('Account deletion error:', err);
+      setDeleteError(err?.message || 'Failed to delete account. Please try again.');
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div id="settings-page" className="max-w-4xl mx-auto space-y-8 py-6">
@@ -108,6 +148,36 @@ export const SettingsView: React.FC<SettingsProps> = ({ onLogout, onNavigateToAn
               <p className="font-mono text-xs text-neutral-400 bg-neutral-950 p-3 rounded-xl border border-neutral-800 break-all">
                 {user?.uid || 'Not authenticated'}
               </p>
+            </div>
+
+            {/* Danger Zone: Delete Account */}
+            <div className="pt-6 mt-6 border-t border-neutral-800 space-y-4">
+              <div className="flex items-center gap-2 text-rose-400">
+                <AlertTriangle className="w-5 h-5" />
+                <h3 className="text-base font-bold text-rose-400">Danger Zone</h3>
+              </div>
+
+              <div className="p-4 sm:p-5 rounded-2xl bg-rose-950/20 border border-rose-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1 max-w-md">
+                  <h4 className="text-sm font-bold text-white">Delete Manager Account</h4>
+                  <p className="text-xs text-neutral-400 leading-relaxed">
+                    Permanently delete your manager profile, tactical history, saved squads, and authentication credentials. Once deleted, your account cannot be recovered.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteConfirmationText('');
+                    setDeleteError(null);
+                    setShowDeleteModal(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 border border-rose-800/80 text-rose-300 hover:text-rose-200 text-xs font-bold transition-all flex items-center justify-center gap-2 self-start sm:self-auto shrink-0 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete Account</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -202,6 +272,103 @@ export const SettingsView: React.FC<SettingsProps> = ({ onLogout, onNavigateToAn
             </div>
           </div>
 
+        </div>
+      )}
+
+      {/* Account Deletion Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-neutral-900 border border-rose-900/60 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 relative">
+            <button
+              onClick={() => {
+                if (!isDeleting) setShowDeleteModal(false);
+              }}
+              className="absolute top-5 right-5 text-neutral-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-xl font-black text-white">Permanently Delete Account?</h3>
+              <p className="text-xs text-neutral-400 leading-relaxed">
+                This action is <strong className="text-rose-400">permanent and irreversible</strong>. All your data associated with <span className="text-white font-mono font-semibold">{profile?.displayName || user?.displayName || user?.email || user?.whatsappNumber}</span> will be permanently erased:
+              </p>
+            </div>
+
+            <ul className="text-xs text-neutral-300 space-y-2 bg-neutral-950 p-3.5 rounded-xl border border-neutral-800">
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                <span>Manager Profile & Unique Account ID</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                <span>All saved squads, custom tactics & bench formations</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                <span>Tactical analysis reports and history</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                <span>WhatsApp and Email authentication credentials</span>
+              </li>
+            </ul>
+
+            {deleteError && (
+              <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800 text-xs text-rose-300 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="block text-xs text-neutral-400 font-semibold">
+                To confirm, type <strong className="text-white tracking-widest font-mono">DELETE</strong> below:
+              </label>
+              <input
+                type="text"
+                disabled={isDeleting}
+                value={deleteConfirmationText}
+                onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                placeholder="Type DELETE"
+                className="w-full bg-neutral-950 border border-neutral-800 focus:border-rose-500 rounded-xl px-4 py-2.5 text-white font-mono text-sm tracking-wider outline-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeleting || deleteConfirmationText.trim().toUpperCase() !== 'DELETE'}
+                onClick={handleDeleteAccount}
+                className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-black text-xs transition-colors flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20 cursor-pointer"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Permanently</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

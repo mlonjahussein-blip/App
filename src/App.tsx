@@ -229,6 +229,7 @@ function AppContent() {
               logout();
               setCurrentTab('home');
             }}
+            onAccountDeleted={() => setCurrentTab('home')}
             onNavigateToAnalyzer={() => setCurrentTab('analyzer')}
           />
         )}
@@ -239,6 +240,7 @@ function AppContent() {
               logout();
               setCurrentTab('home');
             }}
+            onAccountDeleted={() => setCurrentTab('home')}
             onNavigateToAnalyzer={() => setCurrentTab('analyzer')}
           />
         )}

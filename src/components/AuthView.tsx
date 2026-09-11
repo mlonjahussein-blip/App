@@ -6,6 +6,7 @@ import {
   formatFullWhatsAppNumber,
   cleanPhoneDigits
 } from '../lib/whatsappAuth.ts';
+import { CountryCodeSelector } from './CountryCodeSelector.tsx';
 import {
   User,
   Lock,
@@ -724,26 +725,11 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                   </label>
 
                   <div className="flex gap-2">
-                    {/* Country Code Picker */}
-                    <div className="relative w-36 shrink-0">
-                      <select
-                        value={selectedCountry.code}
-                        onChange={(e) => {
-                          const found = POPULAR_COUNTRIES.find((c) => c.code === e.target.value);
-                          if (found) setSelectedCountry(found);
-                        }}
-                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-3 text-white text-xs font-bold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-all appearance-none cursor-pointer"
-                      >
-                        {POPULAR_COUNTRIES.map((c) => (
-                          <option key={c.code} value={c.code} className="bg-neutral-900 text-white">
-                            {c.flag} {c.dialCode} ({c.name})
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400 text-xs">
-                        ▼
-                      </div>
-                    </div>
+                    {/* Country Code Picker with Instant Search & Narrow Down */}
+                    <CountryCodeSelector
+                      selectedCountry={selectedCountry}
+                      onSelectCountry={(c) => setSelectedCountry(c)}
+                    />
 
                     {/* Local Phone Input */}
                     <div className="relative flex-1">

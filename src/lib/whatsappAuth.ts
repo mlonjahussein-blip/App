@@ -1,39 +1,14 @@
 // WhatsApp Authentication & Country Code Utilities
+import {
+  CountryCodeItem,
+  ALL_WORLD_COUNTRIES,
+  searchCountries
+} from './countriesData.ts';
 
-export interface CountryCodeItem {
-  code: string;
-  dialCode: string;
-  name: string;
-  flag: string;
-  placeholder: string;
-}
+export type { CountryCodeItem };
+export { ALL_WORLD_COUNTRIES, searchCountries };
 
-export const POPULAR_COUNTRIES: CountryCodeItem[] = [
-  { code: 'TZ', dialCode: '+255', name: 'Tanzania', flag: '🇹🇿', placeholder: '712 345 678' },
-  { code: 'KE', dialCode: '+254', name: 'Kenya', flag: '🇰🇪', placeholder: '712 345 678' },
-  { code: 'NG', dialCode: '+234', name: 'Nigeria', flag: '🇳🇬', placeholder: '801 234 5678' },
-  { code: 'UG', dialCode: '+256', name: 'Uganda', flag: '🇺🇬', placeholder: '712 345 678' },
-  { code: 'ZA', dialCode: '+27', name: 'South Africa', flag: '🇿🇦', placeholder: '71 234 5678' },
-  { code: 'GH', dialCode: '+233', name: 'Ghana', flag: '🇬🇭', placeholder: '20 123 4567' },
-  { code: 'EG', dialCode: '+20', name: 'Egypt', flag: '🇪🇬', placeholder: '10 1234 5678' },
-  { code: 'RW', dialCode: '+250', name: 'Rwanda', flag: '🇷🇼', placeholder: '78 123 4567' },
-  { code: 'GB', dialCode: '+44', name: 'United Kingdom', flag: '🇬🇧', placeholder: '7911 123456' },
-  { code: 'US', dialCode: '+1', name: 'United States & Canada', flag: '🇺🇸', placeholder: '555 123 4567' },
-  { code: 'IN', dialCode: '+91', name: 'India', flag: '🇮🇳', placeholder: '98765 43210' },
-  { code: 'ID', dialCode: '+62', name: 'Indonesia', flag: '🇮🇩', placeholder: '812 3456 7890' },
-  { code: 'BR', dialCode: '+55', name: 'Brazil', flag: '🇧🇷', placeholder: '11 91234 5678' },
-  { code: 'ES', dialCode: '+34', name: 'Spain', flag: '🇪🇸', placeholder: '612 34 56 78' },
-  { code: 'FR', dialCode: '+33', name: 'France', flag: '🇫🇷', placeholder: '6 12 34 56 78' },
-  { code: 'DE', dialCode: '+49', name: 'Germany', flag: '🇩🇪', placeholder: '151 2345678' },
-  { code: 'IT', dialCode: '+39', name: 'Italy', flag: '🇮🇹', placeholder: '320 123 4567' },
-  { code: 'JP', dialCode: '+81', name: 'Japan', flag: '🇯🇵', placeholder: '90 1234 5678' },
-  { code: 'SA', dialCode: '+966', name: 'Saudi Arabia', flag: '🇸🇦', placeholder: '50 123 4567' },
-  { code: 'AE', dialCode: '+971', name: 'UAE', flag: '🇦🇪', placeholder: '50 123 4567' },
-  { code: 'MA', dialCode: '+212', name: 'Morocco', flag: '🇲🇦', placeholder: '6 12 34 56 78' },
-  { code: 'MX', dialCode: '+52', name: 'Mexico', flag: '🇲🇽', placeholder: '55 1234 5678' },
-  { code: 'CO', dialCode: '+57', name: 'Colombia', flag: '🇨🇴', placeholder: '300 123 4567' },
-  { code: 'AR', dialCode: '+54', name: 'Argentina', flag: '🇦🇷', placeholder: '9 11 1234 5678' }
-];
+export const POPULAR_COUNTRIES: CountryCodeItem[] = ALL_WORLD_COUNTRIES;
 
 export function cleanPhoneDigits(raw: string): string {
   if (!raw) return '';
