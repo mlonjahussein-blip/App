@@ -22,6 +22,7 @@ import {
 import { AnalysisResult, UploadedImageItem, ImageSourceType, TypedPlayerInput, ManagerInputDetails } from '../types.ts';
 import { CameraCaptureModal } from './CameraCaptureModal.tsx';
 import { ManualPlayerInput } from './ManualPlayerInput.tsx';
+import { ManagerDetailsInput } from './ManagerDetailsInput.tsx';
 import { preprocessImage } from '../lib/imagePreprocessing.ts';
 
 interface AnalyzerProps {
@@ -47,7 +48,6 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
   const [preferredPlaystyle, setPreferredPlaystyle] = useState('Quick Counter');
   const [preferredFormation, setPreferredFormation] = useState('Auto-Detect / Balanced');
   const [tacticalPreference, setTacticalPreference] = useState('');
-  const [isCoachScreenshotIncluded, setIsCoachScreenshotIncluded] = useState(false);
 
   // Modals & Active Views
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
@@ -176,11 +176,11 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           nationality: p.nationality,
           skills: p.skills
         })),
-        managerDetails: activeInputTab === 'enter_players' && managerDetails.name.trim() ? managerDetails : undefined,
+        managerDetails: managerDetails.name.trim() ? managerDetails : undefined,
         preferredPlaystyle,
         preferredFormation,
         tacticalPreference,
-        hasCoachScreenshot: activeInputTab === 'screenshots' ? isCoachScreenshotIncluded : false
+        hasCoachScreenshot: false
       };
 
       const resp = await fetch('/api/analyze-squad', {
@@ -642,6 +642,15 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
                 </div>
               )}
 
+              {/* Manager / Coach Details in Upload Screenshots Tab */}
+              <div className="pt-2">
+                <ManagerDetailsInput
+                  managerDetails={managerDetails}
+                  onManagerChange={setManagerDetails}
+                  subtitle="Enter your manager/coach identity and playstyle proficiency ratings."
+                />
+              </div>
+
             </div>
           )}
 
@@ -703,28 +712,6 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
                 </select>
               </div>
 
-              {/* Coach Screenshot Confirmation Checkbox (ONLY for screenshots mode) */}
-              {activeInputTab === 'screenshots' && (
-                <div className="md:col-span-2 pt-2">
-                  <label className="flex items-center gap-3 p-3 rounded-xl bg-neutral-950 border border-neutral-800 cursor-pointer hover:border-neutral-700">
-                    <input
-                      type="checkbox"
-                      checked={isCoachScreenshotIncluded}
-                      onChange={(e) => setIsCoachScreenshotIncluded(e.target.checked)}
-                      className="w-4 h-4 rounded text-emerald-500 bg-neutral-900 border-neutral-700 focus:ring-emerald-500"
-                    />
-                    <div className="text-xs">
-                      <span className="font-bold text-white block">
-                        One of my uploaded screenshots or photos contains my Coach/Manager
-                      </span>
-                      <span className="text-neutral-400 block mt-0.5">
-                        If checked, the AI will inspect the coach's tactical affinity from your image; otherwise, it provides a general recommendation.
-                      </span>
-                    </div>
-                  </label>
-                </div>
-              )}
-
               {/* Freeform Tactical Note */}
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
@@ -749,7 +736,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
               <p className="text-xs text-neutral-400">
                 {activeInputTab === 'screenshots'
                   ? files.length > 0
-                    ? `${files.length} squad screenshot(s) / photo(s) loaded.`
+                    ? `${files.length} squad screenshot(s) / photo(s) loaded${managerDetails.name ? ` • Manager: ${managerDetails.name}` : ''}.`
                     : 'Add up to 5 screenshots or camera photos to start analysis.'
                   : typedPlayers.length > 0
                     ? `${typedPlayers.length} player(s) loaded in squad${managerDetails.name ? ` • Manager: ${managerDetails.name}` : ''}.`

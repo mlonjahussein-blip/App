@@ -604,33 +604,63 @@ export async function postProcessAndVerifySquad(
   }
 
   // 2. Coach Processing & Matching
-  let coach = parsed.coach || {};
-  const coachDbMatch = findDatabaseCoach(coach.name || '');
-  let coachConfidenceScore = Number(coach.confidenceScore) || 80;
-  let isIdentifiedFromScreenshot = Boolean(coach.isIdentifiedFromScreenshot);
+  let verifiedCoach: CoachData;
 
-  if (coachDbMatch) {
-    coachConfidenceScore = Math.max(coachConfidenceScore, 90);
-    coach = {
-      ...coach,
-      name: `${coachDbMatch.name} (${coachDbMatch.inGameName})`,
-      tacticalStyle: coachDbMatch.tacticalStyle,
-      rating: coachDbMatch.affinityRating,
-      explanation: coachDbMatch.tacticalDescription
+  if (payload.managerDetails && payload.managerDetails.name && payload.managerDetails.name.trim()) {
+    const proficiencies = payload.managerDetails.playstyleProficiencies || {};
+    const bestAffinity = Math.max(
+      proficiencies.possessionGame || 85,
+      proficiencies.quickCounter || 87,
+      proficiencies.longBallCounter || 85,
+      proficiencies.outWide || 80,
+      proficiencies.longBall || 75
+    );
+
+    verifiedCoach = {
+      name: payload.managerDetails.name + (payload.managerDetails.team ? ` (${payload.managerDetails.team})` : ''),
+      rating: bestAffinity,
+      tacticalStyle: payload.preferredPlaystyle || 'Quick Counter',
+      tacticalAffinity: bestAffinity,
+      isIdentifiedFromScreenshot: false,
+      confidence: 'High',
+      confidenceScore: 98,
+      evidence: [
+        `Manager: ${payload.managerDetails.name}`,
+        payload.managerDetails.nationality ? `Nationality: ${payload.managerDetails.nationality}` : '',
+        payload.managerDetails.team ? `Team / Club: ${payload.managerDetails.team}` : '',
+        `Configured Playstyle Proficiencies: QC (${proficiencies.quickCounter || 87}), PG (${proficiencies.possessionGame || 85}), LBC (${proficiencies.longBallCounter || 85})`
+      ].filter(Boolean),
+      explanation: `Custom user-specified manager with ${bestAffinity} max tactical proficiency across core eFootball playstyles.`
+    };
+  } else {
+    let coach = parsed.coach || {};
+    const coachDbMatch = findDatabaseCoach(coach.name || '');
+    let coachConfidenceScore = Number(coach.confidenceScore) || 80;
+    let isIdentifiedFromScreenshot = Boolean(coach.isIdentifiedFromScreenshot);
+
+    if (coachDbMatch) {
+      coachConfidenceScore = Math.max(coachConfidenceScore, 90);
+      coach = {
+        ...coach,
+        name: `${coachDbMatch.name} (${coachDbMatch.inGameName})`,
+        tacticalStyle: coachDbMatch.tacticalStyle,
+        rating: coachDbMatch.affinityRating,
+        explanation: coachDbMatch.tacticalDescription
+      };
+    }
+
+    verifiedCoach = {
+      name: coach.name || (payload.preferredPlaystyle === 'Possession Game' ? 'Pep Guardiola (L. Roman)' : 'Jürgen Klopp (G. Zeitzler)'),
+      rating: Number(coach.rating) || 88,
+      tacticalStyle: coach.tacticalStyle || payload.preferredPlaystyle || 'Quick Counter',
+      tacticalAffinity: coach.rating || 88,
+      isIdentifiedFromScreenshot,
+      confidence: coachConfidenceScore >= 85 ? 'High' : 'Medium',
+      confidenceScore: coachConfidenceScore,
+      evidence: Array.isArray(coach.evidence) ? coach.evidence : isIdentifiedFromScreenshot ? ['Extracted from uploaded coach screenshot'] : ['Recommended based on squad playstyle fit'],
+      explanation: coach.explanation || 'Provides maximum tactical attribute boosts for the starting lineup.'
     };
   }
-
-  const verifiedCoach: CoachData = {
-    name: coach.name || (payload.preferredPlaystyle === 'Possession Game' ? 'Pep Guardiola (L. Roman)' : 'Jürgen Klopp (G. Zeitzler)'),
-    rating: Number(coach.rating) || 88,
-    tacticalStyle: coach.tacticalStyle || payload.preferredPlaystyle || 'Quick Counter',
-    tacticalAffinity: coach.rating || 88,
-    isIdentifiedFromScreenshot,
-    confidence: coachConfidenceScore >= 85 ? 'High' : 'Medium',
-    confidenceScore: coachConfidenceScore,
-    evidence: Array.isArray(coach.evidence) ? coach.evidence : isIdentifiedFromScreenshot ? ['Extracted from uploaded coach screenshot'] : ['Recommended based on squad playstyle fit'],
-    explanation: coach.explanation || 'Provides maximum tactical attribute boosts for the starting lineup.'
-  };
 
   // 3. Best XI: MUST ONLY USE VERIFIED PLAYERS (Rule 16)
   // Ensure Best XI strictly uses players that exist in the extracted squad dataset

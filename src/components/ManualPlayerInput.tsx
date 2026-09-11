@@ -7,10 +7,10 @@ import {
   ShieldCheck, 
   Layers, 
   Award,
-  Users,
-  Briefcase
+  Users
 } from 'lucide-react';
 import { TypedPlayerInput, ManagerInputDetails } from '../types.ts';
+import { ManagerDetailsInput } from './ManagerDetailsInput.tsx';
 
 interface ManualPlayerInputProps {
   typedPlayers: TypedPlayerInput[];
@@ -146,112 +146,10 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     <div className="space-y-8">
 
       {/* 1. Manager / Coach Details Section */}
-      <div className="bg-neutral-950/70 border border-neutral-800 rounded-2xl p-5 sm:p-6 space-y-5">
-        <div className="flex items-center gap-2.5 pb-2 border-b border-neutral-800">
-          <Briefcase className="w-5 h-5 text-emerald-400" />
-          <div>
-            <h3 className="text-sm sm:text-base font-bold text-white">
-              Manager / Coach Details
-            </h3>
-            <p className="text-xs text-neutral-400">
-              Enter your manager's identity and tactical playstyle proficiency ratings.
-            </p>
-          </div>
-        </div>
-
-        {/* Manager Basic Details */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className="text-[11px] font-bold text-neutral-400 block mb-1">
-              Manager's Name
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Pep Guardiola, X. Alonso, C. Ancelotti"
-              value={managerDetails.name}
-              onChange={(e) => onManagerChange({ ...managerDetails, name: e.target.value })}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-            />
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold text-neutral-400 block mb-1">
-              Manager's Nationality
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Spain, Germany, Italy, England"
-              value={managerDetails.nationality || ''}
-              onChange={(e) => onManagerChange({ ...managerDetails, nationality: e.target.value })}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-            />
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold text-neutral-400 block mb-1">
-              Manager's Team / Club
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Manchester City, Real Madrid, Leverkusen"
-              value={managerDetails.team || ''}
-              onChange={(e) => onManagerChange({ ...managerDetails, team: e.target.value })}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-            />
-          </div>
-        </div>
-
-        {/* Manager Playstyle Strengths */}
-        <div className="pt-2">
-          <label className="text-xs font-bold text-white block mb-2.5">
-            Manager Playing Style Strengths (Proficiency):
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-            {[
-              { key: 'possessionGame', label: 'Possession Game' },
-              { key: 'quickCounter', label: 'Quick Counter' },
-              { key: 'longBallCounter', label: 'Long Ball Counter' },
-              { key: 'outWide', label: 'Out Wide' },
-              { key: 'longBall', label: 'Long Ball' },
-            ].map(({ key, label }) => {
-              const currentVal = managerDetails.playstyleProficiencies?.[key as keyof typeof managerDetails.playstyleProficiencies] ?? 85;
-              return (
-                <div key={key} className="bg-neutral-900/90 border border-neutral-800 rounded-xl p-3 text-center space-y-1.5">
-                  <span className="text-[11px] font-medium text-neutral-300 block truncate">
-                    {label}
-                  </span>
-                  <div className="flex items-center justify-center gap-1.5">
-                    <input
-                      type="number"
-                      min="50"
-                      max="89"
-                      value={currentVal}
-                      onChange={(e) => {
-                        const val = Math.min(89, Math.max(50, Number(e.target.value) || 50));
-                        onManagerChange({
-                          ...managerDetails,
-                          playstyleProficiencies: {
-                            ...(managerDetails.playstyleProficiencies || {
-                              possessionGame: 85,
-                              quickCounter: 87,
-                              longBallCounter: 85,
-                              outWide: 80,
-                              longBall: 75
-                            }),
-                            [key]: val
-                          }
-                        });
-                      }}
-                      className="w-14 bg-neutral-950 border border-neutral-700 rounded-lg py-1 text-center font-black text-xs sm:text-sm text-emerald-400 focus:outline-none focus:border-emerald-500"
-                    />
-                    <span className="text-[10px] text-neutral-500 font-bold">/ 89</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+      <ManagerDetailsInput
+        managerDetails={managerDetails}
+        onManagerChange={onManagerChange}
+      />
 
       {/* 2. Enter the XI Player's Details */}
       <div className="bg-neutral-950/70 border border-neutral-800 rounded-2xl p-5 sm:p-6 space-y-4">
