@@ -21,7 +21,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const result = await performSquadAnalysis(payload);
-    return res.status(200).json(result);
+    return res.status(200).json({
+      success: true,
+      analysis: result,
+      ...result
+    });
   } catch (error: any) {
     console.error('Error in Vercel api/analyze-squad:', error);
     return res.status(500).json({

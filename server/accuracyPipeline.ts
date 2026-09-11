@@ -1,5 +1,20 @@
 import { GoogleGenAI } from '@google/genai';
-import sharp from 'sharp';
+// Dynamically import sharp to prevent runtime crashes in serverless environments where native binaries may be missing
+let sharpLib: any = null;
+let sharpAttempted = false;
+
+async function getSharpInstance() {
+  if (sharpAttempted) return sharpLib;
+  sharpAttempted = true;
+  try {
+    const mod = await import('sharp');
+    sharpLib = mod.default || mod;
+  } catch (err) {
+    console.warn('Sharp native module is unavailable in this runtime environment:', err);
+    sharpLib = null;
+  }
+  return sharpLib;
+}
 import type { 
   AnalysisResult, 
   PlayerData, 
@@ -75,7 +90,11 @@ async function cropCardImage(
   box: { ymin: number; xmin: number; ymax: number; xmax: number }
 ): Promise<string | undefined> {
   try {
-    const metadata = await sharp(imageBuffer).metadata();
+    const sharpInstance = await getSharpInstance();
+    if (!sharpInstance) {
+      return undefined;
+    }
+    const metadata = await sharpInstance(imageBuffer).metadata();
     const width = metadata.width || 1000;
     const height = metadata.height || 1000;
 
@@ -85,7 +104,7 @@ async function cropCardImage(
     const cropWidth = Math.max(15, Math.min(width - left, Math.round(((box.xmax - box.xmin) / 1000) * width)));
     const cropHeight = Math.max(15, Math.min(height - top, Math.round(((box.ymax - box.ymin) / 1000) * height)));
 
-    const croppedBuffer = await sharp(imageBuffer)
+    const croppedBuffer = await sharpInstance(imageBuffer)
       .extract({ left, top, width: cropWidth, height: cropHeight })
       .resize({ width: 140, height: 180, fit: 'inside' })
       .jpeg({ quality: 80 })

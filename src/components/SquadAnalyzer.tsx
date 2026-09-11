@@ -163,15 +163,25 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
       clearInterval(interval);
 
       if (!resp.ok) {
-        const errJson = await resp.json().catch(() => ({}));
-        throw new Error(errJson.error || 'Analysis service returned an error. Please try again.');
+        let errMessage = '';
+        try {
+          const errJson = await resp.json();
+          errMessage = errJson.error || errJson.message || '';
+        } catch {
+          errMessage = await resp.text().catch(() => '');
+        }
+        if (resp.status === 413 || errMessage.includes('Payload Too Large') || errMessage.includes('FUNCTION_PAYLOAD_TOO_LARGE')) {
+          throw new Error('Screenshot upload exceeds payload limits. Please upload fewer screenshots (1 to 3 recommended) or smaller file sizes.');
+        }
+        throw new Error(errMessage || `Analysis service encountered an issue (Status ${resp.status}). Please try again.`);
       }
 
       const data = await resp.json();
-      if (data.analysis) {
-        onAnalysisCompleted(data.analysis);
+      const analysisResult = data.analysis || (data.squadRatings || data.recommendedFormation ? data : null);
+      if (analysisResult) {
+        onAnalysisCompleted(analysisResult);
       } else {
-        throw new Error('No analysis data received from server.');
+        throw new Error('No analysis data was returned by the tactical server.');
       }
     } catch (err: any) {
       clearInterval(interval);

@@ -36,17 +36,28 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     e.preventDefault();
     setError(null);
 
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setError('Please enter your email address.');
+      return;
+    }
+
     if (initialMode === 'signup' && password !== confirmPassword) {
       setError('Passwords do not match. Please verify.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
       return;
     }
 
     setSubmitting(true);
     try {
       if (initialMode === 'signup') {
-        await signUp(email, password, name || email.split('@')[0]);
+        await signUp(cleanEmail, password, name.trim() || cleanEmail.split('@')[0]);
       } else {
-        await signIn(email, password);
+        await signIn(cleanEmail, password);
       }
       onSuccess();
     } catch (err: any) {
@@ -56,11 +67,6 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       setSubmitting(false);
     }
   };
-
-  const isOperationNotAllowed = error && (
-    error.includes('operation-not-allowed') ||
-    error.includes('disabled in your Firebase console')
-  );
 
   return (
     <div className="max-w-md mx-auto py-12 px-4">
@@ -92,7 +98,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
           <span className="w-5 h-5 rounded-full bg-neutral-900 text-white font-black text-xs flex items-center justify-center">
             G
           </span>
-          <span>{googleSubmitting ? 'Signing in with Google...' : 'Continue with Google (Recommended)'}</span>
+          <span>{googleSubmitting ? 'Signing in with Google...' : 'Continue with Google (Instant)'}</span>
         </button>
 
         <div className="relative flex items-center justify-center">
@@ -108,21 +114,6 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
               <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <span className="font-semibold block">{error}</span>
-                {isOperationNotAllowed && (
-                  <div className="pt-1">
-                    <p className="text-[11px] text-neutral-300 mb-2">
-                      In Firebase projects, Email/Password must be turned on in Firebase Console, whereas Google Sign-In is active by default.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleGoogleSignIn}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs inline-flex items-center gap-1.5"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Sign In with Google Instead
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </div>
