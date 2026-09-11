@@ -156,6 +156,22 @@ export const EFOOTBALL_MASTER_PLAYERS: EFootballMasterPlayer[] = [
     skills: ['Double Touch', 'First-time Shot', 'Long Range Shooting', 'Acrobatic Finishing', 'Outside Curler']
   },
   {
+    id: 'suarez_l',
+    fullName: 'Luis Suárez',
+    commonName: 'L. Suárez',
+    aliases: ['L. SUAREZ', 'SUAREZ', 'LUIS SUAREZ', 'L. SUÁREZ', 'LUIS SUÁREZ', 'EL PISTOLERO'],
+    primaryPosition: 'CF',
+    secondaryPositions: ['SS'],
+    baseRating: 92,
+    maxRating: 102,
+    playstyle: 'Goal Poacher',
+    club: 'Inter Miami',
+    nationality: 'Uruguay',
+    cardType: 'Epic',
+    keyAttributes: { Finishing: 98, OffensiveAwareness: 97, PhysicalContact: 92, Balance: 88, KickingPower: 93 },
+    skills: ['First-time Shot', 'Long Range Shooting', 'Acrobatic Finishing', 'Sole Control', 'Fighting Spirit', 'Gamesmanship']
+  },
+  {
     id: 'cruyff_j',
     fullName: 'Johan Cruyff',
     commonName: 'J. Cruijff',
@@ -888,7 +904,253 @@ export function findDatabaseMatches(
   return results;
 }
 
-// Coach Matcher
+export interface VisualExtractionInput {
+  position?: string;
+  rating?: number;
+  nationality?: string;
+  club?: string;
+  cardType?: string;
+  faceDescription?: string;
+  readableText?: string;
+  faceMatchCandidateName?: string;
+  faceSimilarity?: number; // 0 to 1
+}
+
+export interface CandidateMatchResult {
+  player: EFootballMasterPlayer;
+  confidence: number;
+  signals: {
+    name: string;
+    weight: number;
+    score: number;
+    details: string;
+  }[];
+  selectionReason: string;
+}
+
+// Configurable weights as per Requirement 6:
+// Face similarity: 40%, Position: 15%, Rating: 15%, Nationality: 10%, Club: 10%, Card type/design: 5%, Text/other: 5%
+export interface SignalWeights {
+  face: number;
+  position: number;
+  rating: number;
+  nationality: number;
+  club: number;
+  cardType: number;
+  text: number;
+}
+
+export const DEFAULT_SIGNAL_WEIGHTS: SignalWeights = {
+  face: 0.40,
+  position: 0.15,
+  rating: 0.15,
+  nationality: 0.10,
+  club: 0.10,
+  cardType: 0.05,
+  text: 0.05
+};
+
+export function matchPlayerCandidatesByVisualSignals(
+  input: VisualExtractionInput,
+  weights: SignalWeights = DEFAULT_SIGNAL_WEIGHTS,
+  limit: number = 5
+): CandidateMatchResult[] {
+  const normPos = (input.position || '').toUpperCase().trim();
+  const normNat = normalizeString(input.nationality || '');
+  const normClub = normalizeString(input.club || '');
+  const normCardType = normalizeString(input.cardType || '');
+  const normText = normalizeString(input.readableText || '');
+  const faceCandidate = normalizeString(input.faceMatchCandidateName || '');
+
+  const candidates: CandidateMatchResult[] = [];
+
+  for (const player of EFOOTBALL_MASTER_PLAYERS) {
+    const signals: CandidateMatchResult['signals'] = [];
+    let weightedScore = 0;
+
+    // 1. Position Signal (15%)
+    let posScore = 0;
+    let posDetails = 'No position match';
+    if (normPos) {
+      if (player.primaryPosition === normPos) {
+        posScore = 1.0;
+        posDetails = `Primary position matches (${normPos})`;
+      } else if (player.secondaryPositions.includes(normPos)) {
+        posScore = 0.75;
+        posDetails = `Proficient secondary position matches (${normPos})`;
+      } else {
+        posScore = 0.0;
+        posDetails = `Position mismatch (${player.primaryPosition} vs ${normPos})`;
+      }
+    } else {
+      posScore = 0.5;
+      posDetails = 'Position not clearly legible';
+    }
+    signals.push({ name: 'Position', weight: weights.position, score: Math.round(posScore * 100), details: posDetails });
+    weightedScore += posScore * weights.position;
+
+    // 2. Rating Signal (15%)
+    let ratingScore = 0.5;
+    let ratingDetails = 'No rating detected';
+    if (input.rating && input.rating >= 60 && input.rating <= 106) {
+      const diff = Math.abs(player.maxRating - input.rating);
+      if (diff === 0) {
+        ratingScore = 1.0;
+        ratingDetails = `Exact rating match (${player.maxRating})`;
+      } else if (diff <= 1) {
+        ratingScore = 0.92;
+        ratingDetails = `Close rating match (±1 point)`;
+      } else if (diff <= 2) {
+        ratingScore = 0.80;
+        ratingDetails = `Close rating match (±2 points)`;
+      } else if (diff <= 4) {
+        ratingScore = 0.55;
+        ratingDetails = `Moderate rating difference (±${diff})`;
+      } else {
+        ratingScore = Math.max(0, 0.40 - (diff - 4) * 0.08);
+        ratingDetails = `Significant rating mismatch (${player.maxRating} vs ${input.rating})`;
+      }
+    }
+    signals.push({ name: 'Rating', weight: weights.rating, score: Math.round(ratingScore * 100), details: ratingDetails });
+    weightedScore += ratingScore * weights.rating;
+
+    // 3. Nationality Signal (10%)
+    let natScore = 0.3;
+    let natDetails = 'No nationality detected';
+    if (normNat) {
+      const playerNat = normalizeString(player.nationality);
+      if (playerNat === normNat || playerNat.includes(normNat) || normNat.includes(playerNat)) {
+        natScore = 1.0;
+        natDetails = `Flag/Nationality matches (${player.nationality})`;
+      } else {
+        natScore = 0.0;
+        natDetails = `Nationality contradicts (${player.nationality} vs ${input.nationality})`;
+      }
+    }
+    signals.push({ name: 'Nationality', weight: weights.nationality, score: Math.round(natScore * 100), details: natDetails });
+    weightedScore += natScore * weights.nationality;
+
+    // 4. Club Signal (10%)
+    let clubScore = 0.3;
+    let clubDetails = 'No club badge detected';
+    if (normClub) {
+      const playerClub = normalizeString(player.club);
+      if (playerClub === normClub || playerClub.includes(normClub) || normClub.includes(playerClub)) {
+        clubScore = 1.0;
+        clubDetails = `Club badge matches (${player.club})`;
+      } else {
+        clubScore = 0.0;
+        clubDetails = `Club contradicts (${player.club} vs ${input.club})`;
+      }
+    }
+    signals.push({ name: 'Club', weight: weights.club, score: Math.round(clubScore * 100), details: clubDetails });
+    weightedScore += clubScore * weights.club;
+
+    // 5. Card Type / Design (5%)
+    let cardScore = 0.5;
+    let cardDetails = 'Card design neutral';
+    if (normCardType) {
+      const pCard = normalizeString(player.cardType);
+      if (pCard === normCardType || pCard.includes(normCardType) || normCardType.includes(pCard)) {
+        cardScore = 1.0;
+        cardDetails = `Card theme matches (${player.cardType})`;
+      } else {
+        cardScore = 0.3;
+        cardDetails = `Card theme different (${player.cardType} vs ${input.cardType})`;
+      }
+    }
+    signals.push({ name: 'Card Design', weight: weights.cardType, score: Math.round(cardScore * 100), details: cardDetails });
+    weightedScore += cardScore * weights.cardType;
+
+    // 6. Readable Text / OCR (5%)
+    let textScore = 0.2;
+    let textDetails = 'No text visible on card';
+    if (normText) {
+      let bestSim = Math.max(
+        stringSimilarity(normText, player.commonName),
+        stringSimilarity(normText, player.fullName)
+      );
+      for (const alias of player.aliases) {
+        const simAlias = stringSimilarity(normText, alias);
+        const aliasNorm = normalizeString(alias);
+        if (normText.includes(aliasNorm) || aliasNorm.includes(normText)) {
+          bestSim = Math.max(bestSim, 0.95);
+        }
+        bestSim = Math.max(bestSim, simAlias);
+      }
+      textScore = bestSim;
+      textDetails = `OCR text similarity: ${Math.round(bestSim * 100)}%`;
+    }
+    signals.push({ name: 'Readable Text', weight: weights.text, score: Math.round(textScore * 100), details: textDetails });
+    weightedScore += textScore * weights.text;
+
+    // 7. Face Similarity Signal (40%)
+    // Critical Rule #7: NEVER IDENTIFY FROM FACE ALONE.
+    // If face strongly suggests player X, cross-validate with Position, Rating, Nationality, Club.
+    let faceScore = 0.1;
+    let faceDetails = 'No distinct facial resemblance';
+    if (faceCandidate) {
+      const simFace = Math.max(
+        stringSimilarity(faceCandidate, player.commonName),
+        stringSimilarity(faceCandidate, player.fullName)
+      );
+      let aliasFaceSim = 0;
+      for (const alias of player.aliases) {
+        const aNorm = normalizeString(alias);
+        if (faceCandidate.includes(aNorm) || aNorm.includes(faceCandidate)) {
+          aliasFaceSim = Math.max(aliasFaceSim, 0.95);
+        }
+        aliasFaceSim = Math.max(aliasFaceSim, stringSimilarity(faceCandidate, alias));
+      }
+      const rawFaceMatch = Math.max(simFace, aliasFaceSim);
+      if (rawFaceMatch >= 0.60) {
+        const userFaceSim = input.faceSimilarity ?? rawFaceMatch;
+        // Check for contradictions (Rule #7)
+        const isPosContradiction = normPos && posScore === 0;
+        const isRatingContradiction = input.rating && ratingScore < 0.3;
+        const isNatContradiction = normNat && natScore === 0;
+
+        if (isPosContradiction && isRatingContradiction) {
+          // Both position and rating contradict -> severe penalty!
+          faceScore = userFaceSim * 0.3;
+          faceDetails = `Facial resemblance to ${player.commonName}, but REJECTED/DOWNDRATED due to position (${normPos}) and rating (${input.rating}) contradiction`;
+        } else if (isPosContradiction || isNatContradiction) {
+          faceScore = userFaceSim * 0.6;
+          faceDetails = `Facial resemblance to ${player.commonName}, but discounted due to evidence contradiction`;
+        } else {
+          faceScore = userFaceSim;
+          faceDetails = `Strong facial feature match consistent with other card signals (${Math.round(userFaceSim * 100)}%)`;
+        }
+      }
+    }
+    signals.push({ name: 'Face Portrait', weight: weights.face, score: Math.round(faceScore * 100), details: faceDetails });
+    weightedScore += faceScore * weights.face;
+
+    const finalConfidence = Math.min(100, Math.max(0, Math.round(weightedScore * 100)));
+
+    // Generate clear reason for selection
+    const reasonParts: string[] = [];
+    if (posScore >= 0.75) reasonParts.push(posDetails);
+    if (ratingScore >= 0.8) reasonParts.push(ratingDetails);
+    if (natScore >= 0.9) reasonParts.push(natDetails);
+    if (clubScore >= 0.9) reasonParts.push(clubDetails);
+    if (faceScore >= 0.7) reasonParts.push(faceDetails);
+    if (textScore >= 0.7) reasonParts.push(textDetails);
+
+    candidates.push({
+      player,
+      confidence: finalConfidence,
+      signals,
+      selectionReason: reasonParts.length > 0 ? reasonParts.join(' • ') : `Multi-signal cross-match (${finalConfidence}% match score)`
+    });
+  }
+
+  // Sort descending by confidence
+  candidates.sort((a, b) => b.confidence - a.confidence);
+  return candidates.slice(0, limit);
+}
+
+// Coach Matcher and Player Search
 export function searchMasterPlayers(query: string, limit: number = 8): EFootballMasterPlayer[] {
   const clean = normalizeString(query);
   if (!clean) return EFOOTBALL_MASTER_PLAYERS.slice(0, limit);

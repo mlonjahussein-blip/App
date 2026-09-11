@@ -1,3 +1,24 @@
+export interface PlayerEvidenceSignal {
+  name: string;
+  weight: number;
+  score: number;
+  details: string;
+}
+
+export interface PlayerCandidateMatch {
+  playerId: string;
+  name: string;
+  fullName?: string;
+  confidence: number;
+  position: string;
+  rating: number;
+  club?: string;
+  nationality?: string;
+  cardType?: string;
+  matchSignals?: PlayerEvidenceSignal[];
+  selectionReason?: string;
+}
+
 export interface PlayerData {
   id: string;
   name: string;
@@ -5,9 +26,11 @@ export interface PlayerData {
   rating: number;
   playstyle?: string; // e.g. Goal Poacher, Hole Player, Anchor Man, Build Up, Offensive Fullback
   confidence: 'High' | 'Medium' | 'Low' | 'Uncertain identification';
-  identityStatus?: 'confirmed' | 'probable' | 'uncertain' | 'unidentified';
+  identityStatus?: 'confirmed' | 'probable' | 'uncertain' | 'unidentified' | 'user_confirmed' | 'user_corrected';
   confidenceScore?: number; // 0 to 100
   confidenceTier?: 'Confirmed' | 'High confidence' | 'Moderate confidence' | 'Low confidence' | 'Unidentified';
+  confidenceLevel?: 'VERIFIED' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNVERIFIED';
+  status?: 'verified' | 'high_confidence' | 'needs_confirmation' | 'unverified';
   playerType?: string; // e.g. Epic, Highlight, Standard, POTW, Show Time
   keyAttributes?: Record<string, number | string>;
   skills?: string[];
@@ -16,9 +39,24 @@ export interface PlayerData {
   sourceScreenshots?: number[];
   evidence?: string[];
   detectedRegion?: { ymin: number; xmin: number; ymax: number; xmax: number };
+  cardArea?: 'starting_xi' | 'substitute' | 'reserve';
+  isBench?: boolean;
+  croppedCardImage?: string; // base64 JPEG thumbnail of cropped card
+  extractedVisuals?: {
+    position?: string;
+    rating?: number;
+    nationality?: string;
+    club?: string;
+    cardType?: string;
+    visualCharacteristics?: string;
+    readableText?: string;
+    approximateRole?: string;
+  };
+  candidates?: PlayerCandidateMatch[];
+  candidateMatches?: Array<{ name: string; score: number; reason?: string }>;
+  selectionReason?: string;
   needsUserConfirmation?: boolean;
   ocrRawText?: string;
-  candidateMatches?: Array<{ name: string; score: number; reason?: string }>;
   userConfirmed?: boolean;
   userCorrected?: boolean;
 }
@@ -165,6 +203,27 @@ export interface AnalysisResult {
   paymentStatus: 'free' | 'paid' | 'disabled';
   analysisQuality?: AnalysisQualityScore;
   screenshotMetadata?: ScreenshotMetadata[];
+  pipelineDiagnostics?: {
+    pipelineVersion?: string;
+    executionTimeMs?: number;
+    detectedCardRegionsCount?: number;
+    croppedThumbnailsCount?: number;
+    signalsEvaluated?: string[];
+    ocrBypassedDueToNoNamesOnCards?: boolean;
+    screenshotClassifications?: Array<{
+      index: number;
+      classification: 'squad_formation' | 'player_list' | 'player_details' | 'unknown';
+      confidence: number;
+      qualityIssues?: string[];
+      detectedCardCount: number;
+    }>;
+    cardsDetectedTotal?: number;
+    cardsCroppedTotal?: number;
+    reconstructedFormation?: string;
+    verifiedDatasetCount?: number;
+    unverifiedCount?: number;
+    needsUserConfirmationCount?: number;
+  };
   facts?: string[];
   inferences?: string[];
   actionRecommendations?: string[];

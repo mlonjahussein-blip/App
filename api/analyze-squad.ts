@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { performSquadAnalysis, AnalyzeSquadPayload } from '../../server/accuracyPipeline.js';
+import { performSquadAnalysis, AnalyzeSquadPayload } from '../server/accuracyPipeline.ts';
 
 export const config = {
   api: {

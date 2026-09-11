@@ -605,15 +605,64 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                       </span>
                     </div>
 
-                    {/* Player Name & Playstyle */}
-                    <div>
-                      <h3 className="text-lg font-black text-white tracking-tight truncate">
-                        {player.name}
-                      </h3>
-                      <p className="text-xs text-neutral-400">
-                        {player.playstyle || 'Versatile'} · <span className="text-neutral-300">{player.playerType || 'Standard'}</span>
-                      </p>
+                    {/* Player Card Visual Thumbnail (Sharp cropped) or Face Portrait & Name */}
+                    <div className="flex items-center gap-3">
+                      {player.croppedCardImage ? (
+                        <div className="relative w-12 h-16 rounded-lg overflow-hidden border border-neutral-700 shrink-0 bg-neutral-900 shadow-md">
+                          <img 
+                            src={player.croppedCardImage} 
+                            alt={player.name} 
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                          <span className="absolute bottom-0 inset-x-0 bg-black/75 text-[9px] text-center font-bold text-emerald-400 py-0.5">
+                            {player.position}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center shrink-0 text-neutral-500 font-bold text-xs">
+                          {player.position}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-lg font-black text-white tracking-tight truncate">
+                          {player.name}
+                        </h3>
+                        <p className="text-xs text-neutral-400">
+                          {player.playstyle || 'Versatile'} · <span className="text-neutral-300">{player.playerType || 'Standard'}</span>
+                        </p>
+                        {player.selectionReason && (
+                          <p className="text-[10px] text-emerald-400 font-medium truncate mt-0.5">
+                            {player.selectionReason}
+                          </p>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Multi-Signal Candidate Alternatives if available */}
+                    {player.candidates && player.candidates.length > 1 && (
+                      <div className="bg-neutral-900/80 rounded-xl p-2.5 border border-neutral-800 space-y-1.5">
+                        <div className="flex items-center justify-between text-[10px] text-neutral-400">
+                          <span className="font-bold uppercase tracking-wider">Candidate Matches:</span>
+                          <span className="text-neutral-500">Multi-signal verified</span>
+                        </div>
+                        <div className="space-y-1">
+                          {player.candidates.slice(0, 2).map((cand, cIdx) => (
+                            <div key={cIdx} className="flex items-center justify-between text-xs bg-neutral-950/70 px-2 py-1 rounded">
+                              <span className="font-medium text-neutral-200 truncate">{cand.name}</span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="text-[10px] text-neutral-400 font-mono">{cand.rating} OVR</span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                  cand.confidence >= 85 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-neutral-800 text-neutral-300'
+                                }`}>
+                                  {cand.confidence}%
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Why this identification (Audit Summary) */}
                     <div className="text-[11px] text-neutral-400 bg-neutral-900/90 rounded-xl p-2.5 space-y-1 border border-neutral-800/80">
