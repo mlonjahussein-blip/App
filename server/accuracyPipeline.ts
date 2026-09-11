@@ -377,58 +377,75 @@ OUTPUT FORMAT: Strict JSON matching this schema:
 
     // Supported vision models according to @google/genai guidelines
     const candidateModels = [
+      'gemini-flash-latest',
       'gemini-3.8-flash',
-      'gemini-3.1-flash-lite',
-      'gemini-flash-latest'
+      'gemini-3.1-flash-lite'
     ];
 
     let response: any = null;
     let lastError: any = null;
 
     for (const modelName of candidateModels) {
-      try {
-        console.log(`Executing multi-stage player detection & evidence extraction with ${modelName}...`);
-        
-        const contentsArray: any[] = [
-          {
-            text: `Analyze these ${images.length} eFootball screenshots.
+      // Try up to 2 attempts per model (to handle temporary 503 high demand spikes)
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          console.log(`Executing multi-stage player detection & evidence extraction with ${modelName} (attempt ${attempt})...`);
+          
+          const contentsArray: any[] = [
+            {
+              text: `Analyze these ${images.length} eFootball screenshots.
 IMPORTANT: Note that player cards often DO NOT have text names! Detect card regions, isolate face portraits, extract ratings and positions, and match candidates using multi-signal evidence.
 User Preferred Playstyle: ${preferredPlaystyle}
 User Preferred Formation: ${preferredFormation}
 User Tactical Note: ${payload.tacticalPreference || 'None'}
 Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach card' : 'NO'}${typedPlayersNote}${managerNote}${fluidFormationsNote}${linkUpPlayNote}`
-          },
-          ...imageParts
-        ];
+            },
+            ...imageParts
+          ];
 
-        const generatePromise = ai.models.generateContent({
-          model: modelName,
-          contents: contentsArray,
-          config: {
-            systemInstruction: verificationSystemPrompt,
-            responseMimeType: 'application/json',
-            temperature: 0.1
+          const generatePromise = ai.models.generateContent({
+            model: modelName,
+            contents: contentsArray,
+            config: {
+              systemInstruction: verificationSystemPrompt,
+              responseMimeType: 'application/json',
+              temperature: 0.1
+            }
+          });
+
+          let timer: any;
+          const timeoutPromise = new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`Timeout: ${modelName} did not respond within 35s`)), 35000);
+          });
+
+          try {
+            response = await Promise.race([generatePromise, timeoutPromise]);
+          } finally {
+            clearTimeout(timer);
           }
-        });
 
-        let timer: any;
-        const timeoutPromise = new Promise((_, reject) => {
-          timer = setTimeout(() => reject(new Error(`Timeout: ${modelName} did not respond within 35s`)), 35000);
-        });
+          if (response?.text) {
+            console.log(`Squad vision analysis successfully generated with ${modelName}`);
+            break;
+          }
+        } catch (err: any) {
+          lastError = err;
+          const errMsg = err?.message || String(err);
+          const isTemporary = errMsg.includes('503') || errMsg.includes('UNAVAILABLE') || errMsg.includes('high demand') || errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED');
+          
+          console.warn(`Vision model ${modelName} attempt ${attempt} warning:`, errMsg);
 
-        try {
-          response = await Promise.race([generatePromise, timeoutPromise]);
-        } finally {
-          clearTimeout(timer);
+          if (isTemporary && attempt < 2) {
+            console.log(`Retrying ${modelName} after 1s delay due to temporary capacity spike...`);
+            await new Promise((res) => setTimeout(res, 1000));
+            continue;
+          }
+          break; // Move to next candidate model if non-temporary error or max attempts reached
         }
+      }
 
-        if (response?.text) {
-          console.log(`Squad vision analysis successfully generated with ${modelName}`);
-          break;
-        }
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`Vision model ${modelName} attempt:`, err?.message || err);
+      if (response?.text) {
+        break;
       }
     }
 
