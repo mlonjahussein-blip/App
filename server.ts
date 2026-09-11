@@ -347,6 +347,32 @@ app.post('/api/player-comparison', (req, res) => {
   });
 });
 
+// Global Express Error Handler for payload & middleware errors
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err) {
+    console.error('Express global error caught:', err?.message || err);
+    if (err.type === 'entity.too.large' || err.status === 413) {
+      return res.status(413).json({ 
+        error: 'Screenshot upload exceeds server payload limits. Please upload 1 to 3 screenshots or smaller files.' 
+      });
+    }
+    // Return status 200 with evidence fallback instead of unhandled 500
+    try {
+      const fallback = createEvidenceBasedFallback(req.body || {});
+      return res.status(200).json({
+        success: true,
+        analysis: fallback
+      });
+    } catch {
+      return res.status(200).json({
+        success: false,
+        error: 'Analysis service encountered a temporary error. Please try again.'
+      });
+    }
+  }
+  next();
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

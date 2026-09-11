@@ -399,7 +399,7 @@ export async function preprocessImage(
   }
 
   // 3. Determine target dimensions - keep crisp resolution for player cards while staying well within serverless payload limits
-  const MAX_DIMENSION = 1600;
+  const MAX_DIMENSION = 1200;
   let targetWidth = origWidth;
   let targetHeight = origHeight;
 
@@ -430,8 +430,8 @@ export async function preprocessImage(
   // 5. Quality check
   const quality = analyzeImageQuality(canvas, ctx, targetWidth, targetHeight);
 
-  // 6. Export high-fidelity JPEG data with balanced compression (under 300KB per full screen)
-  const base64Data = canvas.toDataURL('image/jpeg', 0.82);
+  // 6. Export high-fidelity JPEG data with balanced compression (under 200KB per full screen)
+  const base64Data = canvas.toDataURL('image/jpeg', 0.76);
   const previewUrl = URL.createObjectURL(workingBlob);
 
   return {
