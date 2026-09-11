@@ -11,8 +11,8 @@ const app = express();
 const PORT = 3000;
 
 // Increase JSON limit for screenshots base64 payloads
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // Health endpoint
 app.get('/api/health', (req, res) => {
