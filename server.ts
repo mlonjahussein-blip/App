@@ -9,6 +9,7 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
+process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
 // Increase JSON limit for screenshots base64 payloads
 app.use(express.json({ limit: '100mb' }));
