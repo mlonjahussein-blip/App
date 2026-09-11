@@ -1,18 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../lib/AuthContext.tsx';
-import { ZIP_BASE64 } from '../zipData.ts';
 import { 
   User, 
   Settings, 
   CreditCard, 
   Activity, 
-  ShieldCheck, 
   AlertCircle, 
-  Clock, 
-  Check, 
   LogOut,
-  Sparkles,
-  Download
+  Sparkles
 } from 'lucide-react';
 
 interface SettingsProps {
@@ -23,29 +18,6 @@ interface SettingsProps {
 export const SettingsView: React.FC<SettingsProps> = ({ onLogout, onNavigateToAnalyzer }) => {
   const { user, profile } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<'account' | 'usage' | 'payments'>('account');
-
-  const handleDownloadDirectZip = () => {
-    try {
-      const binaryString = window.atob(ZIP_BASE64);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      const blob = new Blob([bytes.buffer], { type: 'application/zip' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'efootball-ai-hub-project.zip';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error('Download error:', e);
-      window.location.href = '/api/download-project-zip';
-    }
-  };
 
   return (
     <div id="settings-page" className="max-w-4xl mx-auto space-y-8 py-6">
@@ -136,24 +108,6 @@ export const SettingsView: React.FC<SettingsProps> = ({ onLogout, onNavigateToAn
               <p className="font-mono text-xs text-neutral-400 bg-neutral-950 p-3 rounded-xl border border-neutral-800 break-all">
                 {user?.uid || 'Not authenticated'}
               </p>
-            </div>
-
-            {/* Project Code Export / Download ZIP */}
-            <div className="pt-4 border-t border-neutral-800 space-y-2">
-              <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider">
-                Full Project Code & Deployment Package
-              </label>
-              <p className="text-xs text-neutral-400 leading-relaxed">
-                Download your complete application codebase as a ZIP archive for GitHub, Vercel, or standalone local hosting.
-              </p>
-              <button
-                type="button"
-                onClick={handleDownloadDirectZip}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs transition-all shadow-lg shadow-emerald-500/20 cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                Download Project ZIP (Ready for GitHub / Vercel)
-              </button>
             </div>
           </div>
         </div>

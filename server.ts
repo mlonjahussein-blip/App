@@ -160,19 +160,6 @@ app.post('/api/player-comparison', (req, res) => {
   });
 });
 
-// Direct zip download endpoint for the user to download full project code
-app.get('/api/download-project-zip', (req, res) => {
-  const zipFile = path.join(process.cwd(), 'efootball-ai-hub-project.zip');
-  res.download(zipFile, 'efootball-ai-hub-project.zip', (err) => {
-    if (err) {
-      console.error('Error downloading zip:', err);
-      if (!res.headersSent) {
-        res.status(500).send('Error downloading zip file');
-      }
-    }
-  });
-});
-
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
