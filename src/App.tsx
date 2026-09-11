@@ -15,6 +15,10 @@ import { AnalysisResult, PlayerData } from './types.ts';
 import { db } from './lib/firebase.ts';
 import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
 import { ShieldAlert, Sparkles, Heart } from 'lucide-react';
+import { MaintenanceView } from './components/MaintenanceView.tsx';
+
+// Temporary maintenance mode flag
+export const IS_MAINTENANCE_MODE = true;
 
 function AppContent() {
   const { user, profile, logout } = useAuth();
@@ -291,6 +295,16 @@ function AppContent() {
 }
 
 export default function App() {
+  useEffect(() => {
+    if (IS_MAINTENANCE_MODE) {
+      document.title = 'eFootball AI Hub — Scheduled Maintenance';
+    }
+  }, []);
+
+  if (IS_MAINTENANCE_MODE) {
+    return <MaintenanceView />;
+  }
+
   return (
     <AuthProvider>
       <AppContent />
