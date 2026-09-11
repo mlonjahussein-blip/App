@@ -71,23 +71,36 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
 
       {/* Manager Playstyle Strengths */}
       <div className="pt-2">
-        <label className="text-xs font-bold text-white block mb-2.5">
-          Manager Playing Style Strengths (Proficiency):
-        </label>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+        <div className="flex items-center justify-between mb-2.5">
+          <label className="text-xs font-bold text-white block">
+            Manager Playing Style Strengths (Proficiency):
+          </label>
+          <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
+            eFootball 2027 Ready
+          </span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
           {[
             { key: 'possessionGame', label: 'Possession Game' },
             { key: 'quickCounter', label: 'Quick Counter' },
             { key: 'longBallCounter', label: 'Long Ball Counter' },
             { key: 'outWide', label: 'Out Wide' },
             { key: 'longBall', label: 'Long Ball' },
-          ].map(({ key, label }) => {
-            const currentVal = managerDetails.playstyleProficiencies?.[key as keyof typeof managerDetails.playstyleProficiencies] ?? 85;
+            { key: 'overload', label: 'Overload (2027)', isNew: true },
+          ].map(({ key, label, isNew }) => {
+            const currentVal = managerDetails.playstyleProficiencies?.[key as keyof typeof managerDetails.playstyleProficiencies] ?? (key === 'overload' ? 86 : 85);
             return (
-              <div key={key} className="bg-neutral-900/90 border border-neutral-800 rounded-xl p-3 text-center space-y-1.5">
-                <span className="text-[11px] font-medium text-neutral-300 block truncate">
-                  {label}
-                </span>
+              <div 
+                key={key} 
+                className={`bg-neutral-900/90 border rounded-xl p-3 text-center space-y-1.5 transition-colors ${
+                  isNew ? 'border-cyan-500/40 bg-cyan-950/10' : 'border-neutral-800'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <span className={`text-[11px] font-medium block truncate ${isNew ? 'text-cyan-300 font-semibold' : 'text-neutral-300'}`}>
+                    {label}
+                  </span>
+                </div>
                 <div className="flex items-center justify-center gap-1.5">
                   <input
                     type="number"
@@ -104,13 +117,16 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
                             quickCounter: 87,
                             longBallCounter: 85,
                             outWide: 80,
-                            longBall: 75
+                            longBall: 75,
+                            overload: 86
                           }),
                           [key]: val
                         }
                       });
                     }}
-                    className="w-14 bg-neutral-950 border border-neutral-700 rounded-lg py-1 text-center font-black text-xs sm:text-sm text-emerald-400 focus:outline-none focus:border-emerald-500"
+                    className={`w-14 bg-neutral-950 border rounded-lg py-1 text-center font-black text-xs sm:text-sm focus:outline-none focus:border-emerald-500 ${
+                      isNew ? 'border-cyan-500/50 text-cyan-400' : 'border-neutral-700 text-emerald-400'
+                    }`}
                   />
                   <span className="text-[10px] text-neutral-500 font-bold">/ 89</span>
                 </div>

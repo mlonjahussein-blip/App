@@ -79,6 +79,7 @@ export interface ManagerInputDetails {
     longBallCounter?: number;
     outWide?: number;
     longBall?: number;
+    overload?: number;
   };
 }
 
@@ -95,6 +96,19 @@ export interface AnalyzeSquadPayload {
   managerDetails?: ManagerInputDetails;
   preferredPlaystyle?: string;
   preferredFormation?: string;
+  fluidFormations?: {
+    enabled: boolean;
+    kickoffFormation?: string;
+    inPossessionFormation?: string;
+    outOfPossessionFormation?: string;
+  };
+  linkUpPlay?: {
+    enabled: boolean;
+    fromPlayer?: string;
+    toPlayer?: string;
+    linkPattern?: string;
+    coachInstructionNote?: string;
+  };
   tacticalPreference?: string;
   hasCoachScreenshot?: boolean;
 }
@@ -187,6 +201,12 @@ export async function runMultiStageSquadPipeline(payload: AnalyzeSquadPayload): 
       : '';
     const managerNote = payload.managerDetails && payload.managerDetails.name
       ? `\nUser-Specified Manager / Coach Details:\n${JSON.stringify(payload.managerDetails, null, 2)}`
+      : '';
+    const fluidFormationsNote = payload.fluidFormations && payload.fluidFormations.enabled
+      ? `\nUser Fluid Formations Active:\n- Kickoff Shape: ${payload.fluidFormations.kickoffFormation || '4-2-1-3'}\n- In Possession (Attacking Shape): ${payload.fluidFormations.inPossessionFormation || '3-2-4-1'}\n- Out of Possession (Defending Shape): ${payload.fluidFormations.outOfPossessionFormation || '5-3-2'}\nAccount for fluid transitions between attacking and defending phases in tactical instructions.`
+      : '';
+    const linkUpPlayNote = payload.linkUpPlay && payload.linkUpPlay.enabled
+      ? `\nUser Linked-Up Play Style Active:\n- Initiator (From Player): ${payload.linkUpPlay.fromPlayer || 'Deep Playmaker'}\n- Target (To Player): ${payload.linkUpPlay.toPlayer || 'Target Attacker'}\n- Combination Style: ${payload.linkUpPlay.linkPattern || '1-2 Pass & Go'}\n- Coach Link-Up Note: ${payload.linkUpPlay.coachInstructionNote || 'Custom link-up pattern'}\nInclude specialized link-up execution advice in tactical recommendations.`
       : '';
 
     // Advanced Multi-Stage Identification Engine (Addressing user architectural requirements)
@@ -378,7 +398,7 @@ IMPORTANT: Note that player cards often DO NOT have text names! Detect card regi
 User Preferred Playstyle: ${preferredPlaystyle}
 User Preferred Formation: ${preferredFormation}
 User Tactical Note: ${payload.tacticalPreference || 'None'}
-Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach card' : 'NO'}${typedPlayersNote}${managerNote}`
+Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach card' : 'NO'}${typedPlayersNote}${managerNote}${fluidFormationsNote}${linkUpPlayNote}`
           },
           ...imageParts
         ];
@@ -613,7 +633,8 @@ export async function postProcessAndVerifySquad(
       proficiencies.quickCounter || 87,
       proficiencies.longBallCounter || 85,
       proficiencies.outWide || 80,
-      proficiencies.longBall || 75
+      proficiencies.longBall || 75,
+      proficiencies.overload || 86
     );
 
     verifiedCoach = {
@@ -628,7 +649,7 @@ export async function postProcessAndVerifySquad(
         `Manager: ${payload.managerDetails.name}`,
         payload.managerDetails.nationality ? `Nationality: ${payload.managerDetails.nationality}` : '',
         payload.managerDetails.team ? `Team / Club: ${payload.managerDetails.team}` : '',
-        `Configured Playstyle Proficiencies: QC (${proficiencies.quickCounter || 87}), PG (${proficiencies.possessionGame || 85}), LBC (${proficiencies.longBallCounter || 85})`
+        `Configured Playstyle Proficiencies: QC (${proficiencies.quickCounter || 87}), PG (${proficiencies.possessionGame || 85}), LBC (${proficiencies.longBallCounter || 85}), Overload (${proficiencies.overload || 86})`
       ].filter(Boolean),
       explanation: `Custom user-specified manager with ${bestAffinity} max tactical proficiency across core eFootball playstyles.`
     };
@@ -1097,7 +1118,8 @@ export function createEvidenceBasedFallback(payload: AnalyzeSquadPayload): Analy
       proficiencies.quickCounter || 87,
       proficiencies.longBallCounter || 85,
       proficiencies.outWide || 80,
-      proficiencies.longBall || 75
+      proficiencies.longBall || 75,
+      proficiencies.overload || 86
     );
 
     coachRecommendationObj = {
@@ -1112,7 +1134,7 @@ export function createEvidenceBasedFallback(payload: AnalyzeSquadPayload): Analy
         `Manager: ${manager.name}`,
         manager.nationality ? `Nationality: ${manager.nationality}` : '',
         manager.team ? `Team / Club: ${manager.team}` : '',
-        `Configured Playstyle Proficiencies: QC (${proficiencies.quickCounter || 87}), PG (${proficiencies.possessionGame || 85}), LBC (${proficiencies.longBallCounter || 85})`
+        `Configured Playstyle Proficiencies: QC (${proficiencies.quickCounter || 87}), PG (${proficiencies.possessionGame || 85}), LBC (${proficiencies.longBallCounter || 85}), Overload (${proficiencies.overload || 86})`
       ].filter(Boolean),
       explanation: `Custom user-configured manager with ${bestAffinity} max tactical proficiency across core eFootball playstyles.`
     };

@@ -306,7 +306,23 @@ export interface ManagerInputDetails {
     longBallCounter: number;
     outWide: number;
     longBall: number;
+    overload?: number; // eFootball 2027 new Overload playstyle
   };
+}
+
+export interface FluidFormationSettings {
+  enabled: boolean;
+  kickoffFormation?: string;
+  inPossessionFormation?: string;
+  outOfPossessionFormation?: string;
+}
+
+export interface LinkUpPlaySettings {
+  enabled: boolean;
+  fromPlayer?: string;
+  toPlayer?: string;
+  linkPattern?: string; // e.g. '1-2 Pass & Go', 'Third-Man Overload Run', 'Target Man Wall Pass', 'Inverted Underlap', 'Custom Link'
+  coachInstructionNote?: string;
 }
 
 export interface TypedPlayerInput {
@@ -335,6 +351,8 @@ export interface AnalyzeSquadRequestPayload {
   managerDetails?: ManagerInputDetails;
   preferredPlaystyle?: string;
   preferredFormation?: string;
+  fluidFormations?: FluidFormationSettings;
+  linkUpPlay?: LinkUpPlaySettings;
   tacticalPreference?: string;
   hasCoachScreenshot?: boolean;
 }

@@ -17,13 +17,45 @@ import {
   X,
   Maximize2,
   Keyboard,
-  Layers
+  Layers,
+  Repeat,
+  Zap,
+  Sliders,
+  Share2
 } from 'lucide-react';
-import { AnalysisResult, UploadedImageItem, ImageSourceType, TypedPlayerInput, ManagerInputDetails } from '../types.ts';
+import { AnalysisResult, UploadedImageItem, ImageSourceType, TypedPlayerInput, ManagerInputDetails, FluidFormationSettings, LinkUpPlaySettings } from '../types.ts';
 import { CameraCaptureModal } from './CameraCaptureModal.tsx';
 import { ManualPlayerInput } from './ManualPlayerInput.tsx';
 import { ManagerDetailsInput } from './ManagerDetailsInput.tsx';
 import { preprocessImage } from '../lib/imagePreprocessing.ts';
+
+// All official eFootball formations from user gameplan screenshots
+export const EFOOTBALL_FORMATIONS = [
+  { value: 'Auto-Detect / Balanced', label: 'Auto-Detect / AI Optimal Recommendation', category: 'General' },
+  { value: 'Copy from Base Team', label: 'Copy from Base Team (Custom Gameplan Shape)', category: 'General' },
+  
+  // 4-Back Formations
+  { value: '4-2-1-3', label: '4-2-1-3 (Double Pivot + Central AMF + Wingers)', category: '4-Back' },
+  { value: '4-1-4-1', label: '4-1-4-1 (Anchor DMF + Flat 4 Midfield + Lone CF)', category: '4-Back' },
+  { value: '4-1-2-3', label: '4-1-2-3 (Single DMF + Twin AMFs + Front 3)', category: '4-Back' },
+  { value: '4-4-2', label: '4-4-2 (Classic Flat 4-4-2 / Twin CFs & Wide Midfielders)', category: '4-Back' },
+  { value: '4-3-3', label: '4-3-3 (Standard 3 Midfielders + 3 Forwards)', category: '4-Back' },
+  { value: '4-3-2-1', label: '4-3-2-1 (Christmas Tree / 3 Midfielders + 2 AMFs + 1 CF)', category: '4-Back' },
+  { value: '4-3-1-2', label: '4-3-1-2 (Narrow Diamond / Central Overload)', category: '4-Back' },
+  { value: '4-2-3-1', label: '4-2-3-1 (Single Striker / Wide Midfield + Double Pivot)', category: '4-Back' },
+  { value: '4-2-2-2', label: '4-2-2-2 (Double AMF / Twin Strikers)', category: '4-Back' },
+
+  // 3-Back Formations
+  { value: '3-4-3', label: '3-4-3 (3 CBs + Wide Midfield 4 + Front 3)', category: '3-Back' },
+  { value: '3-2-4-1', label: '3-2-4-1 (3 CBs + Double Pivot + 4 Midfielders + 1 CF)', category: '3-Back' },
+  { value: '3-2-3-2', label: '3-2-3-2 (3 CBs + Double Pivot + AMF + 2 CFs)', category: '3-Back' },
+  { value: '3-1-4-2', label: '3-1-4-2 (3 CBs + 1 DMF + 4 Midfielders + 2 CFs)', category: '3-Back' },
+
+  // 5-Back Formations
+  { value: '5-3-2', label: '5-3-2 (5 Defenders + 3 Central Midfielders + 2 CFs)', category: '5-Back' },
+  { value: '5-2-2-1', label: '5-2-2-1 (5 Defenders + Double Pivot + 2 AMFs + 1 CF)', category: '5-Back' },
+  { value: '5-2-1-2', label: '5-2-1-2 (5 Defenders + Double Pivot + 1 AMF + 2 CFs)', category: '5-Back' },
+];
 
 interface AnalyzerProps {
   onAnalysisCompleted: (result: AnalysisResult) => void;
@@ -41,13 +73,31 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
       quickCounter: 87,
       longBallCounter: 85,
       outWide: 80,
-      longBall: 75
+      longBall: 75,
+      overload: 86
     }
   });
   const [activeInputTab, setActiveInputTab] = useState<'screenshots' | 'enter_players'>('screenshots');
   const [preferredPlaystyle, setPreferredPlaystyle] = useState('Quick Counter');
   const [preferredFormation, setPreferredFormation] = useState('Auto-Detect / Balanced');
   const [tacticalPreference, setTacticalPreference] = useState('');
+
+  // Fluid Formations state
+  const [fluidFormations, setFluidFormations] = useState<FluidFormationSettings>({
+    enabled: false,
+    kickoffFormation: '4-2-1-3',
+    inPossessionFormation: '3-2-4-1',
+    outOfPossessionFormation: '5-3-2'
+  });
+
+  // Linked-Up Play Style state
+  const [linkUpPlay, setLinkUpPlay] = useState<LinkUpPlaySettings>({
+    enabled: false,
+    fromPlayer: '',
+    toPlayer: '',
+    linkPattern: 'Give & Go (1-2 Quick Return Pass)',
+    coachInstructionNote: ''
+  });
 
   // Modals & Active Views
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
@@ -179,6 +229,8 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
         managerDetails: managerDetails.name.trim() ? managerDetails : undefined,
         preferredPlaystyle,
         preferredFormation,
+        fluidFormations: fluidFormations.enabled ? fluidFormations : undefined,
+        linkUpPlay: linkUpPlay.enabled ? linkUpPlay : undefined,
         tacticalPreference,
         hasCoachScreenshot: false
       };
@@ -666,30 +718,45 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
             </div>
           )}
 
-          {/* Optional Tactical Preferences */}
+          {/* Tactical Preferences & Advanced System Controls */}
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Info className="w-5 h-5 text-cyan-400" />
-              Tactical Preferences
-            </h2>
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
+              <div className="flex items-center gap-2">
+                <Info className="w-5 h-5 text-cyan-400" />
+                <h2 className="text-lg font-bold text-white">
+                  Tactical Preferences & Gameplan Setup
+                </h2>
+              </div>
+              <span className="text-xs text-neutral-400 font-medium">
+                eFootball 2027 Supported
+              </span>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
               {/* Preferred Playstyle */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
-                  Preferred Playstyle
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+                    Preferred Playstyle
+                  </label>
+                  {preferredPlaystyle === 'Overload' && (
+                    <span className="text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.2 rounded font-bold">
+                      2027 New
+                    </span>
+                  )}
+                </div>
                 <select
                   value={preferredPlaystyle}
                   onChange={(e) => setPreferredPlaystyle(e.target.value)}
                   className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
                 >
-                  <option value="Possession Game">Possession Game (Patient short passing build-up)</option>
                   <option value="Quick Counter">Quick Counter (Gegenpress & fast vertical breakout)</option>
+                  <option value="Possession Game">Possession Game (Patient short passing build-up)</option>
                   <option value="Long Ball Counter">Long Ball Counter (Deep low block & direct outlet balls)</option>
                   <option value="Out Wide">Out Wide (Wing overlaps & high-percentage crosses)</option>
                   <option value="Long Ball">Long Ball (Target man flick-ons & second balls)</option>
+                  <option value="Overload">Overload (eFootball 2027 • Half-space channel overload & numerical superiority)</option>
                 </select>
               </div>
 
@@ -703,13 +770,198 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
                   onChange={(e) => setPreferredFormation(e.target.value)}
                   className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
                 >
-                  <option value="Auto-Detect / Balanced">Auto-Detect / AI Optimal Recommendation</option>
-                  <option value="4-2-1-3">4-2-1-3 (Double Pivot + Central AMF + Wingers)</option>
-                  <option value="4-3-1-2">4-3-1-2 (Narrow Diamond / Central Overload)</option>
-                  <option value="4-2-2-2">4-2-2-2 (Double AMF / Twin Strikers)</option>
-                  <option value="4-2-3-1">4-2-3-1 (Single Striker / Wide Midfield)</option>
-                  <option value="3-2-3-2">3-2-3-2 (Three Back / High Width)</option>
+                  {EFOOTBALL_FORMATIONS.map((f) => (
+                    <option key={f.value} value={f.value}>
+                      {f.label}
+                    </option>
+                  ))}
                 </select>
+              </div>
+
+              {/* Fluid Formations Toggle & Configuration Block */}
+              <div className="md:col-span-2 bg-neutral-950/70 border border-neutral-800 rounded-xl p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
+                      <Sliders className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-white">Fluid Formations</span>
+                        <span className="text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2 py-0.5 rounded-full font-bold">
+                          In-Game Dynamic Shape
+                        </span>
+                      </div>
+                      <p className="text-xs text-neutral-400">
+                        Automatically transform formation shape across match phases (Kick-Off, Attacking in Possession, Defending out of Possession).
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={() => setFluidFormations(prev => ({ ...prev, enabled: !prev.enabled }))}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      fluidFormations.enabled ? 'bg-cyan-500' : 'bg-neutral-800'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        fluidFormations.enabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {fluidFormations.enabled && (
+                  <div className="pt-3 border-t border-neutral-800/80 grid grid-cols-1 sm:grid-cols-3 gap-3 animate-fade-in">
+                    <div>
+                      <label className="text-[11px] font-bold text-cyan-400 block mb-1">
+                        1. When Kick-Off Formation
+                      </label>
+                      <select
+                        value={fluidFormations.kickoffFormation || '4-2-1-3'}
+                        onChange={(e) => setFluidFormations(prev => ({ ...prev, kickoffFormation: e.target.value }))}
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                      >
+                        {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced').map(f => (
+                          <option key={`kickoff-${f.value}`} value={f.value}>{f.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-emerald-400 block mb-1">
+                        2. When in Possession (Attacking)
+                      </label>
+                      <select
+                        value={fluidFormations.inPossessionFormation || '3-2-4-1'}
+                        onChange={(e) => setFluidFormations(prev => ({ ...prev, inPossessionFormation: e.target.value }))}
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced').map(f => (
+                          <option key={`inpos-${f.value}`} value={f.value}>{f.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-amber-400 block mb-1">
+                        3. When out of Possession (Defending)
+                      </label>
+                      <select
+                        value={fluidFormations.outOfPossessionFormation || '5-3-2'}
+                        onChange={(e) => setFluidFormations(prev => ({ ...prev, outOfPossessionFormation: e.target.value }))}
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                      >
+                        {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced').map(f => (
+                          <option key={`outpos-${f.value}`} value={f.value}>{f.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Linked-Up Play Style Toggle & Configuration Block */}
+              <div className="md:col-span-2 bg-neutral-950/70 border border-neutral-800 rounded-xl p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                      <Zap className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-white">Linked-Up Play Style</span>
+                        <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-bold">
+                          Coach Combination Link
+                        </span>
+                      </div>
+                      <p className="text-xs text-neutral-400">
+                        Specify player-to-player link-up movements and combinations based on your coach's special tactical description.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={() => setLinkUpPlay(prev => ({ ...prev, enabled: !prev.enabled }))}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      linkUpPlay.enabled ? 'bg-amber-500' : 'bg-neutral-800'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        linkUpPlay.enabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {linkUpPlay.enabled && (
+                  <div className="pt-3 border-t border-neutral-800/80 space-y-3 animate-fade-in">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-neutral-300 block mb-1">
+                          From Player (Initiator / Passer)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Kevin De Bruyne (AMF) / Rodri"
+                          value={linkUpPlay.fromPlayer || ''}
+                          onChange={(e) => setLinkUpPlay(prev => ({ ...prev, fromPlayer: e.target.value }))}
+                          className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-neutral-300 block mb-1">
+                          To Player (Target / Runner)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Erling Haaland (CF) / Vinícius Jr"
+                          value={linkUpPlay.toPlayer || ''}
+                          onChange={(e) => setLinkUpPlay(prev => ({ ...prev, toPlayer: e.target.value }))}
+                          className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-neutral-300 block mb-1">
+                          Link-Up Combination Style
+                        </label>
+                        <select
+                          value={linkUpPlay.linkPattern || 'Give & Go (1-2 Quick Return Pass)'}
+                          onChange={(e) => setLinkUpPlay(prev => ({ ...prev, linkPattern: e.target.value }))}
+                          className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="Give & Go (1-2 Quick Return Pass)">Give & Go (1-2 Quick Return Pass)</option>
+                          <option value="Third-Man Overload Run (eFootball 2027)">Third-Man Overload Run (eFootball 2027)</option>
+                          <option value="Target Man Wall Pass & Direct Release">Target Man Wall Pass & Direct Release</option>
+                          <option value="Inverted Fullback Central Underlap">Inverted Fullback Central Underlap</option>
+                          <option value="Inside Forward Overlap & Far Post Cut">Inside Forward Overlap & Far Post Cut</option>
+                          <option value="Custom Coach Combination">Custom Coach Combination</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-neutral-400 block mb-1">
+                        Coach's Link-Up Description / Special Instruction (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 'Coach instructs DMF to trigger quick triangle pass to AMF, unlocking CF behind the defensive line.'"
+                        value={linkUpPlay.coachInstructionNote || ''}
+                        onChange={(e) => setLinkUpPlay(prev => ({ ...prev, coachInstructionNote: e.target.value }))}
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Freeform Tactical Note */}
