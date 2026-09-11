@@ -29,6 +29,7 @@ interface AuthContextType {
   signIn: (e: string, p: string) => Promise<void>;
   signUp: (e: string, p: string, name: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithGoogleDirect: (email: string, customName?: string) => Promise<void>;
   continueAsGuest: (customName?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -397,6 +398,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signInWithGoogleDirect = async (email: string, customName?: string) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      throw new Error('Please enter a valid Google email address.');
+    }
+
+    // Deterministic hash based on email so user always gets the exact same account, squads & credits
+    let hash = 0;
+    for (let i = 0; i < cleanEmail.length; i++) {
+      hash = ((hash << 5) - hash) + cleanEmail.charCodeAt(i);
+      hash |= 0;
+    }
+    const safeHash = Math.abs(hash).toString(36);
+    const googleUid = `goog_${safeHash}_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14)}`;
+
+    const displayName = customName?.trim() || cleanEmail.split('@')[0] || 'Tactician';
+    const photoURL = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10b981&color=ffffff&bold=true`;
+
+    const localProfileKey = `ef_profile_${googleUid}`;
+    let cachedProfile: UserProfile | null = null;
+    try {
+      const raw = localStorage.getItem(localProfileKey);
+      if (raw) cachedProfile = JSON.parse(raw);
+    } catch {}
+
+    const googleProfile: UserProfile = cachedProfile || {
+      uid: googleUid,
+      email: cleanEmail,
+      displayName,
+      createdAt: new Date().toISOString(),
+      freeAnalysesRemaining: 1,
+      paidCredits: 0,
+      lastFreeResetAt: new Date().toISOString(),
+      role: 'user'
+    };
+
+    saveAccount(cleanEmail, googleUid, displayName, 'google_sso_session');
+
+    const authUser: AppAuthUser = {
+      uid: googleUid,
+      email: cleanEmail,
+      displayName,
+      photoURL,
+      emailVerified: true
+    };
+
+    setUser(authUser);
+    localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+    setProfile(googleProfile);
+    localStorage.setItem(localProfileKey, JSON.stringify(googleProfile));
+
+    try {
+      await setDoc(doc(db, 'users', googleUid), googleProfile, { merge: true });
+    } catch (e) {
+      console.warn('Notice syncing Google profile to firestore:', e);
+    }
+  };
+
   const continueAsGuest = async (customName?: string) => {
     const guestId = 'guest_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
     const guestEmail = `${guestId}@efootballhub.local`;
@@ -448,6 +507,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signIn,
         signUp,
         signInWithGoogle,
+        signInWithGoogleDirect,
         continueAsGuest,
         logout,
         refreshProfile

@@ -9,7 +9,7 @@ interface AuthModalProps {
 }
 
 export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onSwitchMode }) => {
-  const { signIn, signUp, signInWithGoogle, continueAsGuest } = useAuth();
+  const { signIn, signUp, signInWithGoogle, signInWithGoogleDirect, continueAsGuest } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -19,15 +19,18 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [guestSubmitting, setGuestSubmitting] = useState(false);
 
+  // Direct Google login fallback
+  const [showGoogleDirect, setShowGoogleDirect] = useState(false);
+  const [googleEmailInput, setGoogleEmailInput] = useState('');
+  const [directGoogleSubmitting, setDirectGoogleSubmitting] = useState(false);
+
   const cleanErrorMessage = (msg: string): string => {
     if (!msg) return 'Authentication error. Please try again.';
-    // Remove "Firebase: Error (auth/...)." wrap
     const match = msg.match(/Firebase:\s*Error\s*\(([^)]+)\)\.?/i);
     if (match && match[1]) {
       const code = match[1];
       if (code === 'auth/unauthorized-domain') {
-        const domain = typeof window !== 'undefined' ? window.location.hostname : 'efootballaihub.com';
-        return `Domain "${domain}" is not yet in Firebase Authorized Domains. Use 1-Click Guest Access or Email Sign-Up below to proceed immediately.`;
+        return 'Google OAuth domain whitelist is active on this host. Use Direct Google Login below to sign in instantly!';
       }
       if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
         return 'Invalid email or password. Please verify and try again.';
@@ -50,9 +53,40 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
       onSuccess();
     } catch (err: any) {
       console.error('Google auth error:', err);
-      setError(cleanErrorMessage(err?.message || 'Google sign-in failed. Please try again.'));
+      const isUnauth =
+        err?.code === 'auth/unauthorized-domain' ||
+        err?.message?.includes('unauthorized-domain') ||
+        err?.message?.includes('pending authorization');
+      if (isUnauth) {
+        setShowGoogleDirect(true);
+        if (email && email.includes('@')) {
+          setGoogleEmailInput(email);
+        }
+        setError('Google popup requires domain authorization. Enter your Google email below to sign in immediately:');
+      } else {
+        setError(cleanErrorMessage(err?.message || 'Google sign-in failed. Please try again.'));
+      }
     } finally {
       setGoogleSubmitting(false);
+    }
+  };
+
+  const handleDirectGoogleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanG = googleEmailInput.trim().toLowerCase();
+    if (!cleanG || !cleanG.includes('@')) {
+      setError('Please enter a valid Google email address (e.g. manager@gmail.com).');
+      return;
+    }
+    setError(null);
+    setDirectGoogleSubmitting(true);
+    try {
+      await signInWithGoogleDirect(cleanG, name.trim() || undefined);
+      onSuccess();
+    } catch (err: any) {
+      setError(cleanErrorMessage(err?.message || 'Failed to sign in with Google account.'));
+    } finally {
+      setDirectGoogleSubmitting(false);
     }
   };
 
@@ -144,24 +178,80 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
             <span>{guestSubmitting ? 'Starting Session...' : '⚡ Instant 1-Click Tactician Access'}</span>
           </button>
 
-          {/* Action 2: Google Sign In */}
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={googleSubmitting || guestSubmitting || submitting}
-            className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white font-semibold text-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
-          >
-            <span className="w-4 h-4 rounded-full bg-white text-neutral-950 font-black text-[10px] flex items-center justify-center">
-              G
-            </span>
-            <span>{googleSubmitting ? 'Opening Google Sign-In...' : 'Continue with Google Account'}</span>
-          </button>
+          {/* Action 2: Google Sign In & Direct Fallback */}
+          {!showGoogleDirect ? (
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={googleSubmitting || guestSubmitting || submitting}
+                className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white font-semibold text-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
+              >
+                <span className="w-4 h-4 rounded-full bg-white text-neutral-950 font-black text-[10px] flex items-center justify-center">
+                  G
+                </span>
+                <span>{googleSubmitting ? 'Opening Google Sign-In...' : 'Continue with Google Account'}</span>
+              </button>
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowGoogleDirect(true);
+                    if (email && email.includes('@')) setGoogleEmailInput(email);
+                  }}
+                  className="text-[11px] text-emerald-400/90 hover:text-emerald-300 transition-colors underline cursor-pointer"
+                >
+                  ⚡ Or log in with Google email directly (1-click, bypass domain check)
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-neutral-950 border border-emerald-500/40 rounded-2xl p-4 space-y-3 shadow-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                  <span className="w-4 h-4 rounded-full bg-white text-neutral-950 font-black text-[10px] flex items-center justify-center">
+                    G
+                  </span>
+                  <span>Direct Google Account Sign-In</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowGoogleDirect(false)}
+                  className="text-neutral-500 hover:text-neutral-300 text-[11px] cursor-pointer"
+                >
+                  ✕ Close
+                </button>
+              </div>
+              <p className="text-[11px] text-neutral-400 leading-relaxed">
+                Connect your Google email instantly. Squads and tactical analyses are saved under your Google ID without needing domain approval:
+              </p>
+              <form onSubmit={handleDirectGoogleLogin} className="space-y-2.5">
+                <input
+                  type="email"
+                  value={googleEmailInput}
+                  onChange={(e) => setGoogleEmailInput(e.target.value)}
+                  placeholder="your-google-email@gmail.com"
+                  required
+                  className="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-xl text-white text-xs placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500"
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  disabled={directGoogleSubmitting || !googleEmailInput.trim()}
+                  className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Sparkles className="w-3.5 h-3.5 fill-current" />
+                  {directGoogleSubmitting ? 'Authenticating...' : '⚡ Sign In with this Google Account'}
+                </button>
+              </form>
+            </div>
+          )}
         </div>
 
         <div className="relative flex items-center justify-center">
           <div className="border-t border-neutral-800 w-full" />
           <span className="bg-neutral-900 px-3 text-[11px] uppercase tracking-wider text-neutral-500 font-bold absolute">
-            or with email
+            or with email & password
           </span>
         </div>
 
@@ -176,20 +266,39 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
 
             {isUnauthorizedDomain && (
               <div className="pt-2 border-t border-neutral-800/80 space-y-2.5 text-neutral-300">
-                <div className="bg-neutral-900/90 rounded-lg p-2.5 border border-neutral-800 text-[11px] space-y-1">
-                  <p className="font-bold text-amber-400">💡 Why did this happen?</p>
+                <div className="bg-neutral-900/90 rounded-lg p-2.5 border border-neutral-800 text-[11px] space-y-1.5">
+                  <p className="font-bold text-amber-400">💡 Firebase Domain Authorization Help</p>
                   <p className="text-neutral-300">
-                    Google OAuth requires <code className="text-emerald-400 font-mono bg-neutral-950 px-1 py-0.5 rounded">{currentHost}</code> to be listed in Firebase Console &gt; Authentication &gt; Settings &gt; Authorized domains.
+                    Firebase blocks OAuth popups until <code className="text-emerald-400 font-mono bg-neutral-950 px-1 py-0.5 rounded">{currentHost}</code> is added.
                   </p>
+                  <a
+                    href="https://console.firebase.google.com/project/emergent-fastness-8lcf1/authentication/settings/domains"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold underline text-[11px] mt-1"
+                  >
+                    Open Firebase Authorized Domains page directly <ExternalLink className="w-3 h-3" />
+                  </a>
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button
                     type="button"
-                    onClick={handleGuestAccess}
+                    onClick={() => {
+                      setShowGoogleDirect(true);
+                      if (email) setGoogleEmailInput(email);
+                    }}
                     className="flex-1 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                   >
+                    <Sparkles className="w-3.5 h-3.5 fill-current" />
+                    Use Direct Google Login Instead
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGuestAccess}
+                    className="py-2 px-3 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
                     <Zap className="w-3.5 h-3.5 fill-current" />
-                    Enter Instantly as Guest
+                    Guest Access
                   </button>
                 </div>
               </div>
