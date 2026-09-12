@@ -6,7 +6,8 @@ import {
   createUserWithEmailAndPassword,
   signOut as fbSignOut,
   updateProfile,
-  deleteUser
+  deleteUser,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import {
   doc,
@@ -64,6 +65,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -539,6 +541,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const resetPassword = async (emailToReset: string) => {
+    const cleanEmail = (emailToReset || '').trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      throw new Error('Please enter a valid email address.');
+    }
+
+    let firebaseSuccess = false;
+    try {
+      await sendPasswordResetEmail(auth, cleanEmail);
+      firebaseSuccess = true;
+    } catch (fbErr: any) {
+      console.warn('Firebase sendPasswordResetEmail attempt:', fbErr?.code || fbErr?.message);
+    }
+
+    try {
+      await sendEmailVerificationCode(cleanEmail);
+    } catch (emailErr) {
+      if (!firebaseSuccess) {
+        throw new Error('Could not send password reset email. Please verify your email address or try again.');
+      }
+    }
+  };
+
   const sendEmailOtpCode = async (email: string, managerName?: string) => {
     return sendEmailVerificationCode(email, managerName);
   };
@@ -730,7 +755,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signInWithWhatsAppOtp,
         logout,
         deleteAccount,
-        refreshProfile
+        refreshProfile,
+        resetPassword
       }}
     >
       {children}

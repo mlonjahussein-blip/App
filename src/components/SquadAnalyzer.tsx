@@ -128,7 +128,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
 
     const newFilesArray = Array.from(fileList);
     if (files.length + newFilesArray.length > 5) {
-      setErrorMessage(`You can upload a maximum of 5 images per analysis (currently ${files.length} selected).`);
+      setErrorMessage('You can upload a maximum of 5 screenshots.');
       return;
     }
 
@@ -165,7 +165,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
   // Callback when a photo is captured & accepted in CameraCaptureModal
   const handleCameraPhotoAccepted = (item: UploadedImageItem) => {
     if (files.length >= 5) {
-      setErrorMessage('You can upload a maximum of 5 images per analysis.');
+      setErrorMessage('You can upload a maximum of 5 screenshots.');
       return;
     }
     setErrorMessage(null);
@@ -188,9 +188,20 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
   };
 
   const handleStartAnalysis = async () => {
-    if (files.length === 0 && typedPlayers.length === 0) {
-      setErrorMessage('Please upload squad screenshots, take photos, or type your squad players before analyzing.');
-      return;
+    if (activeInputTab === 'screenshots') {
+      if (files.length === 0) {
+        setErrorMessage('Please upload at least 1 screenshot to analyze your squad.');
+        return;
+      }
+      if (files.length > 5) {
+        setErrorMessage('You can upload a maximum of 5 screenshots.');
+        return;
+      }
+    } else {
+      if (typedPlayers.length === 0) {
+        setErrorMessage('Please enter at least one squad player to analyze your squad.');
+        return;
+      }
     }
 
     setIsAnalyzing(true);
@@ -541,7 +552,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
                   onDragOver={handleDragOver}
                   onClick={() => {
                     if (files.length >= 5) {
-                      setErrorMessage('Maximum 5 images allowed. Please remove an image first.');
+                      setErrorMessage('You can upload a maximum of 5 screenshots.');
                       return;
                     }
                     fileInputRef.current?.click();
@@ -570,7 +581,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
                 <div
                   onClick={() => {
                     if (files.length >= 5) {
-                      setErrorMessage('Maximum 5 images allowed. Please remove an image first.');
+                      setErrorMessage('You can upload a maximum of 5 screenshots.');
                       return;
                     }
                     setIsCameraModalOpen(true);
@@ -999,12 +1010,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
             <button
               id="start-squad-analysis-btn"
               onClick={handleStartAnalysis}
-              disabled={activeInputTab === 'screenshots' ? files.length === 0 : typedPlayers.length === 0}
-              className={`w-full sm:w-auto px-8 py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-lg ${
-                (activeInputTab === 'screenshots' && files.length > 0) || (activeInputTab === 'enter_players' && typedPlayers.length > 0)
-                  ? 'bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-emerald-500/20 cursor-pointer'
-                  : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
-              }`}
+              className="w-full sm:w-auto px-8 py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-lg bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-emerald-500/20 cursor-pointer"
             >
               <Sparkles className="w-4 h-4" />
               Analyze My Squad {activeInputTab === 'screenshots' && files.length > 0 ? `(${files.length} images)` : activeInputTab === 'enter_players' && typedPlayers.length > 0 ? `(${typedPlayers.length} players)` : ''}

@@ -26,8 +26,16 @@ import type {
   SquadRatingsBreakdown,
   AnalysisQualityScore,
   ScreenshotMetadata,
-  PlayerCandidateMatch
+  PlayerCandidateMatch,
+  PlayerTrainingReport,
+  TacticalPreferencesReport,
+  GamePlanRecommendations
 } from '../src/types.ts';
+import {
+  generatePlayerTrainingReport,
+  generateTacticalPreferences,
+  generateGamePlanRecommendations
+} from '../src/lib/tacticalReportGenerator.ts';
 import { 
   EFOOTBALL_MASTER_PLAYERS, 
   EFOOTBALL_MASTER_COACHES, 
@@ -958,6 +966,9 @@ export async function postProcessAndVerifySquad(
       }
     },
     simulationScenarios,
+    playerTrainingReport: parsed.playerTrainingReport || generatePlayerTrainingReport(bestXIPlayers, verifiedCoach.tacticalStyle),
+    tacticalPreferences: parsed.tacticalPreferences || generateTacticalPreferences(verifiedCoach.tacticalStyle, formation),
+    gamePlanRecommendations: parsed.gamePlanRecommendations || generateGamePlanRecommendations(verifiedCoach.tacticalStyle, formation, processedPlayers),
     freeOrPaidStatus: 'free',
     paymentStatus: 'free',
     analysisQuality,
@@ -1291,6 +1302,9 @@ export function createEvidenceBasedFallback(payload: AnalyzeSquadPayload): Analy
         }
       },
       simulationScenarios,
+      playerTrainingReport: generatePlayerTrainingReport(bestXI, playstyle),
+      tacticalPreferences: generateTacticalPreferences(playstyle, formation),
+      gamePlanRecommendations: generateGamePlanRecommendations(playstyle, formation, identifiedPlayers),
       freeOrPaidStatus: 'free',
       paymentStatus: 'free',
       analysisQuality,

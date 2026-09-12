@@ -26,11 +26,17 @@ interface AuthModalProps {
   initialMode: 'login' | 'signup';
   onSuccess: () => void;
   onSwitchMode: (mode: 'login' | 'signup') => void;
+  customAuthMessage?: string | null;
 }
 
-export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onSwitchMode }) => {
-  const { signIn, signUp, sendEmailOtpCode } = useAuth();
+export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onSwitchMode, customAuthMessage }) => {
+  const { signIn, signUp, sendEmailOtpCode, resetPassword } = useAuth();
   const mode = initialMode; // 'login' | 'signup'
+
+  // Forgot password mode
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
 
   // Form Fields
   const [managerName, setManagerName] = useState('');
@@ -207,6 +213,30 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
     }
   };
 
+  // Password Reset Handler
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setInfoMessage(null);
+
+    const cleanEmail = resetEmail.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await resetPassword(cleanEmail);
+      setResetSent(true);
+      setInfoMessage(`Password reset instructions have been sent to ${cleanEmail}. Please check your inbox and spam folder.`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send password reset email. Please verify your email.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // 6-Digit Box Input Navigation
   const handleOtpDigitChange = (index: number, val: string) => {
     const rawVal = val.replace(/[^0-9]/g, '');
@@ -277,16 +307,32 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
             <ShieldCheck className="w-6 h-6" />
           </div>
           <h2 className="text-2xl font-black text-white tracking-tight">
-            {mode === 'login' ? 'Sign In to AI Hub' : step === 'otp' ? 'Verify Email Code' : 'Create Manager Account'}
+            {isForgotPassword
+              ? 'Reset Password'
+              : mode === 'login'
+              ? 'Sign In to AI Hub'
+              : step === 'otp'
+              ? 'Verify Email Code'
+              : 'Create Manager Account'}
           </h2>
           <p className="text-xs text-neutral-400 mt-1 max-w-xs mx-auto">
-            {mode === 'login'
+            {isForgotPassword
+              ? 'Enter your registered email address to receive password reset instructions.'
+              : mode === 'login'
               ? 'Access your squad builder, AI tactical reports & saved formations.'
               : step === 'otp'
               ? `Enter the 6-digit code sent to ${email}`
               : 'Sign up with email, password & link your WhatsApp number.'}
           </p>
         </div>
+
+        {/* Custom Auth Message for Navigation / Protected Actions */}
+        {customAuthMessage && !error && !infoMessage && (
+          <div className="mb-5 p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-start gap-2.5 text-xs text-emerald-300">
+            <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+            <div className="flex-1 leading-relaxed font-medium">{customAuthMessage}</div>
+          </div>
+        )}
 
         {/* Feedback Notifications */}
         {error && (
@@ -303,8 +349,64 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
           </div>
         )}
 
-        {/* --- SIGN IN FORM --- */}
-        {mode === 'login' && (
+        {/* --- SIGN IN / FORGOT PASSWORD FORMS --- */}
+        {mode === 'login' && isForgotPassword && (
+          <form onSubmit={handleResetPasswordSubmit} className="space-y-4 relative">
+            <div>
+              <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">
+                Registered Email Address
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="w-full pl-10 pr-4 py-3 bg-neutral-950 border border-neutral-800 rounded-xl text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
+            >
+              {submitting ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Sending Instructions...</span>
+                </>
+              ) : (
+                <>
+                  <Mail className="w-4 h-4" />
+                  <span>Send Reset Instructions</span>
+                </>
+              )}
+            </button>
+
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsForgotPassword(false);
+                  setError(null);
+                  setInfoMessage(null);
+                }}
+                className="text-xs text-neutral-400 hover:text-white transition-colors font-semibold cursor-pointer inline-flex items-center gap-1"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Sign In</span>
+              </button>
+            </div>
+          </form>
+        )}
+
+        {mode === 'login' && !isForgotPassword && (
           <form onSubmit={handleLoginSubmit} className="space-y-4 relative">
             <div>
               <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">
@@ -326,9 +428,23 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotPassword(true);
+                    setResetEmail(email.includes('@') ? email : '');
+                    setError(null);
+                    setInfoMessage(null);
+                  }}
+                  className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors font-semibold cursor-pointer"
+                >
+                  Forgot Password?
+                </button>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
                   <Lock className="w-4 h-4" />

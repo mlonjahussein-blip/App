@@ -25,10 +25,22 @@ function AppContent() {
   const [currentTab, setCurrentTab] = useState<string>('home');
   const [activeAnalysis, setActiveAnalysis] = useState<AnalysisResult | null>(null);
   const [isSharingPost, setIsSharingPost] = useState<boolean>(false);
+  const [authRedirectMessage, setAuthRedirectMessage] = useState<string | null>(null);
 
   // Modals
   const [selectedBuilderPlayer, setSelectedBuilderPlayer] = useState<PlayerData | null>(null);
   const [comparisonPair, setComparisonPair] = useState<{ p1: PlayerData; p2: PlayerData } | null>(null);
+
+  // Start analysis trigger with authentication guard
+  const handleStartAnalysis = () => {
+    if (!user) {
+      setAuthRedirectMessage('Please sign in or create an account to analyze your squad and receive a tactical report.');
+      setCurrentTab('login');
+      return;
+    }
+    setAuthRedirectMessage(null);
+    setCurrentTab('analyzer');
+  };
 
   // Synchronize document title for SEO on every major view
   useEffect(() => {
@@ -176,13 +188,25 @@ function AppContent() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
         {currentTab === 'home' && (
           <HomePage
-            onStartAnalysis={() => setCurrentTab('analyzer')}
+            onStartAnalysis={handleStartAnalysis}
             onExploreCommunity={() => setCurrentTab('community')}
           />
         )}
 
         {currentTab === 'analyzer' && (
-          <SquadAnalyzer onAnalysisCompleted={handleAnalysisCompleted} />
+          user ? (
+            <SquadAnalyzer onAnalysisCompleted={handleAnalysisCompleted} />
+          ) : (
+            <AuthView
+              initialMode="login"
+              customAuthMessage="Please sign in or create an account to analyze your squad and receive a tactical report."
+              onSuccess={() => {
+                setAuthRedirectMessage(null);
+                setCurrentTab('analyzer');
+              }}
+              onSwitchMode={(m) => setCurrentTab(m)}
+            />
+          )
         )}
 
         {currentTab === 'results' && activeAnalysis && (
@@ -198,7 +222,7 @@ function AppContent() {
         {currentTab === 'mysquad' && (
           <MySquadView
             latestAnalysis={activeAnalysis}
-            onNavigateToAnalyzer={() => setCurrentTab('analyzer')}
+            onNavigateToAnalyzer={handleStartAnalysis}
             onOpenAnalysis={(analysis) => {
               setActiveAnalysis(analysis);
               setCurrentTab('results');
@@ -213,13 +237,13 @@ function AppContent() {
               setActiveAnalysis(report);
               setCurrentTab('results');
             }}
-            onNavigateToAnalyzer={() => setCurrentTab('analyzer')}
+            onNavigateToAnalyzer={handleStartAnalysis}
           />
         )}
 
         {currentTab === 'community' && (
           <CommunityView
-            onNavigateToAnalyzer={() => setCurrentTab('analyzer')}
+            onNavigateToAnalyzer={handleStartAnalysis}
           />
         )}
 
@@ -230,7 +254,7 @@ function AppContent() {
               setCurrentTab('home');
             }}
             onAccountDeleted={() => setCurrentTab('home')}
-            onNavigateToAnalyzer={() => setCurrentTab('analyzer')}
+            onNavigateToAnalyzer={handleStartAnalysis}
           />
         )}
 
@@ -241,14 +265,18 @@ function AppContent() {
               setCurrentTab('home');
             }}
             onAccountDeleted={() => setCurrentTab('home')}
-            onNavigateToAnalyzer={() => setCurrentTab('analyzer')}
+            onNavigateToAnalyzer={handleStartAnalysis}
           />
         )}
 
         {currentTab === 'login' && (
           <AuthView
             initialMode="login"
-            onSuccess={() => setCurrentTab('analyzer')}
+            customAuthMessage={authRedirectMessage}
+            onSuccess={() => {
+              setAuthRedirectMessage(null);
+              setCurrentTab('analyzer');
+            }}
             onSwitchMode={(m) => setCurrentTab(m)}
           />
         )}
@@ -256,7 +284,11 @@ function AppContent() {
         {currentTab === 'signup' && (
           <AuthView
             initialMode="signup"
-            onSuccess={() => setCurrentTab('analyzer')}
+            customAuthMessage={authRedirectMessage}
+            onSuccess={() => {
+              setAuthRedirectMessage(null);
+              setCurrentTab('analyzer');
+            }}
             onSwitchMode={(m) => setCurrentTab(m)}
           />
         )}

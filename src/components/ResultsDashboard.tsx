@@ -33,9 +33,21 @@ import {
   AlertCircle,
   Eye,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Download,
+  BookOpen,
+  TrendingUp,
+  Clock,
+  Flag,
+  Dumbbell
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { exportSquadAnalysisToPdf } from '../lib/pdfReportGenerator.ts';
+import { 
+  generatePlayerTrainingReport, 
+  generateTacticalPreferences, 
+  generateGamePlanRecommendations 
+} from '../lib/tacticalReportGenerator.ts';
 
 interface ResultsDashboardProps {
   analysis: AnalysisResult;
@@ -56,9 +68,10 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
 }) => {
   // Single Source of Truth: Canonical Verified Squad Dataset
   const [squadAnalysis, setSquadAnalysis] = useState<AnalysisResult>(initialAnalysis);
-  const [activeTab, setActiveTab] = useState<'all' | 'verifiedSquad' | 'bestXI' | 'simulation' | 'tactics' | 'players'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'verifiedSquad' | 'bestXI' | 'tactics' | 'training' | 'gamePlan' | 'simulation' | 'players'>('all');
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(isSaved);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   // Manual Correction & Audit State
   const [selectedPlayerForCorrection, setSelectedPlayerForCorrection] = useState<PlayerData | null>(null);
@@ -70,6 +83,24 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   const showToast = (msg: string) => {
     setFeedbackToast(msg);
     setTimeout(() => setFeedbackToast(null), 3000);
+  };
+
+  const handleDownloadPdf = async () => {
+    try {
+      setIsDownloadingPdf(true);
+      exportSquadAnalysisToPdf(squadAnalysis);
+      showToast('✓ PDF Tactical Dossier downloaded successfully!');
+      confetti({
+        particleCount: 40,
+        spread: 60,
+        origin: { y: 0.8 }
+      });
+    } catch (err: any) {
+      console.error('Failed to generate PDF:', err);
+      showToast('Could not generate PDF. Please try again.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
   };
 
   const handleSave = async () => {
@@ -238,6 +269,21 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   const quality = squadAnalysis.qualityScore;
   const isReadabilityWarning = quality && (quality.score < 65 || quality.verdict.includes('Difficult') || quality.warnings.length > 0);
 
+  // Hydrated Tactical Reports (Sections A, B, C)
+  const playerTraining = squadAnalysis.playerTrainingReport || generatePlayerTrainingReport(
+    squadAnalysis.bestXI.players,
+    squadAnalysis.coachRecommendation?.tacticalStyle || 'Quick Counter'
+  );
+  const tacticalPrefs = squadAnalysis.tacticalPreferences || generateTacticalPreferences(
+    squadAnalysis.coachRecommendation?.tacticalStyle || 'Quick Counter',
+    squadAnalysis.recommendedFormation || '4-2-1-3'
+  );
+  const gamePlan = squadAnalysis.gamePlanRecommendations || generateGamePlanRecommendations(
+    squadAnalysis.coachRecommendation?.tacticalStyle || 'Quick Counter',
+    squadAnalysis.recommendedFormation || '4-2-1-3',
+    squadAnalysis.identifiedPlayers || []
+  );
+
   // Identity Counters
   const confirmedPlayers = squadAnalysis.identifiedPlayers.filter(
     (p) => p.identityStatus === 'user_confirmed' || p.identityStatus === 'user_corrected' || (p.confidenceScore && p.confidenceScore >= 85)
@@ -308,6 +354,17 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
           >
             {savedSuccess ? <CheckCircle className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
             {savedSuccess ? 'Saved to Profile' : saving ? 'Saving...' : 'Save Report'}
+          </button>
+
+          <button
+            id="download-pdf-report-btn"
+            onClick={handleDownloadPdf}
+            disabled={isDownloadingPdf}
+            className="px-5 py-3 rounded-xl text-xs sm:text-sm font-bold bg-neutral-950 hover:bg-neutral-800 text-white border border-emerald-500/50 hover:border-emerald-400 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-950/20"
+            title="Download Complete PDF Tactical Dossier"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>{isDownloadingPdf ? 'Generating PDF...' : 'Download PDF Report'}</span>
           </button>
 
           <button
@@ -407,8 +464,10 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
           { id: 'all', label: 'Complete Report' },
           { id: 'verifiedSquad', label: `Verified Squad (${squadAnalysis.identifiedPlayers.length})` },
           { id: 'bestXI', label: 'Best XI & Formation' },
-          { id: 'simulation', label: '2D Tactical Simulation' },
-          { id: 'tactics', label: 'Tactical Directives' },
+          { id: 'tactics', label: 'Tactical Preferences' },
+          { id: 'training', label: 'Player Training Report' },
+          { id: 'gamePlan', label: 'Game Plan & Subs' },
+          { id: 'simulation', label: '2D Simulation' },
           { id: 'players', label: 'Player Action Plan' }
         ].map((tab) => (
           <button
@@ -1055,6 +1114,323 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                 </div>
               );
             })}
+          </div>
+        </section>
+      )}
+
+      {/* SECTION A: Player Training Report */}
+      {(activeTab === 'all' || activeTab === 'training') && (
+        <section id="player-training-report-section" className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                  <Dumbbell className="w-5 h-5" />
+                </span>
+                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  Player Training Report
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  eFootball 2026/2027 Progression
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-neutral-400 mt-1">
+                Evidence-based progression point allocation and skill legacy training tailored for your squad.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 text-xs sm:text-sm text-neutral-300 space-y-1">
+            <span className="font-bold text-emerald-400 uppercase tracking-wider text-xs block">
+              Training Strategy Overview:
+            </span>
+            <p className="leading-relaxed">{playerTraining.summary}</p>
+          </div>
+
+          {/* Key Players Progression Advice */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-neutral-300 uppercase tracking-wider">
+              Key Players Point Allocation & Skill Programs
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {playerTraining.progressionAllocationAdvice.map((advice, idx) => (
+                <div key={idx} className="bg-neutral-950 border border-neutral-800 rounded-2xl p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-base font-black text-white">{advice.playerName}</h4>
+                      <span className="text-xs font-bold text-emerald-400">{advice.position} · {advice.rating} OVR</span>
+                    </div>
+                    <button
+                      onClick={() => onPlayerBuilderSelect({
+                        id: `prog_${idx}`,
+                        name: advice.playerName,
+                        position: advice.position,
+                        rating: advice.rating,
+                        confidence: 'High'
+                      })}
+                      className="px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-xs font-bold text-emerald-400 border border-neutral-700 transition-colors cursor-pointer"
+                    >
+                      Build Player →
+                    </button>
+                  </div>
+
+                  {/* Attribute progression breakdown */}
+                  <div className="space-y-2 pt-1">
+                    <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block">
+                      Recommended Point Allocation:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {advice.recommendedProgression.map((prog, pIdx) => (
+                        <div key={pIdx} className="p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800 text-xs">
+                          <div className="flex items-center justify-between font-bold text-white mb-0.5">
+                            <span className="truncate pr-1">{prog.attributeGroup}</span>
+                            <span className="text-emerald-400 shrink-0">+{prog.points} pts</span>
+                          </div>
+                          <p className="text-[11px] text-neutral-400 leading-tight">{prog.targetImpact}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Skills to teach */}
+                  <div className="pt-1">
+                    <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">
+                      Recommended Skills to Add:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {advice.recommendedSkills.map((sk, sIdx) => (
+                        <span key={sIdx} className="px-2.5 py-1 rounded-lg text-xs font-bold bg-neutral-900 text-neutral-300 border border-neutral-800">
+                          {sk}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-neutral-400 italic bg-neutral-900/40 p-2.5 rounded-xl border border-neutral-800/60">
+                    <strong className="text-emerald-400 not-italic">Tactical Focus:</strong> {advice.specialTrainingFocus}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Position-Specific Tips */}
+          <div className="space-y-3 pt-2">
+            <h3 className="text-sm font-bold text-neutral-300 uppercase tracking-wider">
+              Position-Specific Training Rules & Breakpoints
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {playerTraining.positionSpecificTips.map((tip, idx) => (
+                <div key={idx} className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 space-y-2">
+                  <h4 className="text-sm font-bold text-white flex items-center justify-between">
+                    <span>{tip.role}</span>
+                  </h4>
+                  <div className="flex flex-wrap gap-1">
+                    {tip.keyStatsToPrioritize.map((st, sIdx) => (
+                      <span key={sIdx} className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        {st}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-neutral-300 leading-relaxed pt-1">
+                    {tip.guidance}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* SECTION B: Tactical Preferences */}
+      {(activeTab === 'all' || activeTab === 'tactics') && (
+        <section id="tactical-preferences-section" className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400">
+                  <BookOpen className="w-5 h-5" />
+                </span>
+                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  Tactical Preferences: {tacticalPrefs.chosenPlaystyle}
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                  Tactical Framework
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-neutral-400 mt-1">
+                {tacticalPrefs.playstyleOverview}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* Attacking Setup */}
+            <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🎯</span>
+                  <h3 className="font-bold text-white text-base">{tacticalPrefs.attackingSetup.title}</h3>
+                </div>
+                <div className="text-xs text-neutral-400 space-y-1 bg-neutral-900 p-3 rounded-xl border border-neutral-800">
+                  <p><strong className="text-emerald-400">Build-up:</strong> {tacticalPrefs.attackingSetup.buildUpStyle}</p>
+                  <p><strong className="text-emerald-400">Area:</strong> {tacticalPrefs.attackingSetup.attackingArea}</p>
+                  <p><strong className="text-emerald-400">Positioning:</strong> {tacticalPrefs.attackingSetup.positioningFocus}</p>
+                </div>
+              </div>
+              <ul className="space-y-1.5 text-xs text-neutral-300 pt-2 border-t border-neutral-800/80">
+                {tacticalPrefs.attackingSetup.details.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="text-cyan-400 font-bold shrink-0">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Defensive Setup */}
+            <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🛡️</span>
+                  <h3 className="font-bold text-white text-base">{tacticalPrefs.defensiveSetup.title}</h3>
+                </div>
+                <div className="text-xs text-neutral-400 space-y-1 bg-neutral-900 p-3 rounded-xl border border-neutral-800">
+                  <p><strong className="text-rose-400">Style:</strong> {tacticalPrefs.defensiveSetup.defensiveStyle}</p>
+                  <p><strong className="text-rose-400">Containment:</strong> {tacticalPrefs.defensiveSetup.containmentArea}</p>
+                  <p><strong className="text-rose-400">Defensive Line:</strong> {tacticalPrefs.defensiveSetup.defensiveLineLevel}</p>
+                </div>
+              </div>
+              <ul className="space-y-1.5 text-xs text-neutral-300 pt-2 border-t border-neutral-800/80">
+                {tacticalPrefs.defensiveSetup.pressuringGuidelines.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="text-rose-400 font-bold shrink-0">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Transition Setup */}
+            <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">⚡</span>
+                  <h3 className="font-bold text-white text-base">{tacticalPrefs.transitionSetup.title}</h3>
+                </div>
+                <div className="text-xs text-neutral-400 space-y-1 bg-neutral-900 p-3 rounded-xl border border-neutral-800">
+                  <p><strong className="text-amber-400">Offensive:</strong> {tacticalPrefs.transitionSetup.offensiveTransition}</p>
+                  <p><strong className="text-amber-400">Defensive:</strong> {tacticalPrefs.transitionSetup.defensiveTransition}</p>
+                </div>
+              </div>
+              <ul className="space-y-1.5 text-xs text-neutral-300 pt-2 border-t border-neutral-800/80">
+                {tacticalPrefs.transitionSetup.counterPressRules.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="text-amber-400 font-bold shrink-0">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* SECTION C: Game Plan Recommendations */}
+      {(activeTab === 'all' || activeTab === 'gamePlan') && (
+        <section id="game-plan-recommendations-section" className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400">
+                  <Clock className="w-5 h-5" />
+                </span>
+                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  Game Plan Recommendations
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Match-Day Strategy
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-neutral-400 mt-1">
+                Substitutions timing, condition arrows management, and dynamic in-match tactical adjustments.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* 1. Match-Day Preparation */}
+            <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <Flag className="w-4 h-4 text-emerald-400" />
+                <h3 className="font-bold text-white text-base">Match-Day Preparation</h3>
+              </div>
+              <div className="space-y-2 text-xs text-neutral-300">
+                <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1">
+                  <span className="font-bold text-emerald-400 block text-[11px] uppercase">Condition Arrows:</span>
+                  <p>{gamePlan.matchDayPreparation.conditionArrowPriorities}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1">
+                  <span className="font-bold text-emerald-400 block text-[11px] uppercase">Captaincy & Set Pieces:</span>
+                  <p>{gamePlan.matchDayPreparation.captaincyAndSetPieceTakers}</p>
+                </div>
+                {gamePlan.matchDayPreparation.fluidFormationNotes && (
+                  <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1">
+                    <span className="font-bold text-emerald-400 block text-[11px] uppercase">Fluid Formations:</span>
+                    <p>{gamePlan.matchDayPreparation.fluidFormationNotes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Substitution Strategy */}
+            <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-cyan-400" />
+                <h3 className="font-bold text-white text-base">Substitution Strategy</h3>
+              </div>
+              <div className="space-y-2 text-xs text-neutral-300">
+                <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1">
+                  <span className="font-bold text-cyan-400 block text-[11px] uppercase">60' - 65' Minute:</span>
+                  <p>{gamePlan.substitutionStrategy.earlySecondHalfSub}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1">
+                  <span className="font-bold text-cyan-400 block text-[11px] uppercase">75' - 80' Minute (Super-sub):</span>
+                  <p>{gamePlan.substitutionStrategy.closingStageSub}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1">
+                  <span className="font-bold text-cyan-400 block text-[11px] uppercase">Stamina Triggers:</span>
+                  <ul className="space-y-1 text-[11px] text-neutral-400">
+                    {gamePlan.substitutionStrategy.staminaTriggers.map((t, idx) => (
+                      <li key={idx}>• {t}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. In-Match Tactical Adjustments */}
+            <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 text-amber-400" />
+                <h3 className="font-bold text-white text-base">In-Match Adjustments</h3>
+              </div>
+              <div className="space-y-2 text-xs text-neutral-300">
+                <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1">
+                  <span className="font-bold text-amber-400 block text-[11px] uppercase">Leading Late (80'+):</span>
+                  <p>{gamePlan.inMatchAdjustments.leadingLate}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1">
+                  <span className="font-bold text-amber-400 block text-[11px] uppercase">Trailing Late (70'+):</span>
+                  <p>{gamePlan.inMatchAdjustments.trailingLate}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1">
+                  <span className="font-bold text-amber-400 block text-[11px] uppercase">Countering Opponents:</span>
+                  <p className="text-[11px]">{gamePlan.inMatchAdjustments.counteringCentralThroughBalls}</p>
+                  <p className="text-[11px] pt-1">{gamePlan.inMatchAdjustments.counteringWideOverloads}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       )}

@@ -87,18 +87,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                   Home
                 </button>
                 <button
-                  id="nav-analyzer"
-                  onClick={() => handleNav('analyzer')}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    currentTab === 'analyzer'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold'
-                      : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4 text-emerald-400" />
-                  AI Squad Analyzer
-                </button>
-                <button
                   id="nav-community"
                   onClick={() => handleNav('community')}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -130,6 +118,17 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
             ) : (
               <>
                 <button
+                  id="nav-home-auth"
+                  onClick={() => handleNav('home')}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    currentTab === 'home'
+                      ? 'bg-neutral-800 text-emerald-400 font-semibold'
+                      : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
+                  }`}
+                >
+                  Home
+                </button>
+                <button
                   id="nav-analyzer-auth"
                   onClick={() => handleNav('analyzer')}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -139,7 +138,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                   }`}
                 >
                   <Sparkles className="w-4 h-4 text-emerald-400" />
-                  Analyze
+                  AI Squad Analyzer
                 </button>
                 <button
                   id="nav-mysquad"
@@ -181,25 +180,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                   id="nav-profile"
                   onClick={() => handleNav('profile')}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    currentTab === 'profile'
+                    currentTab === 'profile' || currentTab === 'settings'
                       ? 'bg-neutral-800 text-emerald-400 font-semibold'
                       : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
                   }`}
                 >
                   <UserIcon className="w-4 h-4" />
                   Profile
-                </button>
-                <button
-                  id="nav-settings"
-                  onClick={() => handleNav('settings')}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    currentTab === 'settings'
-                      ? 'bg-neutral-800 text-emerald-400 font-semibold'
-                      : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
-                  }`}
-                >
-                  <Settings className="w-4 h-4" />
-                  Settings
                 </button>
 
                 <div className="h-5 w-px bg-neutral-800 mx-2" />
@@ -251,12 +238,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                 Home
               </button>
               <button
-                onClick={() => handleNav('analyzer')}
-                className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-emerald-400 font-semibold bg-emerald-500/10"
-              >
-                AI Squad Analyzer
-              </button>
-              <button
                 onClick={() => handleNav('community')}
                 className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-neutral-200 hover:bg-neutral-900"
               >
@@ -283,6 +264,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                 <p className="text-sm font-bold text-white">{profile?.displayName || user.email}</p>
                 <p className="text-xs text-emerald-400">{profile?.freeAnalysesRemaining || 1} Free Analysis Available</p>
               </div>
+              <button
+                onClick={() => handleNav('home')}
+                className="w-full text-left px-3 py-2 rounded-lg text-sm text-neutral-200 hover:bg-neutral-900"
+              >
+                Home
+              </button>
               <button
                 onClick={() => handleNav('analyzer')}
                 className="w-full text-left px-3 py-2 rounded-lg text-sm text-emerald-400 font-semibold bg-emerald-500/10"
@@ -311,13 +298,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                 onClick={() => handleNav('profile')}
                 className="w-full text-left px-3 py-2 rounded-lg text-sm text-neutral-200 hover:bg-neutral-900"
               >
-                Profile
-              </button>
-              <button
-                onClick={() => handleNav('settings')}
-                className="w-full text-left px-3 py-2 rounded-lg text-sm text-neutral-200 hover:bg-neutral-900"
-              >
-                Settings
+                Profile & Settings
               </button>
               <button
                 onClick={handleLogout}

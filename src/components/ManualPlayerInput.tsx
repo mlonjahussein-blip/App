@@ -54,7 +54,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       name: xiName.trim(),
       position: xiPos,
       cardType: xiCardType,
-      rating: Math.min(105, Math.max(60, Number(xiRating) || 90)),
+      rating: Math.min(110, Math.max(60, Number(xiRating) || 90)),
       club: xiTeam.trim() || undefined,
       role: 'starting_xi'
     };
@@ -73,7 +73,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       name: subName.trim(),
       position: subPos,
       cardType: subCardType,
-      rating: Math.min(105, Math.max(60, Number(subRating) || 90)),
+      rating: Math.min(110, Math.max(60, Number(subRating) || 90)),
       club: subTeam.trim() || undefined,
       role: 'substitute'
     };
@@ -88,7 +88,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   };
 
   const updatePlayerRating = (id: string, newRating: number) => {
-    onChange(typedPlayers.map(p => p.id === id ? { ...p, rating: Math.min(105, Math.max(60, newRating)) } : p));
+    onChange(typedPlayers.map(p => p.id === id ? { ...p, rating: Math.min(110, Math.max(60, newRating)) } : p));
   };
 
   const updatePlayerPosition = (id: string, newPosition: string) => {
@@ -230,7 +230,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             <input
               type="number"
               min="60"
-              max="105"
+              max="110"
               value={xiRating}
               onChange={(e) => setXiRating(Number(e.target.value))}
               onKeyDown={(e) => { if (e.key === 'Enter') addStartingXIPlayer(); }}
@@ -336,7 +336,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             <input
               type="number"
               min="60"
-              max="105"
+              max="110"
               value={subRating}
               onChange={(e) => setSubRating(Number(e.target.value))}
               onKeyDown={(e) => { if (e.key === 'Enter') addSubstitutePlayer(); }}
@@ -466,7 +466,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                           <input
                             type="number"
                             min="60"
-                            max="105"
+                            max="110"
                             value={player.rating}
                             onChange={(e) => updatePlayerRating(player.id, Number(e.target.value))}
                             className="w-8 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
@@ -554,7 +554,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                           <input
                             type="number"
                             min="60"
-                            max="105"
+                            max="110"
                             value={player.rating}
                             onChange={(e) => updatePlayerRating(player.id, Number(e.target.value))}
                             className="w-8 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"

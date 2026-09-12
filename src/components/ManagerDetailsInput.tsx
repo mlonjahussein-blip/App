@@ -105,10 +105,10 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
                   <input
                     type="number"
                     min="50"
-                    max="89"
+                    max="90"
                     value={currentVal}
                     onChange={(e) => {
-                      const val = Math.min(89, Math.max(50, Number(e.target.value) || 50));
+                      const val = Math.min(90, Math.max(50, Number(e.target.value) || 50));
                       onManagerChange({
                         ...managerDetails,
                         playstyleProficiencies: {
@@ -128,7 +128,7 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
                       isNew ? 'border-cyan-500/50 text-cyan-400' : 'border-neutral-700 text-emerald-400'
                     }`}
                   />
-                  <span className="text-[10px] text-neutral-500 font-bold">/ 89</span>
+                  <span className="text-[10px] text-neutral-500 font-bold">/ 90</span>
                 </div>
               </div>
             );

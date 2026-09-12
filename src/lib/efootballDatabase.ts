@@ -882,7 +882,7 @@ export function findDatabaseMatches(
       }
 
       // Rating boost/penalty
-      if (targetRating && targetRating >= 70 && targetRating <= 105) {
+      if (targetRating && targetRating >= 70 && targetRating <= 110) {
         const diff = Math.abs(targetRating - player.maxRating);
         if (diff <= 3) {
           finalScore += 8;

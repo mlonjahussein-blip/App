@@ -178,6 +178,70 @@ export interface AnalysisQualityScore {
   unidentifiedCount: number;
 }
 
+export interface KeyPlayerTrainingAdvice {
+  playerName: string;
+  position: string;
+  rating: number;
+  recommendedProgression: Array<{ attributeGroup: string; points: number; targetImpact: string }>;
+  recommendedSkills: string[];
+  specialTrainingFocus: string;
+}
+
+export interface PlayerTrainingReport {
+  summary: string;
+  progressionAllocationAdvice: KeyPlayerTrainingAdvice[];
+  positionSpecificTips: Array<{
+    role: string;
+    keyStatsToPrioritize: string[];
+    guidance: string;
+  }>;
+}
+
+export interface TacticalPreferencesReport {
+  chosenPlaystyle: string;
+  playstyleOverview: string;
+  attackingSetup: {
+    title: string;
+    buildUpStyle: string;
+    attackingArea: string;
+    positioningFocus: string;
+    details: string[];
+  };
+  defensiveSetup: {
+    title: string;
+    defensiveStyle: string;
+    containmentArea: string;
+    pressuringGuidelines: string[];
+    defensiveLineLevel: string;
+  };
+  transitionSetup: {
+    title: string;
+    offensiveTransition: string;
+    defensiveTransition: string;
+    counterPressRules: string[];
+  };
+}
+
+export interface GamePlanRecommendations {
+  matchDayPreparation: {
+    conditionArrowPriorities: string;
+    captaincyAndSetPieceTakers: string;
+    fluidFormationNotes?: string;
+  };
+  substitutionStrategy: {
+    earlySecondHalfSub: string;
+    closingStageSub: string;
+    staminaTriggers: string[];
+    superSubRecommendations: string[];
+  };
+  inMatchAdjustments: {
+    leadingLate: string;
+    trailingLate: string;
+    counteringWideOverloads: string;
+    counteringCentralThroughBalls: string;
+  };
+}
+
 export interface AnalysisResult {
   id: string;
   createdAt: string;
@@ -199,6 +263,9 @@ export interface AnalysisResult {
   playerActionPlan: PlayerActionRecommendation[];
   tacticalRecommendations: TacticalRecommendations;
   simulationScenarios: SimulationScenarioData[];
+  playerTrainingReport?: PlayerTrainingReport;
+  tacticalPreferences?: TacticalPreferencesReport;
+  gamePlanRecommendations?: GamePlanRecommendations;
   freeOrPaidStatus: 'free' | 'paid';
   paymentStatus: 'free' | 'paid' | 'disabled';
   analysisQuality?: AnalysisQualityScore;

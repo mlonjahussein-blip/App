@@ -238,7 +238,7 @@ export const PlayerCorrectionModal: React.FC<PlayerCorrectionModalProps> = ({
               <input
                 type="range"
                 min="70"
-                max="105"
+                max="110"
                 value={rating}
                 onChange={(e) => setRating(Number(e.target.value))}
                 className="flex-1 accent-emerald-500"
@@ -246,7 +246,7 @@ export const PlayerCorrectionModal: React.FC<PlayerCorrectionModalProps> = ({
               <input
                 type="number"
                 min="70"
-                max="105"
+                max="110"
                 value={rating}
                 onChange={(e) => setRating(Number(e.target.value))}
                 className="w-16 px-2 py-1 rounded-lg bg-neutral-950 border border-neutral-700 text-white text-sm text-center font-bold"
