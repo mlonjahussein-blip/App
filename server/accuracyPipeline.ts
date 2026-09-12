@@ -416,7 +416,7 @@ Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach c
 
           let timer: any;
           const timeoutPromise = new Promise((_, reject) => {
-            timer = setTimeout(() => reject(new Error(`Timeout: ${modelName} did not respond within 10s`)), 10000);
+            timer = setTimeout(() => reject(new Error(`Timeout: ${modelName} did not respond within 30s`)), 30000);
           });
 
           try {
