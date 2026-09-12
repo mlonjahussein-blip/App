@@ -339,3 +339,60 @@ export async function findUniversalCloudAccount(identifier: string): Promise<Clo
 
   return null;
 }
+
+/**
+ * Universal Cloud Password Updater:
+ * Updates the salt & hash across all database records linked to this email, whatsapp, or uid
+ */
+export async function updateUniversalCloudPassword(identifier: string, newSalt: string, newHash: string): Promise<boolean> {
+  const cleanId = (identifier || '').trim();
+  if (!cleanId || !newSalt || !newHash) return false;
+
+  const rawDigits = cleanPhoneDigits(cleanId);
+  const isEmail = cleanId.includes('@');
+  const cleanEmail = isEmail ? cleanId.toLowerCase() : '';
+  const now = new Date().toISOString();
+
+  const patchFields = {
+    salt: newSalt,
+    hash: newHash,
+    updatedAt: now
+  };
+
+  const tasks: Promise<any>[] = [];
+
+  // Update in authAccounts by email
+  if (isEmail && cleanEmail) {
+    tasks.push(writeDocREST('authAccounts', sanitizeKey(cleanEmail), patchFields));
+    tasks.push(writeDocREST('authAccounts', cleanEmail, patchFields));
+  }
+
+  // Update in authAccounts by whatsapp / phone digits
+  if (rawDigits && rawDigits.length >= 7) {
+    tasks.push(writeDocREST('authAccounts', 'wa_' + rawDigits, patchFields));
+    tasks.push(writeDocREST('authAccounts', rawDigits, patchFields));
+    tasks.push(writeDocREST('authAccounts', '+' + rawDigits, patchFields));
+    tasks.push(writeDocREST('users', 'wa_' + rawDigits, patchFields));
+  }
+
+  // Also query account to get UID and update users collection
+  try {
+    const existing = await findUniversalCloudAccount(cleanId);
+    if (existing && existing.uid) {
+      tasks.push(writeDocREST('users', existing.uid, patchFields));
+      if (existing.email && existing.email !== cleanEmail) {
+        tasks.push(writeDocREST('authAccounts', sanitizeKey(existing.email), patchFields));
+      }
+      if (existing.whatsappNumber) {
+        const waDigits = cleanPhoneDigits(existing.whatsappNumber);
+        if (waDigits) {
+          tasks.push(writeDocREST('authAccounts', 'wa_' + waDigits, patchFields));
+          tasks.push(writeDocREST('authAccounts', waDigits, patchFields));
+        }
+      }
+    }
+  } catch {}
+
+  const results = await Promise.allSettled(tasks);
+  return results.some(r => r.status === 'fulfilled');
+}

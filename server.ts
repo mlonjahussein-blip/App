@@ -354,6 +354,70 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Universal Cloud Password Reset Endpoint
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { identifier, salt, hash, uid } = req.body || {};
+    if (!identifier || !salt || !hash) {
+      return res.status(400).json({ error: 'Identifier, salt, and hash are required.' });
+    }
+
+    const PROJECT_ID = 'emergent-fastness-8lcf1';
+    const DB_ID = 'ai-studio-efootballaihub-2a95eb9f-c78b-4ee5-ae97-a914c4288cba';
+    const API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyAUe9kMRkqAG_VshpucovSWslYeBcofqZY';
+    const BASE_REST_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DB_ID}/documents`;
+
+    const cleanId = String(identifier).trim();
+    const isEmail = cleanId.includes('@');
+    const cleanEmail = isEmail ? cleanId.toLowerCase() : '';
+    const rawDigits = cleanId.replace(/[^0-9]/g, '');
+    const now = new Date().toISOString();
+
+    const patchPayload = {
+      fields: {
+        salt: { stringValue: salt },
+        hash: { stringValue: hash },
+        updatedAt: { stringValue: now }
+      }
+    };
+
+    if (isEmail && cleanEmail) {
+      const emailKey = cleanEmail.replace(/[\/\s#$[\]]/g, '_');
+      await fetch(`${BASE_REST_URL}/authAccounts/${encodeURIComponent(emailKey)}?key=${API_KEY}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patchPayload)
+      }).catch(() => {});
+    }
+
+    if (rawDigits && rawDigits.length >= 7) {
+      await fetch(`${BASE_REST_URL}/authAccounts/${encodeURIComponent('wa_' + rawDigits)}?key=${API_KEY}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patchPayload)
+      }).catch(() => {});
+      await fetch(`${BASE_REST_URL}/authAccounts/${encodeURIComponent(rawDigits)}?key=${API_KEY}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patchPayload)
+      }).catch(() => {});
+    }
+
+    if (uid) {
+      await fetch(`${BASE_REST_URL}/users/${encodeURIComponent(uid)}?key=${API_KEY}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patchPayload)
+      }).catch(() => {});
+    }
+
+    res.json({ success: true, message: 'Password updated successfully in cloud database.' });
+  } catch (err: any) {
+    console.error('Server password reset error:', err);
+    res.status(500).json({ error: 'Failed to reset password.' });
+  }
+});
+
 // User usage status & payment eligibility endpoint
 app.get('/api/user/usage-status', (req, res) => {
   const userId = (req.query.userId as string) || 'guest';

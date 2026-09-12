@@ -70,6 +70,8 @@ interface AuthContextType {
   }>;
   sendEmailOtpCode: (email: string, managerName?: string) => Promise<SendEmailOtpResponse>;
   signInWithWhatsAppOtp: (phoneNumber: string, otpCode: string) => Promise<void>;
+  signInWithEmailOtp: (email: string, otpCode: string) => Promise<void>;
+  resetPasswordWithOtp: (identifier: string, otpCode: string, newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -778,6 +780,120 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  /**
+   * Reset Password with verified 6-digit Email/WhatsApp OTP Code
+   * Saves new salt and hash to Cloud Firestore for immediate access across all devices
+   */
+  const resetPasswordWithOtp = async (identifier: string, otpCode: string, newPassword: string) => {
+    const cleanId = (identifier || '').trim();
+    const cleanCode = (otpCode || '').trim();
+    const cleanPass = (newPassword || '').trim();
+
+    if (!cleanId) {
+      throw new Error('Please enter your email address or WhatsApp phone number.');
+    }
+    if (!cleanCode || cleanCode.length !== 6) {
+      throw new Error('Please enter the 6-digit verification code.');
+    }
+    if (!cleanPass || cleanPass.length < 6) {
+      throw new Error('New password must be at least 6 characters long.');
+    }
+
+    const isEmail = cleanId.includes('@');
+    const rawDigits = cleanPhoneDigits(cleanId);
+
+    // 1. Verify 6-digit code
+    let isCodeValid = false;
+    if (isEmail) {
+      isCodeValid = await verifyEmailVerificationCode(cleanId.toLowerCase(), cleanCode);
+    } else if (rawDigits && rawDigits.length >= 7) {
+      const cleanPhone = cleanId.startsWith('+') ? cleanId : '+' + rawDigits;
+      isCodeValid = verifyWhatsAppCode(cleanPhone, cleanCode);
+    }
+
+    if (!isCodeValid) {
+      throw new Error('Invalid or expired 6-digit verification code. Please check your code or click Resend.');
+    }
+
+    // 2. Generate new cryptographically secure salt & SHA-256 hash
+    const salt = generateSalt();
+    const hash = await hashPasswordWithSalt(cleanPass, salt);
+
+    // 3. Update across Firestore cloud database records
+    await updateUniversalCloudPassword(cleanId, salt, hash);
+
+    // 4. Update local storage caches
+    try {
+      if (isEmail) {
+        const emailAccs = getStoredAccountsV2();
+        if (emailAccs[cleanId.toLowerCase()]) {
+          emailAccs[cleanId.toLowerCase()].salt = salt;
+          emailAccs[cleanId.toLowerCase()].hash = hash;
+          localStorage.setItem(STORAGE_ACCOUNTS_V2_KEY, JSON.stringify(emailAccs));
+        }
+      }
+      if (rawDigits && rawDigits.length >= 7) {
+        const waAccs = getStoredWhatsAppAccounts();
+        if (waAccs[cleanId] || waAccs[rawDigits]) {
+          const targetKey = waAccs[cleanId] ? cleanId : rawDigits;
+          waAccs[targetKey].salt = salt;
+          waAccs[targetKey].hash = hash;
+          localStorage.setItem(STORAGE_WHATSAPP_ACCOUNTS_KEY, JSON.stringify(waAccs));
+        }
+      }
+    } catch {}
+
+    // 5. Notify server API endpoint in background
+    try {
+      fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: cleanId, salt, hash })
+      }).catch(() => {});
+    } catch {}
+
+    // 6. Sign in the user automatically
+    await signIn(cleanId, cleanPass);
+  };
+
+  /**
+   * Passwordless Sign In with verified 6-digit Email OTP code
+   */
+  const signInWithEmailOtp = async (email: string, otpCode: string) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanCode = (otpCode || '').trim();
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      throw new Error('Please enter a valid email address.');
+    }
+    if (!cleanCode || cleanCode.length !== 6) {
+      throw new Error('Please enter the 6-digit verification code sent to your email.');
+    }
+
+    const isCodeValid = await verifyEmailVerificationCode(cleanEmail, cleanCode);
+    if (!isCodeValid) {
+      throw new Error('Invalid or expired 6-digit email code. Please check your inbox or click Resend.');
+    }
+
+    // Lookup existing account in cloud
+    const cloudAcc = await findCloudAccount(cleanEmail);
+    const uid = cloudAcc?.uid || 'u_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+    const displayName = cloudAcc?.displayName || cleanEmail.split('@')[0] || 'Tactician';
+    const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10b981&color=ffffff&bold=true`;
+
+    const authUser: AppAuthUser = {
+      uid,
+      email: cleanEmail,
+      displayName,
+      photoURL: avatarUrl,
+      whatsappNumber: cloudAcc?.whatsappNumber
+    };
+
+    setUser(authUser);
+    localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+    await fetchProfile(uid, cleanEmail, displayName, avatarUrl, cloudAcc?.whatsappNumber);
+  };
+
   const sendEmailOtpCode = async (email: string, managerName?: string) => {
     return sendEmailVerificationCode(email, managerName);
   };
@@ -981,6 +1097,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sendWhatsAppOtpCode,
         sendEmailOtpCode,
         signInWithWhatsAppOtp,
+        signInWithEmailOtp,
+        resetPasswordWithOtp,
         logout,
         deleteAccount,
         refreshProfile,
