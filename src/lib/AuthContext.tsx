@@ -320,15 +320,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Generate Salted Hash
-    const salt = generateSalt();
-    const hash = await hashPasswordWithSalt(cleanPassword, salt);
-    const uid = `wa_${rawDigits}`;
     const pseudoEmail = `${rawDigits}@whatsapp.efootballaihub.com`;
     const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=10b981&color=ffffff&bold=true`;
 
+    // 1. Authenticate with Firebase Auth in the Cloud (Works across any phone/PC)
+    let fbUid = `wa_${rawDigits}`;
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, pseudoEmail, cleanPassword);
+      fbUid = cred.user.uid;
+      await updateProfile(cred.user, { displayName: cleanName, photoURL: avatarUrl }).catch(() => {});
+    } catch (fbErr: any) {
+      if (fbErr?.code === 'auth/email-already-in-use') {
+        try {
+          const cred = await signInWithEmailAndPassword(auth, pseudoEmail, cleanPassword);
+          fbUid = cred.user.uid;
+        } catch {
+          // If already in use with another password
+          throw new Error('An account with this WhatsApp number already exists. Please sign in instead.');
+        }
+      } else {
+        console.warn('Firebase Auth WhatsApp registration fallback:', fbErr);
+      }
+    }
+
+    // Generate Salted Hash for local caching
+    const salt = generateSalt();
+    const hash = await hashPasswordWithSalt(cleanPassword, salt);
+
     const waAccount: StoredWhatsAppAccount = {
-      uid,
+      uid: fbUid,
       phoneNumber: cleanPhone,
       displayName: cleanName,
       salt,
@@ -338,7 +358,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     saveWhatsAppAccount(waAccount);
 
     const newProf: UserProfile = {
-      uid,
+      uid: fbUid,
       email: pseudoEmail,
       displayName: cleanName,
       whatsappNumber: cleanPhone,
@@ -350,12 +370,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       role: 'user'
     };
 
-    localStorage.setItem(`ef_profile_${uid}`, JSON.stringify(newProf));
+    localStorage.setItem(`ef_profile_${fbUid}`, JSON.stringify(newProf));
     setProfile(newProf);
 
     // Sync to Firestore
     try {
-      await setDoc(doc(db, 'users', uid), {
+      await setDoc(doc(db, 'users', fbUid), {
         ...newProf,
         salt,
         hash
@@ -365,7 +385,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const authUser: AppAuthUser = {
-      uid,
+      uid: fbUid,
       email: pseudoEmail,
       displayName: cleanName,
       photoURL: avatarUrl,
@@ -391,12 +411,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Please enter your password.');
     }
 
-    // 1. Check local WhatsApp accounts
+    const pseudoEmail = `${rawDigits}@whatsapp.efootballaihub.com`;
+
+    // 1. Try Firebase Cloud Auth first (Works across any phone/PC)
+    try {
+      const cred = await signInWithEmailAndPassword(auth, pseudoEmail, cleanPassword);
+      const authUser: AppAuthUser = {
+        uid: cred.user.uid,
+        email: cred.user.email || pseudoEmail,
+        displayName: cred.user.displayName || 'Manager',
+        whatsappNumber: cleanPhone
+      };
+      setUser(authUser);
+      localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+      await fetchProfile(cred.user.uid, pseudoEmail, cred.user.displayName || undefined, undefined, cleanPhone);
+      return;
+    } catch (fbErr: any) {
+      console.log('Firebase WhatsApp sign in attempt:', fbErr?.code || fbErr?.message);
+    }
+
+    // 2. Check local WhatsApp accounts
     const allAccounts = getStoredWhatsAppAccounts();
     const localAcc = allAccounts[cleanPhone] || allAccounts[rawDigits];
     if (localAcc) {
       const computedHash = await hashPasswordWithSalt(cleanPassword, localAcc.salt);
       if (computedHash === localAcc.hash) {
+        // Automatically provision in Firebase Auth so future logins work on any device
+        try {
+          await createUserWithEmailAndPassword(auth, pseudoEmail, cleanPassword);
+        } catch {}
+
         const authUser: AppAuthUser = {
           uid: localAcc.uid,
           email: `${rawDigits}@whatsapp.efootballaihub.com`,
@@ -412,7 +456,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 2. Check Firestore for WhatsApp account
+    // 3. Check Firestore for WhatsApp account
     try {
       const uid = `wa_${rawDigits}`;
       const snap = await getDoc(doc(db, 'users', uid));
@@ -490,6 +534,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   /**
    * Universal Sign In (Email or WhatsApp Number + Password)
+   * Works on ANY internet-connected device (Phone, Tablet, Desktop, Laptop)
    */
   const signIn = async (identifier: string, p: string) => {
     const cleanId = (identifier || '').trim();
@@ -499,12 +544,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cleanPassword = (p || '').trim();
     const rawDigits = cleanPhoneDigits(cleanId);
 
-    // 1. Check v2 accounts (by email or WhatsApp phone number)
+    // 1. If it's a phone number, route to WhatsApp sign in
+    if (!cleanId.includes('@') && rawDigits.length >= 7) {
+      return signInWithWhatsApp(cleanId, p);
+    }
+
+    // 2. Primary: Authenticate with Firebase Cloud Auth (Works across all devices)
+    try {
+      const cred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+      const authUser: AppAuthUser = {
+        uid: cred.user.uid,
+        email: cred.user.email || cleanEmail,
+        displayName: cred.user.displayName || cleanEmail.split('@')[0],
+        photoURL: cred.user.photoURL || undefined
+      };
+      setUser(authUser);
+      localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+      await fetchProfile(cred.user.uid, cred.user.email || cleanEmail, cred.user.displayName || undefined);
+      return;
+    } catch (fbErr: any) {
+      const errorCode = fbErr?.code;
+      // If wrong password, throw immediate clear error
+      if (errorCode === 'auth/wrong-password') {
+        throw new Error('Incorrect password. Please verify and try again or use Forgot Password.');
+      }
+      console.log('Firebase Cloud Auth check:', errorCode || fbErr?.message);
+    }
+
+    // 3. Fallback: Check local legacy v2 accounts on this browser
     const accountsV2 = getStoredAccountsV2();
     const accV2 = accountsV2[cleanEmail] || (rawDigits && rawDigits.length >= 7 ? (accountsV2[cleanId] || accountsV2[rawDigits] || (cleanId.startsWith('+') ? accountsV2[cleanId] : accountsV2['+' + rawDigits])) : undefined);
     if (accV2) {
       const computedHash = await hashPasswordWithSalt(cleanPassword, accV2.salt);
       if (computedHash === accV2.hash) {
+        // Automatically register with Firebase Cloud Auth so the user can now sign in on any phone or other device
+        try {
+          const newFbCred = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+          if (newFbCred.user) {
+            await updateProfile(newFbCred.user, { displayName: accV2.displayName }).catch(() => {});
+          }
+        } catch {}
+
         const localUser: AppAuthUser = {
           uid: accV2.uid,
           email: accV2.email,
@@ -520,25 +600,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 2. If it is a phone number, also check legacy WhatsApp accounts
-    if (!cleanId.includes('@') && rawDigits.length >= 7) {
-      return signInWithWhatsApp(cleanId, p);
-    }
-
-    // 3. Try Firebase Email Login
-    try {
-      const cred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-      const authUser: AppAuthUser = {
-        uid: cred.user.uid,
-        email: cred.user.email,
-        displayName: cred.user.displayName
-      };
-      setUser(authUser);
-      localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
-      await fetchProfile(cred.user.uid, cred.user.email || cleanEmail, cred.user.displayName || undefined);
-    } catch {
-      throw new Error('Incorrect email/phone or password. Please verify and try again.');
-    }
+    throw new Error('Incorrect email/phone or password. Please verify and try again, or click "Forgot Password?" to reset.');
   };
 
   const resetPassword = async (emailToReset: string) => {
@@ -598,12 +660,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Invalid or expired 6-digit email verification code. Please check your inbox or click Resend.');
     }
 
+    // 1. Primary: Register user in Firebase Cloud Auth (Works across all internet-connected devices)
+    let finalUid = 'u_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+      finalUid = cred.user.uid;
+      if (cred.user) {
+        await updateProfile(cred.user, { displayName: cleanName }).catch(() => {});
+      }
+    } catch (fbErr: any) {
+      if (fbErr?.code === 'auth/email-already-in-use') {
+        try {
+          const cred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+          finalUid = cred.user.uid;
+          if (cred.user) {
+            await updateProfile(cred.user, { displayName: cleanName }).catch(() => {});
+          }
+        } catch {
+          throw new Error('An account with this email address already exists. Please sign in instead.');
+        }
+      } else {
+        console.warn('Firebase Cloud Auth user creation fallback:', fbErr);
+      }
+    }
+
     const salt = generateSalt();
     const hash = await hashPasswordWithSalt(cleanPassword, salt);
-    const newUid = 'u_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
 
     const accountRecord: StoredAccountV2 = {
-      uid: newUid,
+      uid: finalUid,
       email: cleanEmail,
       displayName: cleanName,
       whatsappNumber: cleanWhatsApp || undefined,
@@ -614,7 +699,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     saveAccountV2(accountRecord);
 
     const newProf: UserProfile = {
-      uid: newUid,
+      uid: finalUid,
       email: cleanEmail,
       displayName: cleanName,
       whatsappNumber: cleanWhatsApp || undefined,
@@ -625,17 +710,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       role: 'user'
     };
 
-    localStorage.setItem(`ef_profile_${newUid}`, JSON.stringify(newProf));
+    localStorage.setItem(`ef_profile_${finalUid}`, JSON.stringify(newProf));
     setProfile(newProf);
 
     try {
-      await setDoc(doc(db, 'users', newUid), newProf);
+      await setDoc(doc(db, 'users', finalUid), {
+        ...newProf,
+        salt,
+        hash
+      }, { merge: true });
     } catch (fsErr) {
       console.warn('Firestore user profile sync:', fsErr);
     }
 
     const authUser: AppAuthUser = {
-      uid: newUid,
+      uid: finalUid,
       email: cleanEmail,
       displayName: cleanName,
       whatsappNumber: cleanWhatsApp || undefined
