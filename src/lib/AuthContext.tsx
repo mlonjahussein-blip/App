@@ -22,9 +22,17 @@ import {
 import { auth, db } from './firebase.ts';
 import { UserProfile } from '../types.ts';
 import {
+  saveUniversalCloudAccount,
+  findUniversalCloudAccount,
+  readDocREST,
+  writeDocREST,
+  cleanPhoneDigits,
+  sanitizeKey,
+  CloudAccountRecord
+} from './cloudStore.ts';
+import {
   sendWhatsAppVerificationCode,
   verifyWhatsAppCode,
-  cleanPhoneDigits,
   normalizeWhatsAppNumber
 } from './whatsappAuth.ts';
 import {
@@ -161,183 +169,94 @@ function safeDocKey(key: string): string {
   return (key || '').toLowerCase().trim().replace(/[\/\s#$[\]]/g, '_');
 }
 
-// Universal Cloud Account persistence across all devices via Firestore
+// Universal Cloud Account persistence across all devices via direct Firestore REST & SDK
 async function saveCloudAccount(account: StoredAccountV2, profileData?: Partial<UserProfile>) {
   try {
-    const emailKey = safeDocKey(account.email);
-    const accountData = {
+    await saveUniversalCloudAccount({
       uid: account.uid,
       email: account.email.toLowerCase(),
       displayName: account.displayName,
-      whatsappNumber: account.whatsappNumber || null,
+      whatsappNumber: account.whatsappNumber,
       salt: account.salt,
       hash: account.hash,
       createdAt: account.createdAt,
-      updatedAt: new Date().toISOString()
-    };
+      freeAnalysesRemaining: profileData?.freeAnalysesRemaining ?? 1,
+      paidCredits: profileData?.paidCredits ?? 0,
+      lastFreeResetAt: profileData?.lastFreeResetAt || new Date().toISOString(),
+      role: profileData?.role || 'user'
+    });
 
-    // 1. Save to authAccounts by Email
-    if (emailKey) {
-      await setDoc(doc(db, 'authAccounts', emailKey), accountData, { merge: true });
-    }
-
-    // 2. Save to authAccounts by WhatsApp number / phone digits if available
-    if (account.whatsappNumber) {
-      const rawDigits = cleanPhoneDigits(account.whatsappNumber);
-      if (rawDigits && rawDigits.length >= 7) {
-        await setDoc(doc(db, 'authAccounts', 'wa_' + rawDigits), accountData, { merge: true });
-        await setDoc(doc(db, 'authAccounts', rawDigits), accountData, { merge: true });
-      }
-    }
-
-    // 3. Save to users document
-    const userDocRef = doc(db, 'users', account.uid);
-    await setDoc(userDocRef, {
-      uid: account.uid,
-      email: account.email.toLowerCase(),
-      displayName: account.displayName,
-      whatsappNumber: account.whatsappNumber || null,
-      salt: account.salt,
-      hash: account.hash,
-      createdAt: account.createdAt,
-      freeAnalysesRemaining: 1,
-      paidCredits: 0,
-      lastFreeResetAt: new Date().toISOString(),
-      role: 'user',
-      ...(profileData || {})
-    }, { merge: true });
+    // Also notify server API endpoint in background for cross-environment redundancy
+    try {
+      fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: account.uid,
+          email: account.email.toLowerCase(),
+          displayName: account.displayName,
+          whatsappNumber: account.whatsappNumber,
+          salt: account.salt,
+          hash: account.hash
+        })
+      }).catch(() => {});
+    } catch {}
   } catch (err) {
     console.warn('saveCloudAccount notice:', err);
   }
 }
 
-// Universal Cloud Account lookup across all devices via Firestore
+// Universal Cloud Account lookup across all devices
 async function findCloudAccount(identifier: string): Promise<StoredAccountV2 | null> {
   const cleanId = (identifier || '').trim();
   if (!cleanId) return null;
 
+  // 1. Direct Cloud Store Lookup (REST + SDK)
+  try {
+    const cloudRecord = await findUniversalCloudAccount(cleanId);
+    if (cloudRecord && cloudRecord.salt && cloudRecord.hash) {
+      return {
+        uid: cloudRecord.uid,
+        email: cloudRecord.email,
+        displayName: cloudRecord.displayName,
+        whatsappNumber: cloudRecord.whatsappNumber,
+        salt: cloudRecord.salt,
+        hash: cloudRecord.hash,
+        createdAt: cloudRecord.createdAt
+      };
+    }
+  } catch (e) {
+    console.warn('findUniversalCloudAccount notice:', e);
+  }
+
+  // 2. Server API fallback query
+  try {
+    const apiRes = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: cleanId })
+    });
+    if (apiRes.ok) {
+      const json = await apiRes.json();
+      if (json && json.found && json.account && json.account.salt && json.account.hash) {
+        return {
+          uid: json.account.uid,
+          email: json.account.email,
+          displayName: json.account.displayName,
+          whatsappNumber: json.account.whatsappNumber,
+          salt: json.account.salt,
+          hash: json.account.hash,
+          createdAt: json.account.createdAt || new Date().toISOString()
+        };
+      }
+    }
+  } catch {}
+
+  // 3. Local storage fallback on the current browser
   const rawDigits = cleanPhoneDigits(cleanId);
   const isEmail = cleanId.includes('@');
   const cleanEmail = isEmail ? cleanId.toLowerCase() : '';
 
-  // 1. Direct Firestore authAccounts lookup by Email
-  if (isEmail && cleanEmail) {
-    try {
-      const emailSnap = await getDoc(doc(db, 'authAccounts', safeDocKey(cleanEmail)));
-      if (emailSnap.exists()) {
-        const data = emailSnap.data() as any;
-        if (data.salt && data.hash) {
-          return {
-            uid: data.uid,
-            email: data.email || cleanEmail,
-            displayName: data.displayName || cleanEmail.split('@')[0],
-            whatsappNumber: data.whatsappNumber || undefined,
-            salt: data.salt,
-            hash: data.hash,
-            createdAt: data.createdAt || new Date().toISOString()
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('authAccounts email lookup:', e);
-    }
-  }
-
-  // 2. Direct Firestore authAccounts lookup by Phone / WhatsApp number
-  if (rawDigits && rawDigits.length >= 7) {
-    try {
-      const waSnap1 = await getDoc(doc(db, 'authAccounts', 'wa_' + rawDigits));
-      if (waSnap1.exists()) {
-        const data = waSnap1.data() as any;
-        if (data.salt && data.hash) {
-          return {
-            uid: data.uid,
-            email: data.email || `${rawDigits}@whatsapp.efootballaihub.com`,
-            displayName: data.displayName || `Manager_${rawDigits.slice(-4)}`,
-            whatsappNumber: data.whatsappNumber || ('+' + rawDigits),
-            salt: data.salt,
-            hash: data.hash,
-            createdAt: data.createdAt || new Date().toISOString()
-          };
-        }
-      }
-
-      const waSnap2 = await getDoc(doc(db, 'authAccounts', rawDigits));
-      if (waSnap2.exists()) {
-        const data = waSnap2.data() as any;
-        if (data.salt && data.hash) {
-          return {
-            uid: data.uid,
-            email: data.email || `${rawDigits}@whatsapp.efootballaihub.com`,
-            displayName: data.displayName || `Manager_${rawDigits.slice(-4)}`,
-            whatsappNumber: data.whatsappNumber || ('+' + rawDigits),
-            salt: data.salt,
-            hash: data.hash,
-            createdAt: data.createdAt || new Date().toISOString()
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('authAccounts phone lookup:', e);
-    }
-  }
-
-  // 3. Firestore users collection fallback query by Email
-  if (isEmail && cleanEmail) {
-    try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', cleanEmail));
-      const querySnap = await getDocs(q);
-      if (!querySnap.empty) {
-        const userDoc = querySnap.docs[0];
-        const data = userDoc.data() as any;
-        if (data.salt && data.hash) {
-          const acc: StoredAccountV2 = {
-            uid: userDoc.id || data.uid,
-            email: data.email || cleanEmail,
-            displayName: data.displayName || cleanEmail.split('@')[0],
-            whatsappNumber: data.whatsappNumber || undefined,
-            salt: data.salt,
-            hash: data.hash,
-            createdAt: data.createdAt || new Date().toISOString()
-          };
-          // Cache in authAccounts for future instant lookups
-          saveCloudAccount(acc).catch(() => {});
-          return acc;
-        }
-      }
-    } catch (e) {
-      console.warn('users email query fallback:', e);
-    }
-  }
-
-  // 4. Firestore users collection fallback query by WhatsApp
-  if (rawDigits && rawDigits.length >= 7) {
-    try {
-      const userRef = doc(db, 'users', 'wa_' + rawDigits);
-      const snap = await getDoc(userRef);
-      if (snap.exists()) {
-        const data = snap.data() as any;
-        if (data.salt && data.hash) {
-          const acc: StoredAccountV2 = {
-            uid: snap.id,
-            email: data.email || `${rawDigits}@whatsapp.efootballaihub.com`,
-            displayName: data.displayName || `Manager_${rawDigits.slice(-4)}`,
-            whatsappNumber: data.whatsappNumber || ('+' + rawDigits),
-            salt: data.salt,
-            hash: data.hash,
-            createdAt: data.createdAt || new Date().toISOString()
-          };
-          saveCloudAccount(acc).catch(() => {});
-          return acc;
-        }
-      }
-    } catch (e) {
-      console.warn('users whatsapp query fallback:', e);
-    }
-  }
-
-  // 5. Local storage fallback on the current browser
   const localAccounts = getStoredAccountsV2();
   const localAcc = isEmail
     ? localAccounts[cleanEmail]
@@ -392,6 +311,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProfile(cachedProfile);
     }
 
+    // 1. Direct Cloud REST read (fastest, guaranteed across all devices)
+    try {
+      const restDoc = await readDocREST('users', uid);
+      if (restDoc && (restDoc.email || restDoc.uid)) {
+        const fullProf: UserProfile = {
+          uid: restDoc.uid || uid,
+          email: restDoc.email || defaultEmail,
+          displayName: restDoc.displayName || displayName || defaultEmail.split('@')[0] || 'Tactician',
+          whatsappNumber: restDoc.whatsappNumber || whatsappNumber || undefined,
+          photoURL: restDoc.photoURL || photoURL || undefined,
+          createdAt: restDoc.createdAt || new Date().toISOString(),
+          freeAnalysesRemaining: typeof restDoc.freeAnalysesRemaining === 'number' ? restDoc.freeAnalysesRemaining : 1,
+          paidCredits: typeof restDoc.paidCredits === 'number' ? restDoc.paidCredits : 0,
+          lastFreeResetAt: restDoc.lastFreeResetAt || new Date().toISOString(),
+          role: restDoc.role || 'user'
+        };
+        setProfile(fullProf);
+        localStorage.setItem(localProfileKey, JSON.stringify(fullProf));
+        return;
+      }
+    } catch {}
+
+    // 2. Firestore SDK fallback
     try {
       const ref = doc(db, 'users', uid);
       const snap = await getDoc(ref);
@@ -417,6 +359,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: 'user'
         };
         try {
+          await writeDocREST('users', uid, newProf);
           await setDoc(ref, newProf, { merge: true });
         } catch (e) {
           console.warn('Could not write profile to firestore:', e);
