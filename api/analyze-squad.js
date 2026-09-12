@@ -994,9 +994,12 @@ async function getSharpInstance() {
   return sharpLib;
 }
 var aiClient = null;
+function getApiKey() {
+  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || "";
+}
 function getGenAI() {
   if (!aiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = getApiKey();
     aiClient = new GoogleGenAI({
       apiKey: apiKey || "",
       httpOptions: {
@@ -1029,7 +1032,7 @@ async function cropCardImage(imageBuffer, box) {
   }
 }
 async function runMultiStageSquadPipeline(payload) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getApiKey();
   const preferredPlaystyle = payload.preferredPlaystyle || "Quick Counter";
   const preferredFormation = payload.preferredFormation || "Auto-Detect / Balanced";
   const images = Array.isArray(payload.images) ? payload.images : [];
@@ -2331,12 +2334,12 @@ function generateSimulationScenarios(formation, playstyle, bestXI) {
   ];
 }
 
-// api/analyze-squad.ts
+// server/apiAnalyzeSquad.ts
 var maxDuration = 60;
 var config = {
   api: {
     bodyParser: {
-      sizeLimit: "100mb"
+      sizeLimit: "50mb"
     }
   }
 };
@@ -2355,7 +2358,6 @@ async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
   try {
-    console.log("ANALYZE_REQUEST_RECEIVED", { size: req.headers["content-length"] });
     const payload = req.body || {};
     if (!payload) {
       console.error("ANALYZE_FAILED: No payload");
@@ -2368,7 +2370,7 @@ async function handler(req, res) {
       return res.status(400).json({ success: false, errorCode: "INVALID_INPUT", message: "Please upload squad screenshots or enter your squad players." });
     }
     try {
-      console.log("GEMINI_REQUEST_STARTED");
+      console.log("SQUAD_ANALYSIS_STARTED");
       const result = await performSquadAnalysis(payload);
       console.log("ANALYSIS_COMPLETED");
       return res.status(200).json({
@@ -2377,7 +2379,7 @@ async function handler(req, res) {
         ...result
       });
     } catch (analysisErr) {
-      console.error("ANALYSIS_FAILED: Main pipeline error", { message: analysisErr.message, stack: analysisErr.stack });
+      console.error("ANALYSIS_FAILED: Main pipeline error", { message: analysisErr.message });
       try {
         console.log("FALLBACK_STARTED");
         const fallbackResult = createEvidenceBasedFallback(payload);

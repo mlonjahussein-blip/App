@@ -40,9 +40,13 @@ import {
 
 let aiClient: GoogleGenAI | null = null;
 
+function getApiKey(): string {
+  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || '';
+}
+
 function getGenAI(): GoogleGenAI {
   if (!aiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = getApiKey();
     aiClient = new GoogleGenAI({ 
       apiKey: apiKey || '',
       httpOptions: {
@@ -161,7 +165,7 @@ async function cropCardImage(
 }
 
 export async function runMultiStageSquadPipeline(payload: AnalyzeSquadPayload): Promise<AnalysisResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getApiKey();
   const preferredPlaystyle = payload.preferredPlaystyle || 'Quick Counter';
   const preferredFormation = payload.preferredFormation || 'Auto-Detect / Balanced';
   const images = Array.isArray(payload.images) ? payload.images : [];

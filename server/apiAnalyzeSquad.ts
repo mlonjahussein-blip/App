@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { performSquadAnalysis, createEvidenceBasedFallback, AnalyzeSquadPayload } from '../server/accuracyPipeline.ts';
+import { performSquadAnalysis, createEvidenceBasedFallback, AnalyzeSquadPayload } from './accuracyPipeline.ts';
 
 export const maxDuration = 60;
 
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '100mb',
+      sizeLimit: '50mb',
     },
   },
 };
@@ -30,7 +30,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    console.log('ANALYZE_REQUEST_RECEIVED', { size: req.headers['content-length'] });
     const payload: AnalyzeSquadPayload = req.body || {};
     
     // Validate Input
@@ -49,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Try Main Pipeline
     try {
-      console.log('GEMINI_REQUEST_STARTED');
+      console.log('SQUAD_ANALYSIS_STARTED');
       const result = await performSquadAnalysis(payload);
       console.log('ANALYSIS_COMPLETED');
       return res.status(200).json({
@@ -58,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ...result
       });
     } catch (analysisErr: any) {
-      console.error('ANALYSIS_FAILED: Main pipeline error', { message: analysisErr.message, stack: analysisErr.stack });
+      console.error('ANALYSIS_FAILED: Main pipeline error', { message: analysisErr.message });
       
       // Try Fallback
       try {
@@ -87,4 +86,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
-
