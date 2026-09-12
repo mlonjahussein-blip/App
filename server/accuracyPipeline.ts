@@ -1306,6 +1306,7 @@ export function createEvidenceBasedFallback(payload: AnalyzeSquadPayload): Analy
     };
   } catch (error) {
     console.error('CRITICAL: Fatal error in createEvidenceBasedFallback:', error);
+    console.error('Payload causing error:', JSON.stringify(payload));
     // Return minimal viable object to prevent 500
     return {
       id: 'fallback_error_' + Date.now(),

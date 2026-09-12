@@ -352,6 +352,8 @@ app.post('/api/player-comparison', (req, res) => {
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (err) {
     console.error('Express global error caught:', err?.message || err);
+    console.error('Stack trace:', err?.stack);
+    console.error('Request body keys:', Object.keys(req.body || {}));
     if (err.type === 'entity.too.large' || err.status === 413) {
       return res.status(413).json({ 
         error: 'Screenshot upload exceeds server payload limits. Please upload 1 to 3 screenshots or smaller files.' 
