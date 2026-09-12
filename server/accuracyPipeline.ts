@@ -175,25 +175,38 @@ export async function runMultiStageSquadPipeline(payload: AnalyzeSquadPayload): 
   try {
     const ai = getGenAI();
 
-    // Prepare buffers for cropping
-    const imageBuffers: Buffer[] = images.map(img => {
-      const cleanBase64 = (img.base64Data || '').replace(/^data:[^;]+;base64,/, '');
-      return Buffer.from(cleanBase64, 'base64');
-    });
-
-    // Prepare multimodal parts with robust MIME mapping (supporting JFIF, JPEG, PNG, WebP, HEIC/HEIF, AVIF)
-    const imageParts = images.map(img => {
+    // Prepare multimodal parts with robust MIME mapping and optimization
+    const imageParts = await Promise.all(images.map(async (img) => {
       let mime = (img.mimeType || 'image/jpeg').toLowerCase();
       if (mime.includes('jfif') || mime.includes('pjpeg') || mime.includes('jpg')) {
         mime = 'image/jpeg';
       }
+
+      let base64Data = (img.base64Data || '').replace(/^data:[^;]+;base64,/, '');
+      
+      // Optimize image size to reduce Gemini payload and processing time
+      try {
+        const sharpInstance = await getSharpInstance();
+        if (sharpInstance) {
+          const buffer = Buffer.from(base64Data, 'base64');
+          const resizedBuffer = await sharpInstance(buffer)
+            .resize({ width: 1024, height: 1024, fit: 'inside' })
+            .jpeg({ quality: 80 })
+            .toBuffer();
+          base64Data = resizedBuffer.toString('base64');
+        }
+      } catch (err) {
+        console.warn('Image optimization failed, proceeding with original:', err);
+      }
+
       return {
         inlineData: {
-          data: (img.base64Data || '').replace(/^data:[^;]+;base64,/, ''),
+          data: base64Data,
           mimeType: mime
         }
       };
-    });
+    }));
+    console.log('IMAGE_PROCESSING_COMPLETED', { count: imageParts.length });
 
     // Include typed players and manager details context in the prompt if provided
     const typedPlayersNote = typedPlayers.length > 0
@@ -390,7 +403,7 @@ OUTPUT FORMAT: Strict JSON matching this schema:
       // Try up to 2 attempts per model (to handle temporary 503 high demand spikes)
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          console.log(`Executing multi-stage player detection & evidence extraction with ${modelName} (attempt ${attempt})...`);
+          console.log('GEMINI_REQUEST_STARTED', { model: modelName, attempt });
           
           const contentsArray: any[] = [
             {
@@ -426,7 +439,7 @@ Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach c
           }
 
           if (response?.text) {
-            console.log(`Squad vision analysis successfully generated with ${modelName}`);
+            console.log('GEMINI_RESPONSE_RECEIVED', { model: modelName });
             break;
           }
         } catch (err: any) {
