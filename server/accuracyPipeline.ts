@@ -969,340 +969,372 @@ export async function postProcessAndVerifySquad(
 
 // Fallback when API key is missing or for reliable offline processing
 export function createEvidenceBasedFallback(payload: AnalyzeSquadPayload): AnalysisResult {
-  const formation = payload.preferredFormation && payload.preferredFormation !== 'Auto-Detect / Balanced'
-    ? payload.preferredFormation
-    : '4-2-1-3';
-  const playstyle = payload.preferredPlaystyle || 'Quick Counter';
-  const images = Array.isArray(payload.images) ? payload.images : [];
-  const typedList = Array.isArray(payload.typedPlayers) ? payload.typedPlayers : [];
-
-  let identifiedPlayers: PlayerData[] = [];
-
-  if (typedList.length > 0) {
-    // Convert typed players to verified PlayerData
-    identifiedPlayers = typedList.map((tp, idx) => {
-      // Find matching master player in eFootball database if available
-      const masterMatch = EFOOTBALL_MASTER_PLAYERS.find(
-        m => m.commonName.toLowerCase() === tp.name.toLowerCase() ||
-             m.fullName.toLowerCase() === tp.name.toLowerCase() ||
-             m.aliases.some(a => a.toLowerCase() === tp.name.toLowerCase())
-      );
-
-      const isStartingXI = tp.role ? tp.role === 'starting_xi' : idx < 11;
-      const cardArea: 'starting_xi' | 'substitute' = isStartingXI ? 'starting_xi' : 'substitute';
-
-      return {
-        id: `typed_${tp.id || idx}`,
-        name: tp.name,
-        position: (tp.position || masterMatch?.primaryPosition || 'CMF').toUpperCase(),
-        rating: tp.rating || masterMatch?.maxRating || 90,
-        playstyle: tp.playstyle || masterMatch?.playstyle || 'Proficient',
+  try {
+    const formation = payload.preferredFormation && payload.preferredFormation !== 'Auto-Detect / Balanced'
+      ? payload.preferredFormation
+      : '4-2-1-3';
+    const playstyle = payload.preferredPlaystyle || 'Quick Counter';
+    const images = Array.isArray(payload.images) ? payload.images : [];
+    const typedList = Array.isArray(payload.typedPlayers) ? payload.typedPlayers : [];
+  
+    let identifiedPlayers: PlayerData[] = [];
+  
+    if (typedList.length > 0) {
+      // Convert typed players to verified PlayerData
+      identifiedPlayers = typedList.map((tp, idx) => {
+        // Find matching master player in eFootball database if available
+        const masterMatch = EFOOTBALL_MASTER_PLAYERS.find(
+          m => m.commonName.toLowerCase() === tp.name.toLowerCase() ||
+               m.fullName.toLowerCase() === tp.name.toLowerCase() ||
+               m.aliases.some(a => a.toLowerCase() === tp.name.toLowerCase())
+        );
+  
+        const isStartingXI = tp.role ? tp.role === 'starting_xi' : idx < 11;
+        const cardArea: 'starting_xi' | 'substitute' = isStartingXI ? 'starting_xi' : 'substitute';
+  
+        return {
+          id: `typed_${tp.id || idx}`,
+          name: tp.name,
+          position: (tp.position || masterMatch?.primaryPosition || 'CMF').toUpperCase(),
+          rating: tp.rating || masterMatch?.maxRating || 90,
+          playstyle: tp.playstyle || masterMatch?.playstyle || 'Proficient',
+          confidence: 'High',
+          identityStatus: 'confirmed',
+          confidenceScore: 99,
+          confidenceTier: 'Confirmed',
+          confidenceLevel: 'VERIFIED',
+          status: 'verified',
+          playerType: tp.cardType || masterMatch?.cardType || 'Highlight',
+          skills: tp.skills || masterMatch?.skills || ['First-time Shot', 'One-touch Pass'],
+          sourceScreenshots: images.length > 0 ? [1] : [],
+          evidence: [
+            `Player selected: '${tp.name}'`,
+            `Position: ${(tp.position || masterMatch?.primaryPosition || 'CMF').toUpperCase()}`,
+            `Card Type: ${tp.cardType || masterMatch?.cardType || 'Highlight'} (${tp.rating || masterMatch?.maxRating || 90} OVR)`,
+            tp.team ? `Team/Club: ${tp.team}` : '',
+            `Role: ${isStartingXI ? 'Starting XI' : 'Substitute'} Lineup`
+          ].filter(Boolean),
+          detectedRegion: { ymin: 100 + (idx * 60), xmin: 50, ymax: 150 + (idx * 60), xmax: 300 },
+          needsUserConfirmation: false,
+          cardArea,
+          isBench: !isStartingXI
+        };
+      });
+  
+      // If fewer than 11 players were typed, supplement with complementary master database players
+      if (identifiedPlayers.length < 11) {
+        const existingPositions = new Set(identifiedPlayers.map(p => p.position));
+        const existingNames = new Set(identifiedPlayers.map(p => p.name.toLowerCase()));
+        
+        for (const m of EFOOTBALL_MASTER_PLAYERS) {
+          if (identifiedPlayers.length >= 11) break;
+          if (!existingNames.has(m.commonName.toLowerCase()) && !existingPositions.has(m.primaryPosition)) {
+            identifiedPlayers.push({
+              id: `supp_${m.id}`,
+              name: m.commonName,
+              position: m.primaryPosition,
+              rating: m.maxRating,
+              playstyle: m.playstyle,
+              confidence: 'High',
+              identityStatus: 'confirmed',
+              confidenceScore: 95,
+              confidenceTier: 'Confirmed',
+              confidenceLevel: 'VERIFIED',
+              status: 'verified',
+              playerType: m.cardType,
+              skills: m.skills,
+              sourceScreenshots: [1],
+              evidence: [
+                `Position confirmed: ${m.primaryPosition}`,
+                `Max rating: ${m.maxRating} OVR`,
+                `eFootball Master Database`
+              ],
+              detectedRegion: { ymin: 100 + (identifiedPlayers.length * 60), xmin: 50, ymax: 150 + (identifiedPlayers.length * 60), xmax: 300 },
+              needsUserConfirmation: false,
+              cardArea: 'starting_xi'
+            });
+            existingPositions.add(m.primaryPosition);
+          }
+        }
+      }
+    } else {
+      // Default master starting eleven
+      const masterList = EFOOTBALL_MASTER_PLAYERS.slice(0, 11);
+      identifiedPlayers = masterList.map((m, idx) => ({
+        id: `verified_${m.id}`,
+        name: m.commonName,
+        position: m.primaryPosition,
+        rating: m.maxRating,
+        playstyle: m.playstyle,
         confidence: 'High',
         identityStatus: 'confirmed',
-        confidenceScore: 99,
+        confidenceScore: 97,
         confidenceTier: 'Confirmed',
         confidenceLevel: 'VERIFIED',
         status: 'verified',
-        playerType: tp.cardType || masterMatch?.cardType || 'Highlight',
-        skills: tp.skills || masterMatch?.skills || ['First-time Shot', 'One-touch Pass'],
+        playerType: m.cardType,
+        skills: m.skills,
         sourceScreenshots: images.length > 0 ? [1] : [],
         evidence: [
-          `Player selected: '${tp.name}'`,
-          `Position: ${(tp.position || masterMatch?.primaryPosition || 'CMF').toUpperCase()}`,
-          `Card Type: ${tp.cardType || masterMatch?.cardType || 'Highlight'} (${tp.rating || masterMatch?.maxRating || 90} OVR)`,
-          tp.team ? `Team/Club: ${tp.team}` : '',
-          `Role: ${isStartingXI ? 'Starting XI' : 'Substitute'} Lineup`
-        ].filter(Boolean),
+          `Position confirmed: ${m.primaryPosition}`,
+          `Rating verified: ${m.maxRating} OVR (${m.cardType})`,
+          `Validated in eFootball Master Database`
+        ],
         detectedRegion: { ymin: 100 + (idx * 60), xmin: 50, ymax: 150 + (idx * 60), xmax: 300 },
         needsUserConfirmation: false,
-        cardArea,
-        isBench: !isStartingXI
-      };
-    });
-
-    // If fewer than 11 players were typed, supplement with complementary master database players
-    if (identifiedPlayers.length < 11) {
-      const existingPositions = new Set(identifiedPlayers.map(p => p.position));
-      const existingNames = new Set(identifiedPlayers.map(p => p.name.toLowerCase()));
-      
-      for (const m of EFOOTBALL_MASTER_PLAYERS) {
-        if (identifiedPlayers.length >= 11) break;
-        if (!existingNames.has(m.commonName.toLowerCase()) && !existingPositions.has(m.primaryPosition)) {
-          identifiedPlayers.push({
-            id: `supp_${m.id}`,
-            name: m.commonName,
-            position: m.primaryPosition,
-            rating: m.maxRating,
-            playstyle: m.playstyle,
-            confidence: 'High',
-            identityStatus: 'confirmed',
-            confidenceScore: 95,
-            confidenceTier: 'Confirmed',
-            confidenceLevel: 'VERIFIED',
-            status: 'verified',
-            playerType: m.cardType,
-            skills: m.skills,
-            sourceScreenshots: [1],
-            evidence: [
-              `Position confirmed: ${m.primaryPosition}`,
-              `Max rating: ${m.maxRating} OVR`,
-              `eFootball Master Database`
-            ],
-            detectedRegion: { ymin: 100 + (identifiedPlayers.length * 60), xmin: 50, ymax: 150 + (identifiedPlayers.length * 60), xmax: 300 },
-            needsUserConfirmation: false,
-            cardArea: 'starting_xi'
-          });
-          existingPositions.add(m.primaryPosition);
-        }
-      }
+        cardArea: 'starting_xi'
+      }));
     }
-  } else {
-    // Default master starting eleven
-    const masterList = EFOOTBALL_MASTER_PLAYERS.slice(0, 11);
-    identifiedPlayers = masterList.map((m, idx) => ({
-      id: `verified_${m.id}`,
-      name: m.commonName,
-      position: m.primaryPosition,
-      rating: m.maxRating,
-      playstyle: m.playstyle,
-      confidence: 'High',
-      identityStatus: 'confirmed',
-      confidenceScore: 97,
-      confidenceTier: 'Confirmed',
-      confidenceLevel: 'VERIFIED',
-      status: 'verified',
-      playerType: m.cardType,
-      skills: m.skills,
-      sourceScreenshots: images.length > 0 ? [1] : [],
-      evidence: [
-        `Position confirmed: ${m.primaryPosition}`,
-        `Rating verified: ${m.maxRating} OVR (${m.cardType})`,
-        `Validated in eFootball Master Database`
+  
+    const bestXI = generatePitchCoordinatesForFormation(formation, identifiedPlayers);
+    const simulationScenarios = generateSimulationScenarios(formation, playstyle, bestXI);
+  
+    // Compute realistic dynamic squad ratings based on player ratings
+    const attackPositions = ['CF', 'SS', 'LWF', 'RWF', 'AMF'];
+    const midPositions = ['CMF', 'DMF', 'LMF', 'RMF'];
+    const defPositions = ['CB', 'LB', 'RB'];
+    const gkPositions = ['GK'];
+  
+    const getAvgRating = (posArray: string[]) => {
+      const matching = bestXI.filter(p => posArray.includes(p.position));
+      if (matching.length === 0) return 88;
+      return Math.round(matching.reduce((acc, p) => acc + (p.rating || 85), 0) / matching.length);
+    };
+  
+    const attackRating = getAvgRating(attackPositions);
+    const midfieldRating = getAvgRating(midPositions);
+    const defenceRating = getAvgRating(defPositions);
+    const gkRating = getAvgRating(gkPositions);
+    const overallRating = Math.round((attackRating + midfieldRating + defenceRating + gkRating) / 4);
+  
+    const analysisQuality: AnalysisQualityScore = {
+      score: 98,
+      ratingLabel: 'Confirmed & Validated (98%)',
+      summary: `${identifiedPlayers.length} squad players verified against eFootball master database.`,
+      screenshotQualityVerdict: 'Clear & High Readability',
+      qualityNotes: images.length > 0 
+        ? ['Images show crisp player card text and distinct positional indicators.']
+        : ['Squad accurately validated using comprehensive card database.'],
+      detectedRegionCount: identifiedPlayers.length,
+      confirmedCount: identifiedPlayers.length,
+      probableCount: 0,
+      uncertainCount: 0,
+      unidentifiedCount: 0
+    };
+  
+    const manager = payload.managerDetails;
+    let coachRecommendationObj: CoachData;
+  
+    if (manager && manager.name && manager.name.trim()) {
+      const proficiencies = manager.playstyleProficiencies || {};
+      const bestAffinity = Math.max(
+        proficiencies.possessionGame || 85,
+        proficiencies.quickCounter || 87,
+        proficiencies.longBallCounter || 85,
+        proficiencies.outWide || 80,
+        proficiencies.longBall || 75,
+        proficiencies.overload || 86
+      );
+  
+      coachRecommendationObj = {
+        name: manager.name + (manager.team ? ` (${manager.team})` : ''),
+        rating: bestAffinity,
+        tacticalStyle: playstyle,
+        tacticalAffinity: bestAffinity,
+        isIdentifiedFromScreenshot: false,
+        confidence: 'High',
+        confidenceScore: 98,
+        evidence: [
+          `Manager: ${manager.name}`,
+          manager.nationality ? `Nationality: ${manager.nationality}` : '',
+          manager.team ? `Team / Club: ${manager.team}` : '',
+          `Configured Playstyle Proficiencies: QC (${proficiencies.quickCounter || 87}), PG (${proficiencies.possessionGame || 85}), LBC (${proficiencies.longBallCounter || 85}), Overload (${proficiencies.overload || 86})`
+        ].filter(Boolean),
+        explanation: `Custom user-configured manager with ${bestAffinity} max tactical proficiency across core eFootball playstyles.`
+      };
+    } else {
+      const coachMatch = EFOOTBALL_MASTER_COACHES.find(c => c.tacticalStyle === playstyle) || EFOOTBALL_MASTER_COACHES[0];
+      coachRecommendationObj = {
+        name: `${coachMatch.name} (${coachMatch.inGameName})`,
+        rating: coachMatch.affinityRating,
+        tacticalStyle: coachMatch.tacticalStyle,
+        tacticalAffinity: coachMatch.affinityRating,
+        isIdentifiedFromScreenshot: payload.hasCoachScreenshot || false,
+        confidence: 'High',
+        confidenceScore: 95,
+        evidence: payload.hasCoachScreenshot ? ['Identified from uploaded coach screenshot'] : ['Matched from squad tactical style requirements'],
+        explanation: coachMatch.tacticalDescription
+      };
+    }
+  
+    return {
+      id: 'analysis_verified_' + Date.now(),
+      createdAt: new Date().toISOString(),
+      title: `Verified Squad Tactical Analysis (${formation} · ${playstyle})`,
+      screenshotCount: Math.max(images.length, 1),
+      identifiedPlayers,
+      squadRatings: {
+        overall: overallRating,
+        attack: attackRating,
+        midfield: midfieldRating,
+        defence: defenceRating,
+        goalkeeping: gkRating,
+        balance: Math.round((defenceRating + midfieldRating) / 2),
+        depth: 86,
+        tacticalSuitability: 92,
+        ratingsRationale: `Evidence-based calculation from ${identifiedPlayers.length} verified player card ratings and tactical synergy.`
+      },
+      strengths: [
+        `Clinical finishing in the final third with ${bestXI.find(p => p.position === 'CF')?.name || 'primary striker'}`,
+        `Dominant physical presence and passing range in central midfield`,
+        `High recovery pace along the flanks to neutralize rapid opponent counter-attacks`
       ],
-      detectedRegion: { ymin: 100 + (idx * 60), xmin: 50, ymax: 150 + (idx * 60), xmax: 300 },
-      needsUserConfirmation: false,
-      cardArea: 'starting_xi'
-    }));
-  }
-
-  const bestXI = generatePitchCoordinatesForFormation(formation, identifiedPlayers);
-  const simulationScenarios = generateSimulationScenarios(formation, playstyle, bestXI);
-
-  // Compute realistic dynamic squad ratings based on player ratings
-  const attackPositions = ['CF', 'SS', 'LWF', 'RWF', 'AMF'];
-  const midPositions = ['CMF', 'DMF', 'LMF', 'RMF'];
-  const defPositions = ['CB', 'LB', 'RB'];
-  const gkPositions = ['GK'];
-
-  const getAvgRating = (posArray: string[]) => {
-    const matching = bestXI.filter(p => posArray.includes(p.position));
-    if (matching.length === 0) return 88;
-    return Math.round(matching.reduce((acc, p) => acc + (p.rating || 85), 0) / matching.length);
-  };
-
-  const attackRating = getAvgRating(attackPositions);
-  const midfieldRating = getAvgRating(midPositions);
-  const defenceRating = getAvgRating(defPositions);
-  const gkRating = getAvgRating(gkPositions);
-  const overallRating = Math.round((attackRating + midfieldRating + defenceRating + gkRating) / 4);
-
-  const analysisQuality: AnalysisQualityScore = {
-    score: 98,
-    ratingLabel: 'Confirmed & Validated (98%)',
-    summary: `${identifiedPlayers.length} squad players verified against eFootball master database.`,
-    screenshotQualityVerdict: 'Clear & High Readability',
-    qualityNotes: images.length > 0 
-      ? ['Images show crisp player card text and distinct positional indicators.']
-      : ['Squad accurately validated using comprehensive card database.'],
-    detectedRegionCount: identifiedPlayers.length,
-    confirmedCount: identifiedPlayers.length,
-    probableCount: 0,
-    uncertainCount: 0,
-    unidentifiedCount: 0
-  };
-
-  const manager = payload.managerDetails;
-  let coachRecommendationObj: CoachData;
-
-  if (manager && manager.name && manager.name.trim()) {
-    const proficiencies = manager.playstyleProficiencies || {};
-    const bestAffinity = Math.max(
-      proficiencies.possessionGame || 85,
-      proficiencies.quickCounter || 87,
-      proficiencies.longBallCounter || 85,
-      proficiencies.outWide || 80,
-      proficiencies.longBall || 75,
-      proficiencies.overload || 86
-    );
-
-    coachRecommendationObj = {
-      name: manager.name + (manager.team ? ` (${manager.team})` : ''),
-      rating: bestAffinity,
-      tacticalStyle: playstyle,
-      tacticalAffinity: bestAffinity,
-      isIdentifiedFromScreenshot: false,
-      confidence: 'High',
-      confidenceScore: 98,
-      evidence: [
-        `Manager: ${manager.name}`,
-        manager.nationality ? `Nationality: ${manager.nationality}` : '',
-        manager.team ? `Team / Club: ${manager.team}` : '',
-        `Configured Playstyle Proficiencies: QC (${proficiencies.quickCounter || 87}), PG (${proficiencies.possessionGame || 85}), LBC (${proficiencies.longBallCounter || 85}), Overload (${proficiencies.overload || 86})`
-      ].filter(Boolean),
-      explanation: `Custom user-configured manager with ${bestAffinity} max tactical proficiency across core eFootball playstyles.`
+      weaknesses: [
+        `Requires proactive manual tracking on opposition through balls into half-spaces`,
+        `Stamina depletion on central box-to-box midfielders in the final 20 minutes`
+      ],
+      recommendedFormation: formation,
+      alternativeFormation: '4-3-1-2',
+      formationExplanation: `Optimizes player roles and maximizes individual card strengths under ${playstyle} tactical instructions.`,
+      bestXI: {
+        formation,
+        players: bestXI
+      },
+      coachRecommendation: coachRecommendationObj,
+      individualInstructions: [
+        {
+          player: bestXI.find(p => p.position === 'DMF')?.name || bestXI.find(p => p.position === 'CMF')?.name || 'Rodri',
+          position: bestXI.find(p => p.position === 'DMF')?.position || 'DMF',
+          instruction: 'Deep Line',
+          why: 'Drops between central defenders during opponent transitions to shut down central through balls.',
+          category: 'Defence'
+        },
+        {
+          player: bestXI.find(p => p.position === 'CF')?.name || 'K. Mbappé',
+          position: 'CF',
+          instruction: 'Counter Target',
+          why: 'Conserves stamina and stays poised on the shoulder of the last defender for fast counter attacks.',
+          category: 'Offence'
+        }
+      ],
+      playerActionPlan: [
+        {
+          player: bestXI.find(p => p.position === 'DMF')?.name || 'Rodri',
+          position: bestXI.find(p => p.position === 'DMF')?.position || 'DMF',
+          rating: bestXI.find(p => p.position === 'DMF')?.rating || 98,
+          action: 'Skills Training',
+          priority: 'High',
+          reason: 'Adding One-touch Pass and Interception transforms recovery pass accuracy.',
+          tacticalBenefit: 'Swift distribution away from aggressive opponent counter-pressing.'
+        },
+        {
+          player: bestXI.find(p => p.position === 'CF')?.name || 'K. Mbappé',
+          position: 'CF',
+          rating: bestXI.find(p => p.position === 'CF')?.rating || 101,
+          action: 'Player Progression Training',
+          priority: 'High',
+          reason: 'Allocate progression points to Speed and Acceleration to reach maximum burst.',
+          tacticalBenefit: 'Consistently beats the offside trap on through balls.'
+        }
+      ],
+      tacticalRecommendations: {
+        buildUp: {
+          title: 'Build Up Strategy',
+          summary: 'Controlled triangular passing through the midfield pivot to disorganize opponent structure.',
+          guidelines: ['Play out through CBs to draw the press', 'Release directly to the free playmaker']
+        },
+        attacking: {
+          title: 'Attacking Combinations',
+          summary: 'Exploit wide channels and half-spaces with quick 1-2 passing.',
+          guidelines: ['Overlap with wingers', 'Cut inside onto preferred foot for finesse shots']
+        },
+        defensiveTransition: {
+          title: 'Defensive Transition',
+          summary: 'Immediate counter-press in the central channel.',
+          guidelines: ['Use Match-Up to cut passing lanes', 'Never pull both centre backs out of position']
+        },
+        defending: {
+          title: 'Defensive Compactness',
+          summary: 'Force play wide and defend crosses with superior aerial presence.',
+          guidelines: ['Lock down the middle', 'Win second balls with the DMF']
+        },
+        counterattacking: {
+          title: 'Fast Counter-Attacks',
+          summary: 'Release vertical through balls into sprinting forwards.',
+          guidelines: ['Pass within 2 touches of recovery', 'Exploit the space behind fullbacks']
+        },
+        playerMovement: {
+          title: 'Positional Rotation',
+          summary: 'Maintain balance while rotating through tactical zones.',
+          guidelines: ['DMF holds position when fullbacks advance', 'CF pins the two central defenders']
+        }
+      },
+      simulationScenarios,
+      freeOrPaidStatus: 'free',
+      paymentStatus: 'free',
+      analysisQuality,
+      screenshotMetadata: images.length > 0 
+        ? images.map((_, i) => ({
+            index: i + 1,
+            layoutType: 'squad_overview',
+            readability: 'Good',
+            detectedPlayersCount: 11,
+            hasCoach: i === 0 && Boolean(payload.hasCoachScreenshot)
+          }))
+        : [{
+            index: 1,
+            layoutType: 'squad_overview',
+            readability: 'Good',
+            detectedPlayersCount: identifiedPlayers.length,
+            hasCoach: Boolean(payload.hasCoachScreenshot)
+          }],
+      facts: [
+        `${identifiedPlayers.length} player card profiles validated in squad composition`,
+        `Key tactical positions confirmed with realistic card ratings`,
+        `Zero unverified player records in the primary starting lineup`
+      ],
+      inferences: [
+        `High vertical speed profile makes this squad deadly in ${playstyle}`,
+        `Double pivot ensures robust cover against through balls`
+      ],
+      actionRecommendations: [
+        `Apply ${formation} with ${playstyle} manager`,
+        `Set Deep Line on defensive midfielder`,
+        `Complete progression points on primary striker`
+      ],
+      isDeveloperModeAvailable: true
     };
-  } else {
-    const coachMatch = EFOOTBALL_MASTER_COACHES.find(c => c.tacticalStyle === playstyle) || EFOOTBALL_MASTER_COACHES[0];
-    coachRecommendationObj = {
-      name: `${coachMatch.name} (${coachMatch.inGameName})`,
-      rating: coachMatch.affinityRating,
-      tacticalStyle: coachMatch.tacticalStyle,
-      tacticalAffinity: coachMatch.affinityRating,
-      isIdentifiedFromScreenshot: payload.hasCoachScreenshot || false,
-      confidence: 'High',
-      confidenceScore: 95,
-      evidence: payload.hasCoachScreenshot ? ['Identified from uploaded coach screenshot'] : ['Matched from squad tactical style requirements'],
-      explanation: coachMatch.tacticalDescription
+  } catch (error) {
+    console.error('CRITICAL: Fatal error in createEvidenceBasedFallback:', error);
+    // Return minimal viable object to prevent 500
+    return {
+      id: 'fallback_error_' + Date.now(),
+      createdAt: new Date().toISOString(),
+      title: 'Fallback Analysis (Limited)',
+      screenshotCount: 0,
+      identifiedPlayers: [],
+      squadRatings: { overall: 85, attack: 85, midfield: 85, defence: 85, goalkeeping: 85, balance: 85, depth: 85, tacticalSuitability: 85, ratingsRationale: 'Fallback analysis due to error.' },
+      strengths: [],
+      weaknesses: [],
+      recommendedFormation: '4-3-3',
+      alternativeFormation: '4-3-3',
+      formationExplanation: 'Default fallback formation.',
+      bestXI: { formation: '4-3-3', players: [] },
+      coachRecommendation: { name: 'Unknown', rating: 80, tacticalStyle: 'Balanced', tacticalAffinity: 80, isIdentifiedFromScreenshot: false, confidence: 'Low', confidenceScore: 0, evidence: [], explanation: 'N/A' },
+      individualInstructions: [],
+      playerActionPlan: [],
+      tacticalRecommendations: { buildUp: { title: 'N/A', summary: 'N/A', guidelines: [] }, attacking: { title: 'N/A', summary: 'N/A', guidelines: [] }, defensiveTransition: { title: 'N/A', summary: 'N/A', guidelines: [] }, defending: { title: 'N/A', summary: 'N/A', guidelines: [] }, counterattacking: { title: 'N/A', summary: 'N/A', guidelines: [] }, playerMovement: { title: 'N/A', summary: 'N/A', guidelines: [] } },
+      simulationScenarios: [],
+      freeOrPaidStatus: 'free',
+      paymentStatus: 'free',
+      analysisQuality: { score: 0, ratingLabel: 'Error', summary: 'Error', screenshotQualityVerdict: 'Error', qualityNotes: [], detectedRegionCount: 0, confirmedCount: 0, probableCount: 0, uncertainCount: 0, unidentifiedCount: 0 },
+      screenshotMetadata: [],
+      facts: [],
+      inferences: [],
+      actionRecommendations: [],
+      isDeveloperModeAvailable: true
     };
   }
-
-  return {
-    id: 'analysis_verified_' + Date.now(),
-    createdAt: new Date().toISOString(),
-    title: `Verified Squad Tactical Analysis (${formation} · ${playstyle})`,
-    screenshotCount: Math.max(images.length, 1),
-    identifiedPlayers,
-    squadRatings: {
-      overall: overallRating,
-      attack: attackRating,
-      midfield: midfieldRating,
-      defence: defenceRating,
-      goalkeeping: gkRating,
-      balance: Math.round((defenceRating + midfieldRating) / 2),
-      depth: 86,
-      tacticalSuitability: 92,
-      ratingsRationale: `Evidence-based calculation from ${identifiedPlayers.length} verified player card ratings and tactical synergy.`
-    },
-    strengths: [
-      `Clinical finishing in the final third with ${bestXI.find(p => p.position === 'CF')?.name || 'primary striker'}`,
-      `Dominant physical presence and passing range in central midfield`,
-      `High recovery pace along the flanks to neutralize rapid opponent counter-attacks`
-    ],
-    weaknesses: [
-      `Requires proactive manual tracking on opposition through balls into half-spaces`,
-      `Stamina depletion on central box-to-box midfielders in the final 20 minutes`
-    ],
-    recommendedFormation: formation,
-    alternativeFormation: '4-3-1-2',
-    formationExplanation: `Optimizes player roles and maximizes individual card strengths under ${playstyle} tactical instructions.`,
-    bestXI: {
-      formation,
-      players: bestXI
-    },
-    coachRecommendation: coachRecommendationObj,
-    individualInstructions: [
-      {
-        player: bestXI.find(p => p.position === 'DMF')?.name || bestXI.find(p => p.position === 'CMF')?.name || 'Rodri',
-        position: bestXI.find(p => p.position === 'DMF')?.position || 'DMF',
-        instruction: 'Deep Line',
-        why: 'Drops between central defenders during opponent transitions to shut down central through balls.',
-        category: 'Defence'
-      },
-      {
-        player: bestXI.find(p => p.position === 'CF')?.name || 'K. Mbappé',
-        position: 'CF',
-        instruction: 'Counter Target',
-        why: 'Conserves stamina and stays poised on the shoulder of the last defender for fast counter attacks.',
-        category: 'Offence'
-      }
-    ],
-    playerActionPlan: [
-      {
-        player: bestXI.find(p => p.position === 'DMF')?.name || 'Rodri',
-        position: bestXI.find(p => p.position === 'DMF')?.position || 'DMF',
-        rating: bestXI.find(p => p.position === 'DMF')?.rating || 98,
-        action: 'Skills Training',
-        priority: 'High',
-        reason: 'Adding One-touch Pass and Interception transforms recovery pass accuracy.',
-        tacticalBenefit: 'Swift distribution away from aggressive opponent counter-pressing.'
-      },
-      {
-        player: bestXI.find(p => p.position === 'CF')?.name || 'K. Mbappé',
-        position: 'CF',
-        rating: bestXI.find(p => p.position === 'CF')?.rating || 101,
-        action: 'Player Progression Training',
-        priority: 'High',
-        reason: 'Allocate progression points to Speed and Acceleration to reach maximum burst.',
-        tacticalBenefit: 'Consistently beats the offside trap on through balls.'
-      }
-    ],
-    tacticalRecommendations: {
-      buildUp: {
-        title: 'Build Up Strategy',
-        summary: 'Controlled triangular passing through the midfield pivot to disorganize opponent structure.',
-        guidelines: ['Play out through CBs to draw the press', 'Release directly to the free playmaker']
-      },
-      attacking: {
-        title: 'Attacking Combinations',
-        summary: 'Exploit wide channels and half-spaces with quick 1-2 passing.',
-        guidelines: ['Overlap with wingers', 'Cut inside onto preferred foot for finesse shots']
-      },
-      defensiveTransition: {
-        title: 'Defensive Transition',
-        summary: 'Immediate counter-press in the central channel.',
-        guidelines: ['Use Match-Up to cut passing lanes', 'Never pull both centre backs out of position']
-      },
-      defending: {
-        title: 'Defensive Compactness',
-        summary: 'Force play wide and defend crosses with superior aerial presence.',
-        guidelines: ['Lock down the middle', 'Win second balls with the DMF']
-      },
-      counterattacking: {
-        title: 'Fast Counter-Attacks',
-        summary: 'Release vertical through balls into sprinting forwards.',
-        guidelines: ['Pass within 2 touches of recovery', 'Exploit the space behind fullbacks']
-      },
-      playerMovement: {
-        title: 'Positional Rotation',
-        summary: 'Maintain balance while rotating through tactical zones.',
-        guidelines: ['DMF holds position when fullbacks advance', 'CF pins the two central defenders']
-      }
-    },
-    simulationScenarios,
-    freeOrPaidStatus: 'free',
-    paymentStatus: 'free',
-    analysisQuality,
-    screenshotMetadata: images.length > 0 
-      ? images.map((_, i) => ({
-          index: i + 1,
-          layoutType: 'squad_overview',
-          readability: 'Good',
-          detectedPlayersCount: 11,
-          hasCoach: i === 0 && Boolean(payload.hasCoachScreenshot)
-        }))
-      : [{
-          index: 1,
-          layoutType: 'squad_overview',
-          readability: 'Good',
-          detectedPlayersCount: identifiedPlayers.length,
-          hasCoach: Boolean(payload.hasCoachScreenshot)
-        }],
-    facts: [
-      `${identifiedPlayers.length} player card profiles validated in squad composition`,
-      `Key tactical positions confirmed with realistic card ratings`,
-      `Zero unverified player records in the primary starting lineup`
-    ],
-    inferences: [
-      `High vertical speed profile makes this squad deadly in ${playstyle}`,
-      `Double pivot ensures robust cover against through balls`
-    ],
-    actionRecommendations: [
-      `Apply ${formation} with ${playstyle} manager`,
-      `Set Deep Line on defensive midfielder`,
-      `Complete progression points on primary striker`
-    ],
-    isDeveloperModeAvailable: true
-  };
 }
 
 // Helpers for pitch coordinates & simulation
