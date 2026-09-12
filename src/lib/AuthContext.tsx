@@ -340,20 +340,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Session parse error:', e);
     }
 
-    // 3. Firebase Auth listener
+    // 3. Firebase Auth listener with strict Cloud DB verification
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
-        const authUser: AppAuthUser = {
-          uid: u.uid,
-          email: u.email,
-          displayName: u.displayName,
-          photoURL: u.photoURL,
-          emailVerified: u.emailVerified
-        };
-        setUser(authUser);
-        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
-        await fetchProfile(u.uid, u.email || '', u.displayName || undefined);
-        setLoading(false);
+        const verifyId = u.email || u.uid;
+        try {
+          const cloudAcc = await findCloudAccount(verifyId);
+          if (!cloudAcc) {
+            // Account was deleted/purged from the cloud database -> destroy lingering Firebase user & session
+            console.log('Firebase user not found in cloud database; terminating session.');
+            await deleteUser(u).catch(() => {});
+            await fbSignOut(auth).catch(() => {});
+            localStorage.removeItem(STORAGE_SESSION_KEY);
+            setUser(null);
+            setProfile(null);
+            setLoading(false);
+            return;
+          }
+          const authUser: AppAuthUser = {
+            uid: cloudAcc.uid || u.uid,
+            email: cloudAcc.email || u.email,
+            displayName: cloudAcc.displayName || u.displayName,
+            photoURL: u.photoURL,
+            emailVerified: u.emailVerified,
+            whatsappNumber: cloudAcc.whatsappNumber
+          };
+          setUser(authUser);
+          localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+          await fetchProfile(authUser.uid, authUser.email || '', authUser.displayName || undefined, undefined, authUser.whatsappNumber);
+          setLoading(false);
+        } catch {
+          setLoading(false);
+        }
       } else {
         const rawSession = localStorage.getItem(STORAGE_SESSION_KEY);
         if (!rawSession) {
@@ -510,22 +528,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 2. Firebase Cloud Auth fallback
+    // 2. If no cloud account exists in Firestore, purge any lingering Firebase auth user and reject
     try {
       const cred = await signInWithEmailAndPassword(auth, pseudoEmail, cleanPassword);
-      const authUser: AppAuthUser = {
-        uid: cred.user.uid,
-        email: cred.user.email || pseudoEmail,
-        displayName: cred.user.displayName || 'Manager',
-        whatsappNumber: cleanPhone
-      };
-      setUser(authUser);
-      localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
-      await fetchProfile(cred.user.uid, pseudoEmail, cred.user.displayName || undefined, undefined, cleanPhone);
-      return;
+      if (cred.user) {
+        await deleteUser(cred.user).catch(() => {});
+        await fbSignOut(auth).catch(() => {});
+      }
     } catch {}
 
-    throw new Error('No account found for this WhatsApp number. Click "Sign up with WhatsApp" below to create your account.');
+    throw new Error('No registered account found for this WhatsApp number in the system cloud. Please click "Sign up with WhatsApp" below to create your account.');
   };
 
   /**
@@ -619,27 +631,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 3. Secondary: Firebase Cloud Auth verification
+    // 3. No account in Cloud DB -> clean up any lingering legacy Firebase Auth user and reject
     try {
       const cred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-      const authUser: AppAuthUser = {
-        uid: cred.user.uid,
-        email: cred.user.email || cleanEmail,
-        displayName: cred.user.displayName || cleanEmail.split('@')[0],
-        photoURL: cred.user.photoURL || undefined
-      };
-      setUser(authUser);
-      localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
-      await fetchProfile(cred.user.uid, cred.user.email || cleanEmail, cred.user.displayName || undefined);
-      return;
-    } catch (fbErr: any) {
-      const errorCode = fbErr?.code;
-      if (errorCode === 'auth/wrong-password') {
-        throw new Error('Incorrect password. Please verify and try again or use Forgot Password.');
+      if (cred.user) {
+        await deleteUser(cred.user).catch(() => {});
+        await fbSignOut(auth).catch(() => {});
       }
-    }
+    } catch {}
 
-    throw new Error('No account found for this email address in the system cloud. Please sign up to create an account.');
+    throw new Error('No registered account found for this email address in the system cloud. Please click "Create Account" below to sign up.');
   };
 
   const resetPassword = async (emailToReset: string) => {
