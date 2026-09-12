@@ -6,7 +6,7 @@ export const maxDuration = 60;
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '10mb',
+      sizeLimit: '100mb',
     },
   },
 };
@@ -30,6 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    console.log('Received squad analysis request, body size:', req.headers['content-length']);
     const payload: AnalyzeSquadPayload = req.body || {};
     const hasImages = Array.isArray(payload.images) && payload.images.length > 0;
     const hasTyped = Array.isArray(payload.typedPlayers) && payload.typedPlayers.length > 0;
@@ -46,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ...result
       });
     } catch (analysisErr) {
-      console.warn('Squad analysis encountered an issue, using verified fallback:', analysisErr);
+      console.error('CRITICAL: Squad analysis failed inside pipeline:', analysisErr);
       const fallbackResult = createEvidenceBasedFallback(payload);
       return res.status(200).json({
         success: true,
@@ -55,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
   } catch (error: any) {
-    console.error('Error in Vercel api/analyze-squad:', error);
+    console.error('CRITICAL: Fatal error in api/analyze-squad handler:', error);
     const fallbackResult = createEvidenceBasedFallback(req.body || {});
     return res.status(200).json({
       success: true,
