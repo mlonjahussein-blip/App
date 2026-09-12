@@ -157,6 +157,217 @@ function saveAccountV2(account: StoredAccountV2) {
   }
 }
 
+function safeDocKey(key: string): string {
+  return (key || '').toLowerCase().trim().replace(/[\/\s#$[\]]/g, '_');
+}
+
+// Universal Cloud Account persistence across all devices via Firestore
+async function saveCloudAccount(account: StoredAccountV2, profileData?: Partial<UserProfile>) {
+  try {
+    const emailKey = safeDocKey(account.email);
+    const accountData = {
+      uid: account.uid,
+      email: account.email.toLowerCase(),
+      displayName: account.displayName,
+      whatsappNumber: account.whatsappNumber || null,
+      salt: account.salt,
+      hash: account.hash,
+      createdAt: account.createdAt,
+      updatedAt: new Date().toISOString()
+    };
+
+    // 1. Save to authAccounts by Email
+    if (emailKey) {
+      await setDoc(doc(db, 'authAccounts', emailKey), accountData, { merge: true });
+    }
+
+    // 2. Save to authAccounts by WhatsApp number / phone digits if available
+    if (account.whatsappNumber) {
+      const rawDigits = cleanPhoneDigits(account.whatsappNumber);
+      if (rawDigits && rawDigits.length >= 7) {
+        await setDoc(doc(db, 'authAccounts', 'wa_' + rawDigits), accountData, { merge: true });
+        await setDoc(doc(db, 'authAccounts', rawDigits), accountData, { merge: true });
+      }
+    }
+
+    // 3. Save to users document
+    const userDocRef = doc(db, 'users', account.uid);
+    await setDoc(userDocRef, {
+      uid: account.uid,
+      email: account.email.toLowerCase(),
+      displayName: account.displayName,
+      whatsappNumber: account.whatsappNumber || null,
+      salt: account.salt,
+      hash: account.hash,
+      createdAt: account.createdAt,
+      freeAnalysesRemaining: 1,
+      paidCredits: 0,
+      lastFreeResetAt: new Date().toISOString(),
+      role: 'user',
+      ...(profileData || {})
+    }, { merge: true });
+  } catch (err) {
+    console.warn('saveCloudAccount notice:', err);
+  }
+}
+
+// Universal Cloud Account lookup across all devices via Firestore
+async function findCloudAccount(identifier: string): Promise<StoredAccountV2 | null> {
+  const cleanId = (identifier || '').trim();
+  if (!cleanId) return null;
+
+  const rawDigits = cleanPhoneDigits(cleanId);
+  const isEmail = cleanId.includes('@');
+  const cleanEmail = isEmail ? cleanId.toLowerCase() : '';
+
+  // 1. Direct Firestore authAccounts lookup by Email
+  if (isEmail && cleanEmail) {
+    try {
+      const emailSnap = await getDoc(doc(db, 'authAccounts', safeDocKey(cleanEmail)));
+      if (emailSnap.exists()) {
+        const data = emailSnap.data() as any;
+        if (data.salt && data.hash) {
+          return {
+            uid: data.uid,
+            email: data.email || cleanEmail,
+            displayName: data.displayName || cleanEmail.split('@')[0],
+            whatsappNumber: data.whatsappNumber || undefined,
+            salt: data.salt,
+            hash: data.hash,
+            createdAt: data.createdAt || new Date().toISOString()
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('authAccounts email lookup:', e);
+    }
+  }
+
+  // 2. Direct Firestore authAccounts lookup by Phone / WhatsApp number
+  if (rawDigits && rawDigits.length >= 7) {
+    try {
+      const waSnap1 = await getDoc(doc(db, 'authAccounts', 'wa_' + rawDigits));
+      if (waSnap1.exists()) {
+        const data = waSnap1.data() as any;
+        if (data.salt && data.hash) {
+          return {
+            uid: data.uid,
+            email: data.email || `${rawDigits}@whatsapp.efootballaihub.com`,
+            displayName: data.displayName || `Manager_${rawDigits.slice(-4)}`,
+            whatsappNumber: data.whatsappNumber || ('+' + rawDigits),
+            salt: data.salt,
+            hash: data.hash,
+            createdAt: data.createdAt || new Date().toISOString()
+          };
+        }
+      }
+
+      const waSnap2 = await getDoc(doc(db, 'authAccounts', rawDigits));
+      if (waSnap2.exists()) {
+        const data = waSnap2.data() as any;
+        if (data.salt && data.hash) {
+          return {
+            uid: data.uid,
+            email: data.email || `${rawDigits}@whatsapp.efootballaihub.com`,
+            displayName: data.displayName || `Manager_${rawDigits.slice(-4)}`,
+            whatsappNumber: data.whatsappNumber || ('+' + rawDigits),
+            salt: data.salt,
+            hash: data.hash,
+            createdAt: data.createdAt || new Date().toISOString()
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('authAccounts phone lookup:', e);
+    }
+  }
+
+  // 3. Firestore users collection fallback query by Email
+  if (isEmail && cleanEmail) {
+    try {
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('email', '==', cleanEmail));
+      const querySnap = await getDocs(q);
+      if (!querySnap.empty) {
+        const userDoc = querySnap.docs[0];
+        const data = userDoc.data() as any;
+        if (data.salt && data.hash) {
+          const acc: StoredAccountV2 = {
+            uid: userDoc.id || data.uid,
+            email: data.email || cleanEmail,
+            displayName: data.displayName || cleanEmail.split('@')[0],
+            whatsappNumber: data.whatsappNumber || undefined,
+            salt: data.salt,
+            hash: data.hash,
+            createdAt: data.createdAt || new Date().toISOString()
+          };
+          // Cache in authAccounts for future instant lookups
+          saveCloudAccount(acc).catch(() => {});
+          return acc;
+        }
+      }
+    } catch (e) {
+      console.warn('users email query fallback:', e);
+    }
+  }
+
+  // 4. Firestore users collection fallback query by WhatsApp
+  if (rawDigits && rawDigits.length >= 7) {
+    try {
+      const userRef = doc(db, 'users', 'wa_' + rawDigits);
+      const snap = await getDoc(userRef);
+      if (snap.exists()) {
+        const data = snap.data() as any;
+        if (data.salt && data.hash) {
+          const acc: StoredAccountV2 = {
+            uid: snap.id,
+            email: data.email || `${rawDigits}@whatsapp.efootballaihub.com`,
+            displayName: data.displayName || `Manager_${rawDigits.slice(-4)}`,
+            whatsappNumber: data.whatsappNumber || ('+' + rawDigits),
+            salt: data.salt,
+            hash: data.hash,
+            createdAt: data.createdAt || new Date().toISOString()
+          };
+          saveCloudAccount(acc).catch(() => {});
+          return acc;
+        }
+      }
+    } catch (e) {
+      console.warn('users whatsapp query fallback:', e);
+    }
+  }
+
+  // 5. Local storage fallback on the current browser
+  const localAccounts = getStoredAccountsV2();
+  const localAcc = isEmail
+    ? localAccounts[cleanEmail]
+    : (localAccounts[cleanId] || (rawDigits ? localAccounts[rawDigits] : undefined));
+
+  if (localAcc && localAcc.salt && localAcc.hash) {
+    // Automatically replicate to cloud
+    saveCloudAccount(localAcc).catch(() => {});
+    return localAcc;
+  }
+
+  const localWaAccounts = getStoredWhatsAppAccounts();
+  const waAcc = localWaAccounts[cleanId] || (rawDigits ? (localWaAccounts[rawDigits] || localWaAccounts['+' + rawDigits]) : undefined);
+  if (waAcc && waAcc.salt && waAcc.hash) {
+    const acc: StoredAccountV2 = {
+      uid: waAcc.uid,
+      email: `${cleanPhoneDigits(waAcc.phoneNumber)}@whatsapp.efootballaihub.com`,
+      displayName: waAcc.displayName,
+      whatsappNumber: waAcc.phoneNumber,
+      salt: waAcc.salt,
+      hash: waAcc.hash,
+      createdAt: waAcc.createdAt
+    };
+    saveCloudAccount(acc).catch(() => {});
+    return acc;
+  }
+
+  return null;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AppAuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -253,7 +464,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Session parse error:', e);
     }
 
-    // 2. Firebase Auth listener for background sync
+    // 2. Background sync any legacy local accounts to the Cloud so they can be accessed on other devices
+    try {
+      const localAccs = getStoredAccountsV2();
+      Object.values(localAccs).forEach((acc) => {
+        if (acc && acc.email && acc.salt && acc.hash) {
+          saveCloudAccount(acc).catch(() => {});
+        }
+      });
+      const localWaAccs = getStoredWhatsAppAccounts();
+      Object.values(localWaAccs).forEach((waAcc) => {
+        if (waAcc && waAcc.phoneNumber && waAcc.salt && waAcc.hash) {
+          const rawDigits = cleanPhoneDigits(waAcc.phoneNumber);
+          saveCloudAccount({
+            uid: waAcc.uid,
+            email: `${rawDigits}@whatsapp.efootballaihub.com`,
+            displayName: waAcc.displayName,
+            whatsappNumber: waAcc.phoneNumber,
+            salt: waAcc.salt,
+            hash: waAcc.hash,
+            createdAt: waAcc.createdAt
+          }).catch(() => {});
+        }
+      });
+    } catch {}
+
+    // 3. Firebase Auth listener for background sync
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         const authUser: AppAuthUser = {
@@ -293,6 +529,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   /**
    * Sign Up with WhatsApp Number + 6-digit Verification Code + Password
+   * Automatically synchronizes across all internet-connected devices (Phone, PC, Tablet)
    */
   const signUpWithWhatsApp = async (
     phoneNumber: string,
@@ -322,28 +559,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const pseudoEmail = `${rawDigits}@whatsapp.efootballaihub.com`;
     const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=10b981&color=ffffff&bold=true`;
+    const fbUid = `wa_${rawDigits}`;
 
-    // 1. Authenticate with Firebase Auth in the Cloud (Works across any phone/PC)
-    let fbUid = `wa_${rawDigits}`;
-    try {
-      const cred = await createUserWithEmailAndPassword(auth, pseudoEmail, cleanPassword);
-      fbUid = cred.user.uid;
-      await updateProfile(cred.user, { displayName: cleanName, photoURL: avatarUrl }).catch(() => {});
-    } catch (fbErr: any) {
-      if (fbErr?.code === 'auth/email-already-in-use') {
-        try {
-          const cred = await signInWithEmailAndPassword(auth, pseudoEmail, cleanPassword);
-          fbUid = cred.user.uid;
-        } catch {
-          // If already in use with another password
-          throw new Error('An account with this WhatsApp number already exists. Please sign in instead.');
-        }
-      } else {
-        console.warn('Firebase Auth WhatsApp registration fallback:', fbErr);
-      }
-    }
-
-    // Generate Salted Hash for local caching
+    // Generate Salted Hash for secure cross-device authentication
     const salt = generateSalt();
     const hash = await hashPasswordWithSalt(cleanPassword, salt);
 
@@ -373,16 +591,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(`ef_profile_${fbUid}`, JSON.stringify(newProf));
     setProfile(newProf);
 
-    // Sync to Firestore
+    // Save to Universal Cloud Database (Accessible from any device)
+    await saveCloudAccount({
+      uid: fbUid,
+      email: pseudoEmail,
+      displayName: cleanName,
+      whatsappNumber: cleanPhone,
+      salt,
+      hash,
+      createdAt: new Date().toISOString()
+    }, newProf);
+
+    // Also attempt Firebase Auth creation in background
     try {
-      await setDoc(doc(db, 'users', fbUid), {
-        ...newProf,
-        salt,
-        hash
-      }, { merge: true });
-    } catch (fsErr) {
-      console.warn('Firestore sync for WhatsApp user:', fsErr);
-    }
+      const cred = await createUserWithEmailAndPassword(auth, pseudoEmail, cleanPassword);
+      if (cred.user) {
+        await updateProfile(cred.user, { displayName: cleanName, photoURL: avatarUrl }).catch(() => {});
+      }
+    } catch {}
 
     const authUser: AppAuthUser = {
       uid: fbUid,
@@ -398,6 +624,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   /**
    * Sign In with WhatsApp Number + Password
+   * Works on ANY phone, computer, or tablet connected to the internet
    */
   const signInWithWhatsApp = async (phoneNumber: string, password: string) => {
     const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : '+' + cleanPhoneDigits(phoneNumber);
@@ -413,7 +640,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const pseudoEmail = `${rawDigits}@whatsapp.efootballaihub.com`;
 
-    // 1. Try Firebase Cloud Auth first (Works across any phone/PC)
+    // 1. Primary: Lookup account from Universal Cloud Database (Firestore)
+    const cloudAcc = await findCloudAccount(cleanPhone) || await findCloudAccount(rawDigits);
+    if (cloudAcc && cloudAcc.salt && cloudAcc.hash) {
+      const computedHash = await hashPasswordWithSalt(cleanPassword, cloudAcc.salt);
+      if (computedHash === cloudAcc.hash) {
+        const authUser: AppAuthUser = {
+          uid: cloudAcc.uid,
+          email: cloudAcc.email || pseudoEmail,
+          displayName: cloudAcc.displayName,
+          whatsappNumber: cloudAcc.whatsappNumber || cleanPhone
+        };
+        setUser(authUser);
+        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+        await fetchProfile(cloudAcc.uid, authUser.email || '', cloudAcc.displayName, undefined, authUser.whatsappNumber);
+        return;
+      } else {
+        throw new Error('Incorrect password. Please verify your password and try again.');
+      }
+    }
+
+    // 2. Firebase Cloud Auth fallback
     try {
       const cred = await signInWithEmailAndPassword(auth, pseudoEmail, cleanPassword);
       const authUser: AppAuthUser = {
@@ -426,73 +673,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
       await fetchProfile(cred.user.uid, pseudoEmail, cred.user.displayName || undefined, undefined, cleanPhone);
       return;
-    } catch (fbErr: any) {
-      console.log('Firebase WhatsApp sign in attempt:', fbErr?.code || fbErr?.message);
-    }
+    } catch {}
 
-    // 2. Check local WhatsApp accounts
-    const allAccounts = getStoredWhatsAppAccounts();
-    const localAcc = allAccounts[cleanPhone] || allAccounts[rawDigits];
-    if (localAcc) {
-      const computedHash = await hashPasswordWithSalt(cleanPassword, localAcc.salt);
-      if (computedHash === localAcc.hash) {
-        // Automatically provision in Firebase Auth so future logins work on any device
-        try {
-          await createUserWithEmailAndPassword(auth, pseudoEmail, cleanPassword);
-        } catch {}
-
-        const authUser: AppAuthUser = {
-          uid: localAcc.uid,
-          email: `${rawDigits}@whatsapp.efootballaihub.com`,
-          displayName: localAcc.displayName,
-          whatsappNumber: localAcc.phoneNumber
-        };
-        setUser(authUser);
-        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
-        await fetchProfile(localAcc.uid, authUser.email || '', localAcc.displayName, undefined, localAcc.phoneNumber);
-        return;
-      } else {
-        throw new Error('Incorrect password. Please verify your password and try again.');
-      }
-    }
-
-    // 3. Check Firestore for WhatsApp account
-    try {
-      const uid = `wa_${rawDigits}`;
-      const snap = await getDoc(doc(db, 'users', uid));
-      if (snap.exists()) {
-        const data = snap.data() as any;
-        if (data.salt && data.hash) {
-          const computedHash = await hashPasswordWithSalt(cleanPassword, data.salt);
-          if (computedHash === data.hash) {
-            const authUser: AppAuthUser = {
-              uid,
-              email: data.email || `${rawDigits}@whatsapp.efootballaihub.com`,
-              displayName: data.displayName || 'Tactician',
-              whatsappNumber: cleanPhone
-            };
-            saveWhatsAppAccount({
-              uid,
-              phoneNumber: cleanPhone,
-              displayName: authUser.displayName || 'Tactician',
-              salt: data.salt,
-              hash: data.hash,
-              createdAt: data.createdAt || new Date().toISOString()
-            });
-            setUser(authUser);
-            localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
-            setProfile(data as UserProfile);
-            return;
-          } else {
-            throw new Error('Incorrect password. Please verify your password and try again.');
-          }
-        }
-      }
-    } catch (fsErr) {
-      console.warn('Firestore WhatsApp account lookup:', fsErr);
-    }
-
-    throw new Error('No account found for this WhatsApp number. Click "Sign up with WhatsApp" below to register.');
+    throw new Error('No account found for this WhatsApp number. Click "Sign up with WhatsApp" below to create your account.');
   };
 
   /**
@@ -512,10 +695,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Lookup existing or provision user
-    const allAccounts = getStoredWhatsAppAccounts();
-    const existing = allAccounts[cleanPhone] || allAccounts[rawDigits];
-    const uid = existing?.uid || `wa_${rawDigits}`;
-    const displayName = existing?.displayName || `Manager_${rawDigits.slice(-4)}`;
+    const cloudAcc = await findCloudAccount(cleanPhone) || await findCloudAccount(rawDigits);
+    const uid = cloudAcc?.uid || `wa_${rawDigits}`;
+    const displayName = cloudAcc?.displayName || `Manager_${rawDigits.slice(-4)}`;
     const pseudoEmail = `${rawDigits}@whatsapp.efootballaihub.com`;
     const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10b981&color=ffffff&bold=true`;
 
@@ -549,7 +731,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return signInWithWhatsApp(cleanId, p);
     }
 
-    // 2. Primary: Authenticate with Firebase Cloud Auth (Works across all devices)
+    if (!cleanPassword) {
+      throw new Error('Please enter your password.');
+    }
+
+    // 2. Primary: Universal Cloud Account Verification (Firestore authAccounts / users)
+    const cloudAcc = await findCloudAccount(cleanEmail);
+    if (cloudAcc && cloudAcc.salt && cloudAcc.hash) {
+      const computedHash = await hashPasswordWithSalt(cleanPassword, cloudAcc.salt);
+      if (computedHash === cloudAcc.hash) {
+        const authUser: AppAuthUser = {
+          uid: cloudAcc.uid,
+          email: cloudAcc.email,
+          displayName: cloudAcc.displayName,
+          whatsappNumber: cloudAcc.whatsappNumber
+        };
+        setUser(authUser);
+        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+
+        // Background sync to Firebase Auth if possible
+        try {
+          await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+        } catch {
+          try {
+            await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+          } catch {}
+        }
+
+        await fetchProfile(cloudAcc.uid, cloudAcc.email, cloudAcc.displayName, undefined, cloudAcc.whatsappNumber);
+        return;
+      } else {
+        throw new Error('Incorrect password. Please verify and try again, or click "Forgot Password?" to reset.');
+      }
+    }
+
+    // 3. Secondary: Firebase Cloud Auth verification
     try {
       const cred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
       const authUser: AppAuthUser = {
@@ -564,26 +780,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     } catch (fbErr: any) {
       const errorCode = fbErr?.code;
-      // If wrong password, throw immediate clear error
       if (errorCode === 'auth/wrong-password') {
         throw new Error('Incorrect password. Please verify and try again or use Forgot Password.');
       }
-      console.log('Firebase Cloud Auth check:', errorCode || fbErr?.message);
     }
 
-    // 3. Fallback: Check local legacy v2 accounts on this browser
+    // 4. Tertiary: Check local legacy accounts on this browser
     const accountsV2 = getStoredAccountsV2();
-    const accV2 = accountsV2[cleanEmail] || (rawDigits && rawDigits.length >= 7 ? (accountsV2[cleanId] || accountsV2[rawDigits] || (cleanId.startsWith('+') ? accountsV2[cleanId] : accountsV2['+' + rawDigits])) : undefined);
-    if (accV2) {
+    const accV2 = accountsV2[cleanEmail] || (rawDigits && rawDigits.length >= 7 ? accountsV2[rawDigits] : undefined);
+    if (accV2 && accV2.salt && accV2.hash) {
       const computedHash = await hashPasswordWithSalt(cleanPassword, accV2.salt);
       if (computedHash === accV2.hash) {
-        // Automatically register with Firebase Cloud Auth so the user can now sign in on any phone or other device
-        try {
-          const newFbCred = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-          if (newFbCred.user) {
-            await updateProfile(newFbCred.user, { displayName: accV2.displayName }).catch(() => {});
-          }
-        } catch {}
+        // Automatically save to Cloud so user can sign in on any other device
+        saveCloudAccount(accV2).catch(() => {});
 
         const localUser: AppAuthUser = {
           uid: accV2.uid,
@@ -600,7 +809,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    throw new Error('Incorrect email/phone or password. Please verify and try again, or click "Forgot Password?" to reset.');
+    throw new Error('No account found for this email address. Please create an account to get started.');
   };
 
   const resetPassword = async (emailToReset: string) => {
@@ -632,6 +841,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   /**
    * Universal Sign Up with 6-digit Email Verification & Integrated WhatsApp Number
+   * Accessible on ANY device across the globe immediately upon creation
    */
   const signUp = async (
     emailOrPhone: string,
@@ -660,30 +870,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Invalid or expired 6-digit email verification code. Please check your inbox or click Resend.');
     }
 
-    // 1. Primary: Register user in Firebase Cloud Auth (Works across all internet-connected devices)
-    let finalUid = 'u_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
-    try {
-      const cred = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-      finalUid = cred.user.uid;
-      if (cred.user) {
-        await updateProfile(cred.user, { displayName: cleanName }).catch(() => {});
-      }
-    } catch (fbErr: any) {
-      if (fbErr?.code === 'auth/email-already-in-use') {
-        try {
-          const cred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-          finalUid = cred.user.uid;
-          if (cred.user) {
-            await updateProfile(cred.user, { displayName: cleanName }).catch(() => {});
-          }
-        } catch {
-          throw new Error('An account with this email address already exists. Please sign in instead.');
-        }
-      } else {
-        console.warn('Firebase Cloud Auth user creation fallback:', fbErr);
-      }
+    // Check if account already exists in cloud
+    const existingCloud = await findCloudAccount(cleanEmail);
+    if (existingCloud) {
+      throw new Error('An account with this email address already exists. Please sign in instead.');
     }
 
+    const finalUid = 'u_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
     const salt = generateSalt();
     const hash = await hashPasswordWithSalt(cleanPassword, salt);
 
@@ -713,14 +906,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(`ef_profile_${finalUid}`, JSON.stringify(newProf));
     setProfile(newProf);
 
+    // Save to Cloud Firestore for instant cross-device access from any phone, laptop, or tablet
+    await saveCloudAccount(accountRecord, newProf);
+
+    // Also attempt Firebase Auth creation in background
     try {
-      await setDoc(doc(db, 'users', finalUid), {
-        ...newProf,
-        salt,
-        hash
-      }, { merge: true });
-    } catch (fsErr) {
-      console.warn('Firestore user profile sync:', fsErr);
+      const cred = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+      if (cred.user) {
+        await updateProfile(cred.user, { displayName: cleanName }).catch(() => {});
+      }
+    } catch (fbErr: any) {
+      console.warn('Firebase Cloud Auth user registration notice:', fbErr);
     }
 
     const authUser: AppAuthUser = {
