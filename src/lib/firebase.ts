@@ -8,7 +8,16 @@ try {
   setLogLevel('error');
 } catch {}
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const appConfig = {
+  apiKey: firebaseConfig.apiKey,
+  authDomain: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId,
+  storageBucket: firebaseConfig.storageBucket,
+  messagingSenderId: firebaseConfig.messagingSenderId,
+  appId: firebaseConfig.appId,
+};
+
+const app = getApps().length === 0 ? initializeApp(appConfig) : getApps()[0];
 
 export const auth = getAuth(app);
 
