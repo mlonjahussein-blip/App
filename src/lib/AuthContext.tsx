@@ -24,6 +24,7 @@ import { UserProfile } from '../types.ts';
 import {
   saveUniversalCloudAccount,
   findUniversalCloudAccount,
+  updateUniversalCloudPassword,
   readDocREST,
   writeDocREST,
   cleanPhoneDigits,
@@ -95,27 +96,6 @@ export interface StoredWhatsAppAccount {
   createdAt: string;
 }
 
-function getStoredWhatsAppAccounts(): Record<string, StoredWhatsAppAccount> {
-  try {
-    const raw = localStorage.getItem(STORAGE_WHATSAPP_ACCOUNTS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveWhatsAppAccount(account: StoredWhatsAppAccount) {
-  try {
-    const all = getStoredWhatsAppAccounts();
-    all[account.phoneNumber] = account;
-    const rawDigits = cleanPhoneDigits(account.phoneNumber);
-    all[rawDigits] = account;
-    localStorage.setItem(STORAGE_WHATSAPP_ACCOUNTS_KEY, JSON.stringify(all));
-  } catch (err) {
-    console.warn('Could not save WhatsApp account locally:', err);
-  }
-}
-
 // Cryptographically secure Salted SHA-256 Password Hashing via Web Crypto API
 async function hashPasswordWithSalt(password: string, salt: string): Promise<string> {
   const enc = new TextEncoder();
@@ -139,36 +119,6 @@ interface StoredAccountV2 {
   salt: string;
   hash: string;
   createdAt: string;
-}
-
-function getStoredAccountsV2(): Record<string, StoredAccountV2> {
-  try {
-    const raw = localStorage.getItem(STORAGE_ACCOUNTS_V2_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveAccountV2(account: StoredAccountV2) {
-  try {
-    const accounts = getStoredAccountsV2();
-    accounts[account.email.toLowerCase()] = account;
-    if (account.whatsappNumber) {
-      accounts[account.whatsappNumber] = account;
-      const rawDigits = cleanPhoneDigits(account.whatsappNumber);
-      if (rawDigits) {
-        accounts[rawDigits] = account;
-      }
-    }
-    localStorage.setItem(STORAGE_ACCOUNTS_V2_KEY, JSON.stringify(accounts));
-  } catch (err) {
-    console.warn('Could not save local v2 account record:', err);
-  }
-}
-
-function safeDocKey(key: string): string {
-  return (key || '').toLowerCase().trim().replace(/[\/\s#$[\]]/g, '_');
 }
 
 // Universal Cloud Account persistence across all devices via direct Firestore REST & SDK
@@ -208,7 +158,7 @@ async function saveCloudAccount(account: StoredAccountV2, profileData?: Partial<
   }
 }
 
-// Universal Cloud Account lookup across all devices
+// Universal Cloud Account lookup across all devices (Cloud Firestore is the SOLE authority)
 async function findCloudAccount(identifier: string): Promise<StoredAccountV2 | null> {
   const cleanId = (identifier || '').trim();
   if (!cleanId) return null;
@@ -254,38 +204,7 @@ async function findCloudAccount(identifier: string): Promise<StoredAccountV2 | n
     }
   } catch {}
 
-  // 3. Local storage fallback on the current browser
-  const rawDigits = cleanPhoneDigits(cleanId);
-  const isEmail = cleanId.includes('@');
-  const cleanEmail = isEmail ? cleanId.toLowerCase() : '';
-
-  const localAccounts = getStoredAccountsV2();
-  const localAcc = isEmail
-    ? localAccounts[cleanEmail]
-    : (localAccounts[cleanId] || (rawDigits ? localAccounts[rawDigits] : undefined));
-
-  if (localAcc && localAcc.salt && localAcc.hash) {
-    // Automatically replicate to cloud
-    saveCloudAccount(localAcc).catch(() => {});
-    return localAcc;
-  }
-
-  const localWaAccounts = getStoredWhatsAppAccounts();
-  const waAcc = localWaAccounts[cleanId] || (rawDigits ? (localWaAccounts[rawDigits] || localWaAccounts['+' + rawDigits]) : undefined);
-  if (waAcc && waAcc.salt && waAcc.hash) {
-    const acc: StoredAccountV2 = {
-      uid: waAcc.uid,
-      email: `${cleanPhoneDigits(waAcc.phoneNumber)}@whatsapp.efootballaihub.com`,
-      displayName: waAcc.displayName,
-      whatsappNumber: waAcc.phoneNumber,
-      salt: waAcc.salt,
-      hash: waAcc.hash,
-      createdAt: waAcc.createdAt
-    };
-    saveCloudAccount(acc).catch(() => {});
-    return acc;
-  }
-
+  // Cloud database is authoritative; do not fall back to local storage
   return null;
 }
 
@@ -371,70 +290,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (err) {
       console.warn('Could not read user profile from firestore:', err);
-      const fallbackProf: UserProfile = cachedProfile || {
-        uid,
-        email: defaultEmail,
-        displayName: displayName || (whatsappNumber ? `Manager ${whatsappNumber.slice(-4)}` : defaultEmail.split('@')[0]) || 'Tactician',
-        whatsappNumber: whatsappNumber || undefined,
-        photoURL: photoURL || undefined,
-        createdAt: new Date().toISOString(),
-        freeAnalysesRemaining: 1,
-        paidCredits: 0,
-        lastFreeResetAt: new Date().toISOString(),
-        role: 'user'
-      };
-      setProfile(fallbackProf);
-      localStorage.setItem(localProfileKey, JSON.stringify(fallbackProf));
+      if (cachedProfile) {
+        setProfile(cachedProfile);
+      }
     }
   };
 
   useEffect(() => {
-    // 1. Check local session for instant restore
+    // 1. Wipe legacy local testing stores to ensure clean slate across all browsers
+    try {
+      localStorage.removeItem(STORAGE_ACCOUNTS_V2_KEY);
+      localStorage.removeItem(STORAGE_WHATSAPP_ACCOUNTS_KEY);
+      localStorage.removeItem(STORAGE_LEGACY_ACCOUNTS_KEY);
+      localStorage.removeItem('ef_pending_whatsapp_otps');
+    } catch {}
+
+    // 2. Check local session and verify against Cloud Firestore authority
     try {
       const rawSession = localStorage.getItem(STORAGE_SESSION_KEY);
       if (rawSession) {
         const savedSession = JSON.parse(rawSession) as AppAuthUser;
         if (savedSession && savedSession.uid) {
-          setUser(savedSession);
-          fetchProfile(
-            savedSession.uid,
-            savedSession.email || '',
-            savedSession.displayName || undefined,
-            savedSession.photoURL || undefined,
-            savedSession.whatsappNumber || undefined
-          );
+          const verifyIdentifier = savedSession.email || savedSession.whatsappNumber || savedSession.uid;
+          findCloudAccount(verifyIdentifier)
+            .then((cloudAcc) => {
+              if (!cloudAcc) {
+                // Account does not exist in Cloud database (e.g. was purged) -> immediately log out
+                console.log('Session user not found in cloud database; clearing local session.');
+                localStorage.removeItem(STORAGE_SESSION_KEY);
+                setUser(null);
+                setProfile(null);
+              } else {
+                setUser(savedSession);
+                fetchProfile(
+                  savedSession.uid,
+                  savedSession.email || '',
+                  savedSession.displayName || undefined,
+                  savedSession.photoURL || undefined,
+                  savedSession.whatsappNumber || undefined
+                );
+              }
+            })
+            .catch(() => {
+              setUser(savedSession);
+            });
         }
       }
     } catch (e) {
       console.warn('Session parse error:', e);
     }
 
-    // 2. Background sync any legacy local accounts to the Cloud so they can be accessed on other devices
-    try {
-      const localAccs = getStoredAccountsV2();
-      Object.values(localAccs).forEach((acc) => {
-        if (acc && acc.email && acc.salt && acc.hash) {
-          saveCloudAccount(acc).catch(() => {});
-        }
-      });
-      const localWaAccs = getStoredWhatsAppAccounts();
-      Object.values(localWaAccs).forEach((waAcc) => {
-        if (waAcc && waAcc.phoneNumber && waAcc.salt && waAcc.hash) {
-          const rawDigits = cleanPhoneDigits(waAcc.phoneNumber);
-          saveCloudAccount({
-            uid: waAcc.uid,
-            email: `${rawDigits}@whatsapp.efootballaihub.com`,
-            displayName: waAcc.displayName,
-            whatsappNumber: waAcc.phoneNumber,
-            salt: waAcc.salt,
-            hash: waAcc.hash,
-            createdAt: waAcc.createdAt
-          }).catch(() => {});
-        }
-      });
-    } catch {}
-
-    // 3. Firebase Auth listener for background sync
+    // 3. Firebase Auth listener
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         const authUser: AppAuthUser = {
@@ -518,7 +424,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       hash,
       createdAt: new Date().toISOString()
     };
-    saveWhatsAppAccount(waAccount);
 
     const newProf: UserProfile = {
       uid: fbUid,
@@ -639,11 +544,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Invalid or expired 6-digit verification code. Please request a new code.');
     }
 
-    // Lookup existing or provision user
+    // Lookup registered account in cloud
     const cloudAcc = await findCloudAccount(cleanPhone) || await findCloudAccount(rawDigits);
-    const uid = cloudAcc?.uid || `wa_${rawDigits}`;
-    const displayName = cloudAcc?.displayName || `Manager_${rawDigits.slice(-4)}`;
-    const pseudoEmail = `${rawDigits}@whatsapp.efootballaihub.com`;
+    if (!cloudAcc) {
+      throw new Error('No registered account found with this WhatsApp number. Please click "Sign up with WhatsApp" to register first.');
+    }
+
+    const uid = cloudAcc.uid;
+    const displayName = cloudAcc.displayName || `Manager_${rawDigits.slice(-4)}`;
+    const pseudoEmail = cloudAcc.email || `${rawDigits}@whatsapp.efootballaihub.com`;
     const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10b981&color=ffffff&bold=true`;
 
     const authUser: AppAuthUser = {
@@ -730,31 +639,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 4. Tertiary: Check local legacy accounts on this browser
-    const accountsV2 = getStoredAccountsV2();
-    const accV2 = accountsV2[cleanEmail] || (rawDigits && rawDigits.length >= 7 ? accountsV2[rawDigits] : undefined);
-    if (accV2 && accV2.salt && accV2.hash) {
-      const computedHash = await hashPasswordWithSalt(cleanPassword, accV2.salt);
-      if (computedHash === accV2.hash) {
-        // Automatically save to Cloud so user can sign in on any other device
-        saveCloudAccount(accV2).catch(() => {});
-
-        const localUser: AppAuthUser = {
-          uid: accV2.uid,
-          email: accV2.email,
-          displayName: accV2.displayName,
-          whatsappNumber: accV2.whatsappNumber
-        };
-        setUser(localUser);
-        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(localUser));
-        await fetchProfile(accV2.uid, accV2.email, accV2.displayName, undefined, accV2.whatsappNumber);
-        return;
-      } else {
-        throw new Error('Incorrect password. Please verify and try again.');
-      }
-    }
-
-    throw new Error('No account found for this email address. Please create an account to get started.');
+    throw new Error('No account found for this email address in the system cloud. Please sign up to create an account.');
   };
 
   const resetPassword = async (emailToReset: string) => {
@@ -822,28 +707,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 3. Update across Firestore cloud database records
     await updateUniversalCloudPassword(cleanId, salt, hash);
 
-    // 4. Update local storage caches
-    try {
-      if (isEmail) {
-        const emailAccs = getStoredAccountsV2();
-        if (emailAccs[cleanId.toLowerCase()]) {
-          emailAccs[cleanId.toLowerCase()].salt = salt;
-          emailAccs[cleanId.toLowerCase()].hash = hash;
-          localStorage.setItem(STORAGE_ACCOUNTS_V2_KEY, JSON.stringify(emailAccs));
-        }
-      }
-      if (rawDigits && rawDigits.length >= 7) {
-        const waAccs = getStoredWhatsAppAccounts();
-        if (waAccs[cleanId] || waAccs[rawDigits]) {
-          const targetKey = waAccs[cleanId] ? cleanId : rawDigits;
-          waAccs[targetKey].salt = salt;
-          waAccs[targetKey].hash = hash;
-          localStorage.setItem(STORAGE_WHATSAPP_ACCOUNTS_KEY, JSON.stringify(waAccs));
-        }
-      }
-    } catch {}
-
-    // 5. Notify server API endpoint in background
+    // 4. Notify server API endpoint in background
     try {
       fetch('/api/auth/reset-password', {
         method: 'POST',
@@ -852,7 +716,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).catch(() => {});
     } catch {}
 
-    // 6. Sign in the user automatically
+    // 5. Sign in the user automatically
     await signIn(cleanId, cleanPass);
   };
 
@@ -877,8 +741,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Lookup existing account in cloud
     const cloudAcc = await findCloudAccount(cleanEmail);
-    const uid = cloudAcc?.uid || 'u_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
-    const displayName = cloudAcc?.displayName || cleanEmail.split('@')[0] || 'Tactician';
+    if (!cloudAcc) {
+      throw new Error('No registered account found with this email in the system cloud. Please sign up to create your account.');
+    }
+
+    const uid = cloudAcc.uid;
+    const displayName = cloudAcc.displayName || cleanEmail.split('@')[0] || 'Tactician';
     const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10b981&color=ffffff&bold=true`;
 
     const authUser: AppAuthUser = {
@@ -886,12 +754,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: cleanEmail,
       displayName,
       photoURL: avatarUrl,
-      whatsappNumber: cloudAcc?.whatsappNumber
+      whatsappNumber: cloudAcc.whatsappNumber
     };
 
     setUser(authUser);
     localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
-    await fetchProfile(uid, cleanEmail, displayName, avatarUrl, cloudAcc?.whatsappNumber);
+    await fetchProfile(uid, cleanEmail, displayName, avatarUrl, cloudAcc.whatsappNumber);
   };
 
   const sendEmailOtpCode = async (email: string, managerName?: string) => {
@@ -948,7 +816,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       hash,
       createdAt: new Date().toISOString()
     };
-    saveAccountV2(accountRecord);
 
     const newProf: UserProfile = {
       uid: finalUid,
@@ -998,8 +865,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteAccount = async () => {
     if (!user) return;
     const currentUid = user.uid;
-    const currentEmail = user.email ? user.email.toLowerCase() : '';
-    const currentWhatsApp = user.whatsappNumber || '';
 
     // 1. Delete user profile document from Firestore
     try {
@@ -1038,35 +903,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 4. Remove local credential stores
-    try {
-      if (currentEmail) {
-        const emailAccounts = getStoredAccountsV2();
-        delete emailAccounts[currentEmail];
-        localStorage.setItem(STORAGE_ACCOUNTS_V2_KEY, JSON.stringify(emailAccounts));
-      }
-      if (currentWhatsApp) {
-        const waAccounts = getStoredWhatsAppAccounts();
-        delete waAccounts[currentWhatsApp];
-        delete waAccounts[cleanPhoneDigits(currentWhatsApp)];
-        localStorage.setItem(STORAGE_WHATSAPP_ACCOUNTS_KEY, JSON.stringify(waAccounts));
-      }
-      const legacyRaw = localStorage.getItem(STORAGE_LEGACY_ACCOUNTS_KEY);
-      if (legacyRaw) {
-        const legacy = JSON.parse(legacyRaw);
-        if (currentEmail && legacy[currentEmail]) delete legacy[currentEmail];
-        localStorage.setItem(STORAGE_LEGACY_ACCOUNTS_KEY, JSON.stringify(legacy));
-      }
-    } catch (err) {
-      console.warn('Error clearing local stored accounts:', err);
-    }
-
-    // 5. Clear all local user session & cached profile data
+    // 4. Clear all local user session & cached profile data
     localStorage.removeItem(STORAGE_SESSION_KEY);
     localStorage.removeItem(`ef_profile_${currentUid}`);
     localStorage.removeItem(`ef_user_squads_${currentUid}`);
 
-    // 6. Sign out & reset state
+    // 5. Sign out & reset state
     await fbSignOut(auth).catch(() => {});
     setUser(null);
     setProfile(null);

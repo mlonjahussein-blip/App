@@ -14,7 +14,7 @@ export function generatePlayerTrainingReport(
   playstyle: string = 'Quick Counter'
 ): PlayerTrainingReport {
   const topPlayers = [...players]
-    .filter(p => !p.isUnidentified && !p.name.includes('Unidentified'))
+    .filter(p => !(p as any).isUnidentified && !p.name.includes('Unidentified'))
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 4);
 
