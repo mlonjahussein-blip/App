@@ -198,13 +198,13 @@ export async function runMultiStageSquadPipeline(payload: AnalyzeSquadPayload): 
       let base64Data = (img.base64Data || '').replace(/^data:[^;]+;base64,/, '');
       let buffer = Buffer.from(base64Data, 'base64');
       
-      // Optimize image size to reduce Gemini payload and processing time
+      // Optimize image size to high resolution (2048x2048 at quality 90) to preserve small text, card badges, ratings, and face details
       try {
         const sharpInstance = await getSharpInstance();
         if (sharpInstance) {
           const resizedBuffer = await sharpInstance(buffer)
-            .resize({ width: 1024, height: 1024, fit: 'inside' })
-            .jpeg({ quality: 80 })
+            .resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 90 })
             .toBuffer();
           buffer = resizedBuffer;
           base64Data = resizedBuffer.toString('base64');
@@ -238,68 +238,41 @@ export async function runMultiStageSquadPipeline(payload: AnalyzeSquadPayload): 
       ? `\nUser Linked-Up Play Style Active:\n- Initiator (From Player): ${payload.linkUpPlay.fromPlayer || 'Deep Playmaker'}\n- Target (To Player): ${payload.linkUpPlay.toPlayer || 'Target Attacker'}\n- Combination Style: ${payload.linkUpPlay.linkPattern || '1-2 Pass & Go'}\n- Coach Link-Up Note: ${payload.linkUpPlay.coachInstructionNote || 'Custom link-up pattern'}\nInclude specialized link-up execution advice in tactical recommendations.`
       : '';
 
-    // Advanced Multi-Stage Identification Engine (Addressing user architectural requirements)
-    // CRITICAL: eFootball squad screenshots often do NOT display player names on the cards!
-    // NEVER rely on OCR/name text alone. Detect card regions, extract visual evidence, and cross-match.
-    const verificationSystemPrompt = `You are the world's most sophisticated eFootball Card Recognition and Squad Tactical Engine.
-CRITICAL ARCHITECTURAL REALITY:
-eFootball squad and formation screens frequently display 20+ compact player cards WITHOUT player names!
-Players only have:
-1. Card Face Portrait (visual likeness of real football player or eFootball render)
-2. Position label (e.g. CF, SS, LWF, RWF, AMF, CMF, DMF, LB, CB, RB, GK)
-3. Overall Rating number (e.g. 102, 101, 100, 99, 98, 97, 96, 95...)
-4. Card Theme / Foil styling (Epic green/gold, Show Time blue/glow, Highlight, POTW, Standard)
-5. Nationality flag icon or Club badge (if visible)
-6. Spatial role (Starting XI on pitch vs Substitutes vs Reserves)
+    // High-Precision Vision System Prompt
+    const verificationSystemPrompt = `You are the world's leading eFootball Card Recognition and Tactical Intelligence Engine.
+Your primary mission is to examine eFootball squad screenshots with absolute accuracy and identify EVERY player present in the squad.
 
-DO NOT ATTEMPT TO GUESS ALL PLAYERS SOLELY BY INVENTING NAMES!
-Follow this strict 6-stage pipeline:
+CRITICAL EXTRACTION DIRECTIVES:
+1. READ VISIBLE TEXT & IN-GAME NAMES:
+   - Carefully examine the screen for in-game player names printed below/above player cards, inside player slot labels, across the formation pitch, in player lists, or on the card art.
+   - Examples of in-game names: "K. MBAPPÉ", "L. MESSI", "E. HAALAND", "RODRI", "V. VAN DIJK", "B. SAKA", "J. BELLINGHAM", "F. VALVERDE", "PEDRI", "GAVI", "W. SALIBA", "R. DIAS", "THEO HERNÁNDEZ", "ALISSON", "A. BASTONI", "F. WIRTZ", "J. MUSIALA", "L. YAMAL", "C. PALMER", "K. DE BRUYNE", "M. SALAH", "H. KANE", "N. BARELLA", "L. MARTÍNEZ", "V. OSIMHEN", "K. COMAN", "A. DAVIES", "J. KIMMICH", "T. ALEXANDER-ARNOLD", "E. CAMAVINGA", "A. TCHOUAMÉNI", "G. DONNARUMMA", "M. MAIGNAN", "T. COURTOIS", "M. TER STEGEN", etc.
+   - Also identify Epic/Booster/Show Time/Legend players accurately: "L. SUÁREZ", "J. CRUIJFF", "K. RUMMENIGGE", "A. SHEVCHENKO", "P. VIEIRA", "R. GULLIT", "P. MALDINI", "A. NESTA", "CAFU", "ROBERTO CARLOS", "RONALDINHO", "ROMÁRIO", "D. BECKHAM", "F. RIJKAARD", "P. NEDVĚD", "A. INIESTA", "XAVI", "P. SCHOLES", "S. GERRARD", "F. LAMPARD", "D. DROGBA", "F. TORRES", "C. PUYOL", "I. CASILLAS", "O. KAHN", "P. SCHMEICHEL", "P. CECH", etc.
 
-STAGE 1: SCREENSHOT CLASSIFICATION
-Classify each image:
-- "squad_overview" (Formation pitch screen with starting XI cards & bench)
-- "player_list" (Scrollable list of squad members)
-- "player_details" (Individual player stats/skills sheet)
-- "coach_screen" (Manager and playstyle stats)
+2. MULTI-SIGNAL CARD RECOGNITION:
+   - Position: Read the exact position code (CF, SS, LWF, RWF, AMF, CMF, DMF, LB, CB, RB, GK).
+   - Overall Rating: Read the exact rating number displayed on the card (e.g. 104, 103, 102, 101, 100, 99, 98, 97, 96, 95, etc.).
+   - Card Edition: "Epic", "Big Time", "Show Time", "Highlight", "POTW", "Club Selection", "Standard", "Legendary".
+   - Facial Likeness & Jersey: Identify the footballer's facial portrait, hair style, club jersey, and country flag.
+   - Spatial Grouping: Separate Starting XI (the 11 players situated on the pitch formation layout) from Substitutes / Bench (the bench list or bottom row of cards).
 
-STAGE 2: PRECISE CARD REGION DETECTION
-Detect the bounding box for EVERY visible player card:
-- "ymin", "xmin", "ymax", "xmax" on a 0-1000 scale.
-- Specify "cardArea": "starting_xi" | "substitute" | "reserve"
-- Specify pitch coordinates if in Starting XI: "pitchX" (0-100, left to right), "pitchY" (0-100, 10=CF/attack, 90=GK)
+3. COACH / MANAGER IDENTIFICATION:
+   - Identify the Manager/Coach name (e.g. "G. Zeitzler / Jürgen Klopp", "L. Roman / Pep Guardiola", "M. Caputto / Mikel Arteta", "C. Ancelotti", "E. Ten Hag", "D. Deschamps", "L. Scaloni", etc.) and playstyle proficiency (Quick Counter, Possession Game, Long Ball Counter, Out Wide, Long Ball).
 
-STAGE 3: MULTI-SIGNAL CARD EVIDENCE EXTRACTION
-For each card, extract ALL visible signals separately:
-1. "visiblePosition": Exact position label (CF, SS, LWF, RWF, AMF, CMF, DMF, LB, CB, RB, GK)
-2. "visibleRating": Number on card (e.g. 101, 99, 97)
-3. "cardType": "Epic" | "Show Time" | "Highlight" | "POTW" | "Standard" | "Legendary"
-4. "faceDescription": Visual description of player portrait (e.g. "Dark hair, light stubble, intense gaze resembling Luis Suárez", "Blonde hair flowing Johan Cruyff", "High cheekbones, cropped hair Kylian Mbappé")
-5. "faceMatchCandidate": Name of the player the face resembles most closely (e.g. "Luis Suárez", "Johan Cruyff", "K. Mbappé", "Rodri", "V. van Dijk")
-6. "faceSimilarity": Estimated visual face resemblance score between 0.0 and 1.0
-7. "readableText": Any text visible on card (leave empty "" if no name is shown)
-8. "nationality": Flag name if identifiable
-9. "club": Club badge if identifiable
+4. PRECISION & COMPLETENESS:
+   - Do not hallucinate or randomly invent players not shown in the image.
+   - Accurately report what is present on the screen.
+   - Assign confidenceScore (0-100) based on clarity of text, face, position, and rating.
 
-STAGE 4: CROSS-VERIFICATION & CONTRADICTION RULE
-- NEVER identify a player from face alone if position and rating strongly contradict!
-- Example: If a card looks like Cruyff (SS/AMF 102) but is placed at CB with rating 88 and an African flag, REJECT Cruyff.
-- If evidence is ambiguous, assign:
-  "confidenceLevel": "LOW" | "MEDIUM" | "HIGH" | "VERIFIED"
-  "status": "needs_confirmation" | "high_confidence" | "verified"
-
-STAGE 5: COMPLETE TACTICAL SYNTHESIS
-- Synthesize squad ratings, strengths, weaknesses, best XI, coach recommendation, individual instructions, and development plan.
-
-OUTPUT FORMAT: Strict JSON matching this schema:
+OUTPUT FORMAT: Return STRICT JSON matching this schema:
 {
   "screenshotMetadata": [
     {
       "index": 1,
-      "layoutType": "squad_overview|player_list|player_details|player_card|formation_screen|coach_screen|unknown",
-      "readability": "Good|Fair|Poor",
+      "layoutType": "squad_overview",
+      "readability": "Good",
       "detectedPlayersCount": 18,
       "hasCoach": true,
-      "warningNote": "No names displayed on cards in overview; identification executed via face likeness, rating, and position."
+      "warningNote": ""
     }
   ],
   "extractedPlayers": [
@@ -309,68 +282,66 @@ OUTPUT FORMAT: Strict JSON matching this schema:
       "visiblePosition": "CF",
       "visibleRating": 102,
       "cardType": "Epic",
-      "faceDescription": "Uruguayan striker with dark hair, facial beard stubble, characteristic jawline",
-      "faceMatchCandidate": "Luis Suárez",
-      "faceSimilarity": 0.95,
-      "readableText": "",
-      "nationality": "Uruguay",
-      "club": "Inter Miami",
-      "detectedName": "L. Suárez",
+      "faceDescription": "Iconic striker portrait with sharp facial features and team kit",
+      "faceMatchCandidate": "Kylian Mbappé",
+      "faceSimilarity": 0.96,
+      "readableText": "K. MBAPPÉ",
+      "nationality": "France",
+      "club": "Real Madrid",
+      "detectedName": "K. Mbappé",
       "confidenceLevel": "VERIFIED",
       "status": "verified",
-      "confidenceScore": 96,
+      "confidenceScore": 98,
       "sourceScreenshots": [1],
       "evidence": [
-        "Card portrait clearly matches Luis Suárez iconic Epic pose",
-        "Position is CF in central attacking spearhead",
-        "Rating 102 aligns with Epic Booster card"
+        "In-game name text 'K. MBAPPÉ' clearly legible",
+        "Position CF with 102 rating",
+        "Card portrait matches player"
       ],
       "needsUserConfirmation": false
     }
   ],
   "coach": {
-    "name": "Manager Name",
-    "rating": 88,
+    "name": "Jürgen Klopp (G. Zeitzler)",
+    "rating": 89,
     "tacticalStyle": "${preferredPlaystyle}",
-    "isIdentifiedFromScreenshot": false,
-    "confidenceScore": 85,
-    "evidence": ["Identified from Screenshot #1 manager banner"],
-    "explanation": "Playstyle affinity for squad"
+    "isIdentifiedFromScreenshot": true,
+    "confidenceScore": 92,
+    "evidence": ["Identified from Manager banner in screenshot"],
+    "explanation": "Provides maximum Quick Counter playstyle proficiency boost."
   },
   "facts": [
-    "Detected 18 player card regions without on-card name text",
-    "Luis Suárez verified at CF via 102 rating and facial portrait",
-    "Johan Cruyff verified at SS via iconic portrait and 103 rating"
+    "Extracted starting XI and bench players from squad screenshot",
+    "High confidence across verified player cards"
   ],
   "inferences": [
-    "Squad possesses lethal counter-attacking efficiency with dual elite Goal Poachers",
-    "High rating density in the forward line requires disciplined defensive mid protection"
+    "Squad formation and player attributes align strongly with ${preferredPlaystyle}"
   ],
   "recommendedFormation": "4-2-1-3",
   "alternativeFormation": "4-3-1-2",
-  "formationExplanation": "Why this formation fits the actual verified players",
+  "formationExplanation": "Optimized tactical layout maximizing the strengths of the verified squad.",
   "squadRatings": {
-    "overall": 88,
+    "overall": 90,
     "attack": 92,
-    "midfield": 86,
-    "defence": 85,
-    "goalkeeping": 87,
-    "balance": 88,
-    "depth": 84,
-    "tacticalSuitability": 89,
-    "ratingsRationale": "Computed from multi-signal verified starting XI and bench depth."
+    "midfield": 89,
+    "defence": 88,
+    "goalkeeping": 89,
+    "balance": 90,
+    "depth": 87,
+    "tacticalSuitability": 91,
+    "ratingsRationale": "Computed from verified player ratings and positional cohesion."
   },
-  "strengths": ["...", "..."],
-  "weaknesses": ["...", "..."],
+  "strengths": ["Dynamic attacking threat with high finishing attributes", "Balanced double pivot controlling defensive transitions"],
+  "weaknesses": ["Ensure stamina rotation for wide forwards in the final 20 minutes"],
   "bestXI": [
     {
-      "name": "L. Suárez",
+      "name": "Player Name",
       "position": "CF",
-      "rating": 102,
+      "rating": 100,
       "playstyle": "Goal Poacher",
       "pitchX": 50,
       "pitchY": 20,
-      "selectionReason": "Verified CF with elite 102 rating and clinical finishing"
+      "selectionReason": "Starting CF spearhead"
     }
   ],
   "individualInstructions": [
@@ -378,7 +349,7 @@ OUTPUT FORMAT: Strict JSON matching this schema:
       "player": "Player Name",
       "position": "DMF",
       "instruction": "Deep Line",
-      "why": "Specific tactical reason",
+      "why": "Protects space between center backs during counter-attacks",
       "category": "Defence"
     }
   ],
@@ -386,11 +357,11 @@ OUTPUT FORMAT: Strict JSON matching this schema:
     {
       "player": "Player Name",
       "position": "CF",
-      "rating": 102,
-      "action": "Skills Training|Player Progression Training|Level Training|Position Training|No Action",
-      "priority": "High|Medium|Low",
-      "reason": "Specific evidence-based reason",
-      "tacticalBenefit": "Specific benefit"
+      "rating": 100,
+      "action": "Skills Training",
+      "priority": "High",
+      "reason": "Tailored development for clinical finishing",
+      "tacticalBenefit": "Increases scoring efficiency in 1v1 situations"
     }
   ],
   "tacticalRecommendations": {
@@ -404,12 +375,12 @@ OUTPUT FORMAT: Strict JSON matching this schema:
 }
 `;
 
-    // Supported vision models according to @google/genai guidelines
+    // Supported vision models prioritizing Gemini 3.8 Flash for state-of-the-art vision & OCR
     const candidateModels = [
-      'gemini-3.1-flash-lite',
-      'gemini-flash-latest',
       'gemini-3.8-flash',
-      'gemini-3.1-pro-preview'
+      'gemini-3.1-pro-preview',
+      'gemini-flash-latest',
+      'gemini-3.1-flash-lite'
     ];
 
     let response: any = null;
@@ -423,8 +394,8 @@ OUTPUT FORMAT: Strict JSON matching this schema:
           
           const contentsArray: any[] = [
             {
-              text: `Analyze these ${images.length} eFootball screenshots.
-IMPORTANT: Note that player cards often DO NOT have text names! Detect card regions, isolate face portraits, extract ratings and positions, and match candidates using multi-signal evidence.
+              text: `Analyze these ${images.length} eFootball screenshots with precision.
+Extract every player in the squad (both Starting XI and Bench/Substitutes). Read visible player names, positions, ratings, and identify player faces accurately.
 User Preferred Playstyle: ${preferredPlaystyle}
 User Preferred Formation: ${preferredFormation}
 User Tactical Note: ${payload.tacticalPreference || 'None'}
@@ -461,7 +432,6 @@ Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach c
         } catch (err: any) {
           lastError = err;
           const errMsg = err?.message || String(err);
-          // Only retry on temporary 503 errors, not on hard quota limits (429/RESOURCE_EXHAUSTED)
           const isRetryable = errMsg.includes('503') || errMsg.includes('UNAVAILABLE') || errMsg.includes('high demand');
           
           console.warn(`Vision model ${modelName} attempt ${attempt} warning:`, errMsg);
@@ -471,7 +441,7 @@ Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach c
             await new Promise((res) => setTimeout(res, 1500));
             continue;
           }
-          break; // Move to next candidate model if non-temporary error or max attempts reached
+          break;
         }
       }
 
@@ -505,7 +475,7 @@ Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach c
 
 export const performSquadAnalysis = runMultiStageSquadPipeline;
 
-// Post-Processing: Database Cross-Check, Deduplication, Confidence Scoring & Quality Calculation
+// Post-Processing: Accurate Name Preservation, Database Cross-Check, Deduplication & Quality Calculation
 export async function postProcessAndVerifySquad(
   parsed: any, 
   payload: AnalyzeSquadPayload,
@@ -514,7 +484,7 @@ export async function postProcessAndVerifySquad(
   const id = 'analysis_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
   const now = new Date().toISOString();
 
-  // 1. Process Raw Extracted Players with Multi-Signal Database Matching & Image Cropping
+  // 1. Process Raw Extracted Players with High-Accuracy Identity Matching & Image Cropping
   const rawList = Array.isArray(parsed.extractedPlayers) ? parsed.extractedPlayers : [];
   const processedPlayers: PlayerData[] = [];
   const seenPlayerKeys = new Set<string>();
@@ -526,7 +496,7 @@ export async function postProcessAndVerifySquad(
     const cardArea = raw.cardArea === 'substitute' || raw.cardArea === 'reserve' ? raw.cardArea : 'starting_xi';
     const isBench = cardArea !== 'starting_xi';
 
-    // Multi-Signal visual candidate matching (Requirement 6)
+    // Multi-Signal visual candidate matching
     const visualInput = {
       position,
       rating,
@@ -557,7 +527,7 @@ export async function postProcessAndVerifySquad(
       selectionReason: c.selectionReason
     }));
 
-    // Generate Card Thumbnail crop using sharp (Stage 3 Requirement)
+    // Generate Card Thumbnail crop using sharp
     let croppedCardImage: string | undefined = undefined;
     const region = raw.detectedRegion || { ymin: 100, xmin: 100, ymax: 300, xmax: 300 };
     const srcImgIdx = (Array.isArray(raw.sourceScreenshots) && raw.sourceScreenshots[0]) ? (raw.sourceScreenshots[0] - 1) : 0;
@@ -565,36 +535,64 @@ export async function postProcessAndVerifySquad(
       croppedCardImage = await cropCardImage(imageBuffers[srcImgIdx], region);
     }
 
-    // Determine Final Identity & Verification Status
-    let finalName = raw.detectedName || (topCandidate ? topCandidate.player.commonName : '');
+    // Determine Final Identity: PRESERVE EXACT DETECTED PLAYER NAME
+    const rawDetectedName = (raw.detectedName || raw.readableText || raw.faceMatchCandidate || '').trim();
+    
+    // Check if the detected name matches an entry or alias in our master player database
+    let matchedMasterPlayer: any = null;
+    if (rawDetectedName) {
+      const cleanDetect = normalizeString(rawDetectedName);
+      matchedMasterPlayer = EFOOTBALL_MASTER_PLAYERS.find(
+        p => normalizeString(p.commonName) === cleanDetect ||
+             normalizeString(p.fullName) === cleanDetect ||
+             p.aliases.some(a => normalizeString(a) === cleanDetect || cleanDetect.includes(normalizeString(a)) || normalizeString(a).includes(cleanDetect))
+      );
+    }
+
+    let finalName = '';
     let identityStatus: 'confirmed' | 'probable' | 'uncertain' | 'unidentified' = 'probable';
-    let confidenceLevel: 'VERIFIED' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNVERIFIED' = 'MEDIUM';
-    let status: 'verified' | 'high_confidence' | 'needs_confirmation' | 'unverified' = 'needs_confirmation';
-    let confidenceScore = typeof raw.confidenceScore === 'number' ? raw.confidenceScore : (topCandidate?.confidence || 75);
+    let confidenceLevel: 'VERIFIED' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNVERIFIED' = 'HIGH';
+    let status: 'verified' | 'high_confidence' | 'needs_confirmation' | 'unverified' = 'high_confidence';
+    let confidenceScore = typeof raw.confidenceScore === 'number' ? raw.confidenceScore : 88;
     const evidenceList: string[] = Array.isArray(raw.evidence) ? [...raw.evidence] : [];
 
-    if (topCandidate && topCandidate.confidence >= 88) {
+    const isRecognizedName = rawDetectedName && 
+      !rawDetectedName.toLowerCase().includes('unidentified') && 
+      !rawDetectedName.toLowerCase().startsWith('player') &&
+      rawDetectedName.length > 1;
+
+    if (isRecognizedName) {
+      // Use the accurately extracted player name (or formatted commonName if known master player)
+      finalName = matchedMasterPlayer ? matchedMasterPlayer.commonName : rawDetectedName;
+      confidenceScore = Math.max(confidenceScore, 90);
+      identityStatus = confidenceScore >= 92 ? 'confirmed' : 'probable';
+      confidenceLevel = confidenceScore >= 92 ? 'VERIFIED' : 'HIGH';
+      status = confidenceScore >= 92 ? 'verified' : 'high_confidence';
+      evidenceList.push(`Extracted from screenshot: '${finalName}' (${position} · ${rating} OVR)`);
+      if (raw.cardType) evidenceList.push(`Card Edition: ${raw.cardType}`);
+      if (raw.club) evidenceList.push(`Club: ${raw.club}`);
+      if (raw.nationality) evidenceList.push(`Nationality: ${raw.nationality}`);
+    } else if (topCandidate && topCandidate.confidence >= 85) {
       finalName = topCandidate.player.commonName;
-      confidenceScore = Math.max(confidenceScore, topCandidate.confidence);
-      identityStatus = confidenceScore >= 94 ? 'confirmed' : 'probable';
-      confidenceLevel = confidenceScore >= 94 ? 'VERIFIED' : 'HIGH';
-      status = confidenceScore >= 94 ? 'verified' : 'high_confidence';
-      evidenceList.push(`Verified via multi-signal match: ${topCandidate.player.fullName} (${topCandidate.selectionReason})`);
-    } else if (topCandidate && topCandidate.confidence >= 65) {
+      confidenceScore = topCandidate.confidence;
+      identityStatus = confidenceScore >= 90 ? 'confirmed' : 'probable';
+      confidenceLevel = confidenceScore >= 90 ? 'VERIFIED' : 'HIGH';
+      status = confidenceScore >= 90 ? 'verified' : 'high_confidence';
+      evidenceList.push(`Matched via database signals: ${topCandidate.player.fullName} (${topCandidate.selectionReason})`);
+    } else if (topCandidate && topCandidate.confidence >= 60) {
       finalName = topCandidate.player.commonName;
       confidenceScore = topCandidate.confidence;
       identityStatus = 'uncertain';
       confidenceLevel = 'MEDIUM';
       status = 'needs_confirmation';
-      evidenceList.push(`Potential candidate: ${topCandidate.player.commonName} (${topCandidate.confidence}% match). Requires user review.`);
+      evidenceList.push(`Candidate match: ${topCandidate.player.fullName} (${topCandidate.selectionReason}). Please confirm.`);
     } else {
-      // Unidentified card without enough evidence
       finalName = `Unidentified Player (${position})`;
       identityStatus = 'unidentified';
       confidenceLevel = 'UNVERIFIED';
       status = 'unverified';
-      confidenceScore = Math.min(confidenceScore, 35);
-      evidenceList.push('Insufficient visual evidence (rating or face likeness ambiguous).');
+      confidenceScore = 40;
+      evidenceList.push('Card was not fully legible. Please review or confirm player name.');
     }
 
     // Deduplication check: check if player already exists in list

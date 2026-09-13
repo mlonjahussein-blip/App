@@ -981,6 +981,390 @@ var EFOOTBALL_MASTER_PLAYERS = [
     skills: ["GK Low Punt", "Penalty Saver", "Fighting Spirit", "Captaincy"]
   },
   {
+    id: "saka_b",
+    fullName: "Bukayo Saka",
+    commonName: "B. Saka",
+    aliases: ["B. SAKA", "SAKA", "BUKAYO SAKA", "B SAKA"],
+    primaryPosition: "RWF",
+    secondaryPositions: ["LWF", "RM", "LM"],
+    baseRating: 89,
+    maxRating: 99,
+    playstyle: "Roaming Flank",
+    club: "Arsenal",
+    nationality: "England",
+    cardType: "Show Time",
+    keyAttributes: { Speed: 95, Acceleration: 96, Dribbling: 95, Balance: 94, Finishing: 89 },
+    skills: ["Double Touch", "Long Range Curler", "First-time Shot", "Pinpoint Crossing", "Through Passing"]
+  },
+  {
+    id: "foden_p",
+    fullName: "Phil Foden",
+    commonName: "P. Foden",
+    aliases: ["P. FODEN", "FODEN", "PHIL FODEN", "P FODEN"],
+    primaryPosition: "AMF",
+    secondaryPositions: ["RWF", "LWF", "CMF", "SS"],
+    baseRating: 89,
+    maxRating: 99,
+    playstyle: "Creative Playmaker",
+    club: "Manchester City",
+    nationality: "England",
+    cardType: "Show Time",
+    keyAttributes: { Dribbling: 96, TightPossession: 97, Balance: 96, LowPass: 92, Finishing: 90 },
+    skills: ["Double Touch", "Sole Control", "First-time Shot", "Long Range Curler", "Through Passing"]
+  },
+  {
+    id: "palmer_c",
+    fullName: "Cole Palmer",
+    commonName: "C. Palmer",
+    aliases: ["C. PALMER", "PALMER", "COLE PALMER", "C PALMER"],
+    primaryPosition: "AMF",
+    secondaryPositions: ["RWF", "SS", "CMF"],
+    baseRating: 89,
+    maxRating: 99,
+    playstyle: "Hole Player",
+    club: "Chelsea",
+    nationality: "England",
+    cardType: "Show Time",
+    keyAttributes: { Finishing: 93, PlaceKicking: 92, LowPass: 92, TightPossession: 94, Curl: 91 },
+    skills: ["Sole Control", "Long Range Curler", "First-time Shot", "Through Passing", "Penalty Specialist"]
+  },
+  {
+    id: "martinez_l",
+    fullName: "Lautaro Mart\xEDnez",
+    commonName: "L. Mart\xEDnez",
+    aliases: ["L. MARTINEZ", "LAUTARO MARTINEZ", "LAUTARO", "L. MART\xCDNEZ", "LAUTARO MART\xCDNEZ"],
+    primaryPosition: "CF",
+    secondaryPositions: ["SS"],
+    baseRating: 89,
+    maxRating: 98,
+    playstyle: "Goal Poacher",
+    club: "Inter",
+    nationality: "Argentina",
+    cardType: "Highlight",
+    keyAttributes: { OffensiveAwareness: 96, Finishing: 95, PhysicalContact: 90, Heading: 89, Balance: 90 },
+    skills: ["First-time Shot", "Acrobatic Finishing", "Heading", "Fighting Spirit", "Sole Control"]
+  },
+  {
+    id: "osimhen_v",
+    fullName: "Victor Osimhen",
+    commonName: "V. Osimhen",
+    aliases: ["V. OSIMHEN", "OSIMHEN", "VICTOR OSIMHEN", "V OSIMHEN"],
+    primaryPosition: "CF",
+    secondaryPositions: [],
+    baseRating: 89,
+    maxRating: 98,
+    playstyle: "Goal Poacher",
+    club: "Galatasaray",
+    nationality: "Nigeria",
+    cardType: "Highlight",
+    keyAttributes: { Speed: 97, Acceleration: 94, Jumping: 96, Heading: 92, Finishing: 93 },
+    skills: ["Heading", "Acrobatic Finishing", "First-time Shot", "Fighting Spirit"]
+  },
+  {
+    id: "kvaratskhelia_k",
+    fullName: "Khvicha Kvaratskhelia",
+    commonName: "K. Kvaratskhelia",
+    aliases: ["KVARATSKHELIA", "K. KVARATSKHELIA", "KVARADONA"],
+    primaryPosition: "LWF",
+    secondaryPositions: ["AMF", "SS", "RWF"],
+    baseRating: 88,
+    maxRating: 98,
+    playstyle: "Prolific Winger",
+    club: "Napoli",
+    nationality: "Georgia",
+    cardType: "Highlight",
+    keyAttributes: { Dribbling: 96, Speed: 93, Acceleration: 94, Curl: 90, Finishing: 88 },
+    skills: ["Double Touch", "Flip Flap", "Sole Control", "Long Range Curler", "First-time Shot"]
+  },
+  {
+    id: "ronaldinho_g",
+    fullName: "Ronaldinho Ga\xFAcho",
+    commonName: "Ronaldinho",
+    aliases: ["RONALDINHO", "RONALDINHO GAUCHO", "RONALDINHO G.", "RONALDINHO GA\xDACHO"],
+    primaryPosition: "LWF",
+    secondaryPositions: ["AMF", "SS"],
+    baseRating: 93,
+    maxRating: 104,
+    playstyle: "Creative Playmaker",
+    club: "Epic Legends",
+    nationality: "Brazil",
+    cardType: "Epic",
+    keyAttributes: { Dribbling: 99, TightPossession: 99, Curl: 98, Balance: 96, LowPass: 94 },
+    skills: ["Flip Flap", "Double Touch", "Sole Control", "No Look Pass", "Long Range Curler", "Through Passing"]
+  },
+  {
+    id: "romario_f",
+    fullName: "Rom\xE1rio",
+    commonName: "Rom\xE1rio",
+    aliases: ["ROMARIO", "ROM\xC1RIO"],
+    primaryPosition: "CF",
+    secondaryPositions: ["SS"],
+    baseRating: 93,
+    maxRating: 103,
+    playstyle: "Fox in the Box",
+    club: "Epic Legends",
+    nationality: "Brazil",
+    cardType: "Epic",
+    keyAttributes: { OffensiveAwareness: 98, Finishing: 99, Acceleration: 96, Balance: 96, TightPossession: 95 },
+    skills: ["First-time Shot", "Sole Control", "Double Touch", "Outside Curler", "Acrobatic Finishing"]
+  },
+  {
+    id: "beckham_d",
+    fullName: "David Beckham",
+    commonName: "D. Beckham",
+    aliases: ["D. BECKHAM", "BECKHAM", "DAVID BECKHAM"],
+    primaryPosition: "RWF",
+    secondaryPositions: ["CMF", "AMF", "DMF"],
+    baseRating: 92,
+    maxRating: 103,
+    playstyle: "Cross Specialist",
+    club: "Epic Legends",
+    nationality: "England",
+    cardType: "Epic",
+    keyAttributes: { LoftedPass: 99, PlaceKicking: 99, Curl: 99, LowPass: 94, Stamina: 96 },
+    skills: ["Pinpoint Crossing", "Weighted Pass", "Long Range Shooting", "Through Passing", "Outside Curler"]
+  },
+  {
+    id: "barella_n",
+    fullName: "Nicol\xF2 Barella",
+    commonName: "N. Barella",
+    aliases: ["N. BARELLA", "BARELLA", "NICOLO BARELLA", "NICOL\xD2 BARELLA"],
+    primaryPosition: "CMF",
+    secondaryPositions: ["AMF", "DMF"],
+    baseRating: 89,
+    maxRating: 98,
+    playstyle: "Box-to-Box",
+    club: "Inter",
+    nationality: "Italy",
+    cardType: "Highlight",
+    keyAttributes: { Stamina: 98, Balance: 94, LowPass: 92, DefensiveAwareness: 86, Speed: 88 },
+    skills: ["One-touch Pass", "Through Passing", "Interception", "Fighting Spirit", "Double Touch"]
+  },
+  {
+    id: "camavinga_e",
+    fullName: "Eduardo Camavinga",
+    commonName: "E. Camavinga",
+    aliases: ["E. CAMAVINGA", "CAMAVINGA", "EDUARDO CAMAVINGA"],
+    primaryPosition: "CMF",
+    secondaryPositions: ["DMF", "LB"],
+    baseRating: 88,
+    maxRating: 98,
+    playstyle: "Box-to-Box",
+    club: "Real Madrid",
+    nationality: "France",
+    cardType: "Highlight",
+    keyAttributes: { Tackling: 92, PhysicalContact: 90, LowPass: 91, Speed: 88, Stamina: 94 },
+    skills: ["Interception", "One-touch Pass", "Double Touch", "Blocker", "Fighting Spirit"]
+  },
+  {
+    id: "tchouameni_a",
+    fullName: "Aur\xE9lien Tchouam\xE9ni",
+    commonName: "A. Tchouam\xE9ni",
+    aliases: ["A. TCHOUAMENI", "TCHOUAMENI", "AURELIEN TCHOUAMENI", "A. TCHOUAM\xC9NI", "TCHOUAM\xC9NI"],
+    primaryPosition: "DMF",
+    secondaryPositions: ["CMF", "CB"],
+    baseRating: 88,
+    maxRating: 98,
+    playstyle: "Anchor Man",
+    club: "Real Madrid",
+    nationality: "France",
+    cardType: "Highlight",
+    keyAttributes: { DefensiveAwareness: 94, Tackling: 95, PhysicalContact: 95, Interception: 96, LowPass: 89 },
+    skills: ["Interception", "Blocker", "Aerial Superiority", "Man Marking", "One-touch Pass"]
+  },
+  {
+    id: "bastoni_a",
+    fullName: "Alessandro Bastoni",
+    commonName: "A. Bastoni",
+    aliases: ["A. BASTONI", "BASTONI", "ALESSANDRO BASTONI"],
+    primaryPosition: "CB",
+    secondaryPositions: ["LB"],
+    baseRating: 89,
+    maxRating: 98,
+    playstyle: "Build Up",
+    club: "Inter",
+    nationality: "Italy",
+    cardType: "Show Time",
+    keyAttributes: { DefensiveAwareness: 96, Tackling: 96, LoftedPass: 92, LowPass: 90, PhysicalContact: 92 },
+    skills: ["Interception", "Man Marking", "Blocker", "Pinpoint Crossing", "Weighted Pass"]
+  },
+  {
+    id: "gabriel_m",
+    fullName: "Gabriel Magalh\xE3es",
+    commonName: "Gabriel",
+    aliases: ["GABRIEL", "GABRIEL MAGALHAES", "G. MAGALHAES", "GABRIEL MAGALH\xC3ES"],
+    primaryPosition: "CB",
+    secondaryPositions: [],
+    baseRating: 88,
+    maxRating: 97,
+    playstyle: "The Destroyer",
+    club: "Arsenal",
+    nationality: "Brazil",
+    cardType: "Highlight",
+    keyAttributes: { DefensiveAwareness: 96, PhysicalContact: 96, Heading: 94, Tackling: 95, Aggression: 96 },
+    skills: ["Aerial Superiority", "Man Marking", "Interception", "Blocker", "Heading"]
+  },
+  {
+    id: "dias_r",
+    fullName: "R\xFAben Dias",
+    commonName: "R. Dias",
+    aliases: ["R. DIAS", "RUBEN DIAS", "DIAS", "R\xDABEN DIAS"],
+    primaryPosition: "CB",
+    secondaryPositions: [],
+    baseRating: 89,
+    maxRating: 98,
+    playstyle: "The Destroyer",
+    club: "Manchester City",
+    nationality: "Portugal",
+    cardType: "Highlight",
+    keyAttributes: { DefensiveAwareness: 97, Tackling: 97, PhysicalContact: 96, Aggression: 95 },
+    skills: ["Man Marking", "Interception", "Blocker", "Aerial Superiority", "Captaincy"]
+  },
+  {
+    id: "gvardiol_j",
+    fullName: "Jo\u0161ko Gvardiol",
+    commonName: "J. Gvardiol",
+    aliases: ["J. GVARDIOL", "GVARDIOL", "JOSKO GVARDIOL", "JO\u0160KO GVARDIOL"],
+    primaryPosition: "LB",
+    secondaryPositions: ["CB"],
+    baseRating: 88,
+    maxRating: 98,
+    playstyle: "Extra Frontman",
+    club: "Manchester City",
+    nationality: "Croatia",
+    cardType: "Highlight",
+    keyAttributes: { DefensiveAwareness: 94, Tackling: 95, Speed: 90, PhysicalContact: 93, LowPass: 88 },
+    skills: ["Interception", "Man Marking", "Blocker", "Acrobatic Clearance"]
+  },
+  {
+    id: "dimarco_f",
+    fullName: "Federico Dimarco",
+    commonName: "F. Dimarco",
+    aliases: ["F. DIMARCO", "DIMARCO", "FEDERICO DIMARCO"],
+    primaryPosition: "LB",
+    secondaryPositions: ["LMF", "CB"],
+    baseRating: 88,
+    maxRating: 97,
+    playstyle: "Cross Specialist",
+    club: "Inter",
+    nationality: "Italy",
+    cardType: "Highlight",
+    keyAttributes: { LoftedPass: 96, PinpointCrossing: 97, Curl: 94, Speed: 88, KickingPower: 92 },
+    skills: ["Pinpoint Crossing", "Long Range Curler", "Weighted Pass", "One-touch Pass"]
+  },
+  {
+    id: "frimpong_j",
+    fullName: "Jeremie Frimpong",
+    commonName: "J. Frimpong",
+    aliases: ["J. FRIMPONG", "FRIMPONG", "JEREMIE FRIMPONG"],
+    primaryPosition: "RB",
+    secondaryPositions: ["RMF", "RWF"],
+    baseRating: 88,
+    maxRating: 98,
+    playstyle: "Offensive Fullback",
+    club: "Bayer Leverkusen",
+    nationality: "Netherlands",
+    cardType: "Highlight",
+    keyAttributes: { Speed: 99, Acceleration: 99, Dribbling: 92, Balance: 95, Stamina: 94 },
+    skills: ["Double Touch", "Sole Control", "Pinpoint Crossing", "Fighting Spirit"]
+  },
+  {
+    id: "alexanderarnold_t",
+    fullName: "Trent Alexander-Arnold",
+    commonName: "T. Alexander-Arnold",
+    aliases: ["T. ALEXANDER-ARNOLD", "ALEXANDER-ARNOLD", "TRENT", "TRENT ALEXANDER-ARNOLD", "TAA"],
+    primaryPosition: "RB",
+    secondaryPositions: ["RMF", "CMF", "DMF"],
+    baseRating: 89,
+    maxRating: 98,
+    playstyle: "Cross Specialist",
+    club: "Liverpool",
+    nationality: "England",
+    cardType: "Show Time",
+    keyAttributes: { LoftedPass: 99, PinpointCrossing: 99, PlaceKicking: 95, Curl: 94, LowPass: 93 },
+    skills: ["Pinpoint Crossing", "Weighted Pass", "Low Lofted Pass", "Outside Curler", "Through Passing"]
+  },
+  {
+    id: "donnarumma_g",
+    fullName: "Gianluigi Donnarumma",
+    commonName: "G. Donnarumma",
+    aliases: ["G. DONNARUMMA", "DONNARUMMA", "GIANLUIGI DONNARUMMA"],
+    primaryPosition: "GK",
+    secondaryPositions: [],
+    baseRating: 89,
+    maxRating: 98,
+    playstyle: "Defensive Goalkeeper",
+    club: "Paris Saint-Germain",
+    nationality: "Italy",
+    cardType: "Highlight",
+    keyAttributes: { GKReach: 99, GKReflexes: 98, GKAwareness: 96, GKParrying: 95 },
+    skills: ["GK Low Punt", "Penalty Saver"]
+  },
+  {
+    id: "maignan_m",
+    fullName: "Mike Maignan",
+    commonName: "M. Maignan",
+    aliases: ["M. MAIGNAN", "MAIGNAN", "MIKE MAIGNAN"],
+    primaryPosition: "GK",
+    secondaryPositions: [],
+    baseRating: 89,
+    maxRating: 98,
+    playstyle: "Offensive Goalkeeper",
+    club: "AC Milan",
+    nationality: "France",
+    cardType: "Highlight",
+    keyAttributes: { GKReflexes: 97, GKReach: 96, GKAwareness: 96, GKCatching: 94 },
+    skills: ["GK Low Punt", "Penalty Saver", "GK High Punt"]
+  },
+  {
+    id: "ederson_m",
+    fullName: "Ederson",
+    commonName: "Ederson",
+    aliases: ["EDERSON", "EDERSON MORAES", "E. MORAES"],
+    primaryPosition: "GK",
+    secondaryPositions: [],
+    baseRating: 89,
+    maxRating: 98,
+    playstyle: "Offensive Goalkeeper",
+    club: "Manchester City",
+    nationality: "Brazil",
+    cardType: "Highlight",
+    keyAttributes: { LowPass: 88, LoftedPass: 92, KickingPower: 96, GKReflexes: 96, GKReach: 95 },
+    skills: ["GK Low Punt", "Weighted Pass", "Low Lofted Pass"]
+  },
+  {
+    id: "neuer_m",
+    fullName: "Manuel Neuer",
+    commonName: "M. Neuer",
+    aliases: ["M. NEUER", "NEUER", "MANUEL NEUER"],
+    primaryPosition: "GK",
+    secondaryPositions: [],
+    baseRating: 89,
+    maxRating: 98,
+    playstyle: "Offensive Goalkeeper",
+    club: "Bayern M\xFCnchen",
+    nationality: "Germany",
+    cardType: "Highlight",
+    keyAttributes: { GKReflexes: 97, GKReach: 96, GKAwareness: 97, GKCatching: 94 },
+    skills: ["GK Low Punt", "GK High Punt", "Penalty Saver"]
+  },
+  {
+    id: "terstegen_m",
+    fullName: "Marc-Andr\xE9 ter Stegen",
+    commonName: "M. ter Stegen",
+    aliases: ["TER STEGEN", "M. TER STEGEN", "MARC-ANDRE TER STEGEN", "MARC-ANDR\xC9 TER STEGEN"],
+    primaryPosition: "GK",
+    secondaryPositions: [],
+    baseRating: 89,
+    maxRating: 98,
+    playstyle: "Offensive Goalkeeper",
+    club: "FC Barcelona",
+    nationality: "Germany",
+    cardType: "Highlight",
+    keyAttributes: { GKReflexes: 98, GKReach: 96, GKAwareness: 96, GKParrying: 95 },
+    skills: ["GK Low Punt", "Penalty Saver"]
+  },
+  {
     id: "alisson_b",
     fullName: "Alisson Becker",
     commonName: "Alisson",
@@ -1386,7 +1770,7 @@ async function runMultiStageSquadPipeline(payload) {
       try {
         const sharpInstance = await getSharpInstance();
         if (sharpInstance) {
-          const resizedBuffer = await sharpInstance(buffer).resize({ width: 1024, height: 1024, fit: "inside" }).jpeg({ quality: 80 }).toBuffer();
+          const resizedBuffer = await sharpInstance(buffer).resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 90 }).toBuffer();
           buffer = resizedBuffer;
           base64Data = resizedBuffer.toString("base64");
         }
@@ -1421,65 +1805,40 @@ User Linked-Up Play Style Active:
 - Combination Style: ${payload.linkUpPlay.linkPattern || "1-2 Pass & Go"}
 - Coach Link-Up Note: ${payload.linkUpPlay.coachInstructionNote || "Custom link-up pattern"}
 Include specialized link-up execution advice in tactical recommendations.` : "";
-    const verificationSystemPrompt = `You are the world's most sophisticated eFootball Card Recognition and Squad Tactical Engine.
-CRITICAL ARCHITECTURAL REALITY:
-eFootball squad and formation screens frequently display 20+ compact player cards WITHOUT player names!
-Players only have:
-1. Card Face Portrait (visual likeness of real football player or eFootball render)
-2. Position label (e.g. CF, SS, LWF, RWF, AMF, CMF, DMF, LB, CB, RB, GK)
-3. Overall Rating number (e.g. 102, 101, 100, 99, 98, 97, 96, 95...)
-4. Card Theme / Foil styling (Epic green/gold, Show Time blue/glow, Highlight, POTW, Standard)
-5. Nationality flag icon or Club badge (if visible)
-6. Spatial role (Starting XI on pitch vs Substitutes vs Reserves)
+    const verificationSystemPrompt = `You are the world's leading eFootball Card Recognition and Tactical Intelligence Engine.
+Your primary mission is to examine eFootball squad screenshots with absolute accuracy and identify EVERY player present in the squad.
 
-DO NOT ATTEMPT TO GUESS ALL PLAYERS SOLELY BY INVENTING NAMES!
-Follow this strict 6-stage pipeline:
+CRITICAL EXTRACTION DIRECTIVES:
+1. READ VISIBLE TEXT & IN-GAME NAMES:
+   - Carefully examine the screen for in-game player names printed below/above player cards, inside player slot labels, across the formation pitch, in player lists, or on the card art.
+   - Examples of in-game names: "K. MBAPP\xC9", "L. MESSI", "E. HAALAND", "RODRI", "V. VAN DIJK", "B. SAKA", "J. BELLINGHAM", "F. VALVERDE", "PEDRI", "GAVI", "W. SALIBA", "R. DIAS", "THEO HERN\xC1NDEZ", "ALISSON", "A. BASTONI", "F. WIRTZ", "J. MUSIALA", "L. YAMAL", "C. PALMER", "K. DE BRUYNE", "M. SALAH", "H. KANE", "N. BARELLA", "L. MART\xCDNEZ", "V. OSIMHEN", "K. COMAN", "A. DAVIES", "J. KIMMICH", "T. ALEXANDER-ARNOLD", "E. CAMAVINGA", "A. TCHOUAM\xC9NI", "G. DONNARUMMA", "M. MAIGNAN", "T. COURTOIS", "M. TER STEGEN", etc.
+   - Also identify Epic/Booster/Show Time/Legend players accurately: "L. SU\xC1REZ", "J. CRUIJFF", "K. RUMMENIGGE", "A. SHEVCHENKO", "P. VIEIRA", "R. GULLIT", "P. MALDINI", "A. NESTA", "CAFU", "ROBERTO CARLOS", "RONALDINHO", "ROM\xC1RIO", "D. BECKHAM", "F. RIJKAARD", "P. NEDV\u011AD", "A. INIESTA", "XAVI", "P. SCHOLES", "S. GERRARD", "F. LAMPARD", "D. DROGBA", "F. TORRES", "C. PUYOL", "I. CASILLAS", "O. KAHN", "P. SCHMEICHEL", "P. CECH", etc.
 
-STAGE 1: SCREENSHOT CLASSIFICATION
-Classify each image:
-- "squad_overview" (Formation pitch screen with starting XI cards & bench)
-- "player_list" (Scrollable list of squad members)
-- "player_details" (Individual player stats/skills sheet)
-- "coach_screen" (Manager and playstyle stats)
+2. MULTI-SIGNAL CARD RECOGNITION:
+   - Position: Read the exact position code (CF, SS, LWF, RWF, AMF, CMF, DMF, LB, CB, RB, GK).
+   - Overall Rating: Read the exact rating number displayed on the card (e.g. 104, 103, 102, 101, 100, 99, 98, 97, 96, 95, etc.).
+   - Card Edition: "Epic", "Big Time", "Show Time", "Highlight", "POTW", "Club Selection", "Standard", "Legendary".
+   - Facial Likeness & Jersey: Identify the footballer's facial portrait, hair style, club jersey, and country flag.
+   - Spatial Grouping: Separate Starting XI (the 11 players situated on the pitch formation layout) from Substitutes / Bench (the bench list or bottom row of cards).
 
-STAGE 2: PRECISE CARD REGION DETECTION
-Detect the bounding box for EVERY visible player card:
-- "ymin", "xmin", "ymax", "xmax" on a 0-1000 scale.
-- Specify "cardArea": "starting_xi" | "substitute" | "reserve"
-- Specify pitch coordinates if in Starting XI: "pitchX" (0-100, left to right), "pitchY" (0-100, 10=CF/attack, 90=GK)
+3. COACH / MANAGER IDENTIFICATION:
+   - Identify the Manager/Coach name (e.g. "G. Zeitzler / J\xFCrgen Klopp", "L. Roman / Pep Guardiola", "M. Caputto / Mikel Arteta", "C. Ancelotti", "E. Ten Hag", "D. Deschamps", "L. Scaloni", etc.) and playstyle proficiency (Quick Counter, Possession Game, Long Ball Counter, Out Wide, Long Ball).
 
-STAGE 3: MULTI-SIGNAL CARD EVIDENCE EXTRACTION
-For each card, extract ALL visible signals separately:
-1. "visiblePosition": Exact position label (CF, SS, LWF, RWF, AMF, CMF, DMF, LB, CB, RB, GK)
-2. "visibleRating": Number on card (e.g. 101, 99, 97)
-3. "cardType": "Epic" | "Show Time" | "Highlight" | "POTW" | "Standard" | "Legendary"
-4. "faceDescription": Visual description of player portrait (e.g. "Dark hair, light stubble, intense gaze resembling Luis Su\xE1rez", "Blonde hair flowing Johan Cruyff", "High cheekbones, cropped hair Kylian Mbapp\xE9")
-5. "faceMatchCandidate": Name of the player the face resembles most closely (e.g. "Luis Su\xE1rez", "Johan Cruyff", "K. Mbapp\xE9", "Rodri", "V. van Dijk")
-6. "faceSimilarity": Estimated visual face resemblance score between 0.0 and 1.0
-7. "readableText": Any text visible on card (leave empty "" if no name is shown)
-8. "nationality": Flag name if identifiable
-9. "club": Club badge if identifiable
+4. PRECISION & COMPLETENESS:
+   - Do not hallucinate or randomly invent players not shown in the image.
+   - Accurately report what is present on the screen.
+   - Assign confidenceScore (0-100) based on clarity of text, face, position, and rating.
 
-STAGE 4: CROSS-VERIFICATION & CONTRADICTION RULE
-- NEVER identify a player from face alone if position and rating strongly contradict!
-- Example: If a card looks like Cruyff (SS/AMF 102) but is placed at CB with rating 88 and an African flag, REJECT Cruyff.
-- If evidence is ambiguous, assign:
-  "confidenceLevel": "LOW" | "MEDIUM" | "HIGH" | "VERIFIED"
-  "status": "needs_confirmation" | "high_confidence" | "verified"
-
-STAGE 5: COMPLETE TACTICAL SYNTHESIS
-- Synthesize squad ratings, strengths, weaknesses, best XI, coach recommendation, individual instructions, and development plan.
-
-OUTPUT FORMAT: Strict JSON matching this schema:
+OUTPUT FORMAT: Return STRICT JSON matching this schema:
 {
   "screenshotMetadata": [
     {
       "index": 1,
-      "layoutType": "squad_overview|player_list|player_details|player_card|formation_screen|coach_screen|unknown",
-      "readability": "Good|Fair|Poor",
+      "layoutType": "squad_overview",
+      "readability": "Good",
       "detectedPlayersCount": 18,
       "hasCoach": true,
-      "warningNote": "No names displayed on cards in overview; identification executed via face likeness, rating, and position."
+      "warningNote": ""
     }
   ],
   "extractedPlayers": [
@@ -1489,68 +1848,66 @@ OUTPUT FORMAT: Strict JSON matching this schema:
       "visiblePosition": "CF",
       "visibleRating": 102,
       "cardType": "Epic",
-      "faceDescription": "Uruguayan striker with dark hair, facial beard stubble, characteristic jawline",
-      "faceMatchCandidate": "Luis Su\xE1rez",
-      "faceSimilarity": 0.95,
-      "readableText": "",
-      "nationality": "Uruguay",
-      "club": "Inter Miami",
-      "detectedName": "L. Su\xE1rez",
+      "faceDescription": "Iconic striker portrait with sharp facial features and team kit",
+      "faceMatchCandidate": "Kylian Mbapp\xE9",
+      "faceSimilarity": 0.96,
+      "readableText": "K. MBAPP\xC9",
+      "nationality": "France",
+      "club": "Real Madrid",
+      "detectedName": "K. Mbapp\xE9",
       "confidenceLevel": "VERIFIED",
       "status": "verified",
-      "confidenceScore": 96,
+      "confidenceScore": 98,
       "sourceScreenshots": [1],
       "evidence": [
-        "Card portrait clearly matches Luis Su\xE1rez iconic Epic pose",
-        "Position is CF in central attacking spearhead",
-        "Rating 102 aligns with Epic Booster card"
+        "In-game name text 'K. MBAPP\xC9' clearly legible",
+        "Position CF with 102 rating",
+        "Card portrait matches player"
       ],
       "needsUserConfirmation": false
     }
   ],
   "coach": {
-    "name": "Manager Name",
-    "rating": 88,
+    "name": "J\xFCrgen Klopp (G. Zeitzler)",
+    "rating": 89,
     "tacticalStyle": "${preferredPlaystyle}",
-    "isIdentifiedFromScreenshot": false,
-    "confidenceScore": 85,
-    "evidence": ["Identified from Screenshot #1 manager banner"],
-    "explanation": "Playstyle affinity for squad"
+    "isIdentifiedFromScreenshot": true,
+    "confidenceScore": 92,
+    "evidence": ["Identified from Manager banner in screenshot"],
+    "explanation": "Provides maximum Quick Counter playstyle proficiency boost."
   },
   "facts": [
-    "Detected 18 player card regions without on-card name text",
-    "Luis Su\xE1rez verified at CF via 102 rating and facial portrait",
-    "Johan Cruyff verified at SS via iconic portrait and 103 rating"
+    "Extracted starting XI and bench players from squad screenshot",
+    "High confidence across verified player cards"
   ],
   "inferences": [
-    "Squad possesses lethal counter-attacking efficiency with dual elite Goal Poachers",
-    "High rating density in the forward line requires disciplined defensive mid protection"
+    "Squad formation and player attributes align strongly with ${preferredPlaystyle}"
   ],
   "recommendedFormation": "4-2-1-3",
   "alternativeFormation": "4-3-1-2",
-  "formationExplanation": "Why this formation fits the actual verified players",
+  "formationExplanation": "Optimized tactical layout maximizing the strengths of the verified squad.",
   "squadRatings": {
-    "overall": 88,
+    "overall": 90,
     "attack": 92,
-    "midfield": 86,
-    "defence": 85,
-    "goalkeeping": 87,
-    "balance": 88,
-    "depth": 84,
-    "tacticalSuitability": 89,
-    "ratingsRationale": "Computed from multi-signal verified starting XI and bench depth."
+    "midfield": 89,
+    "defence": 88,
+    "goalkeeping": 89,
+    "balance": 90,
+    "depth": 87,
+    "tacticalSuitability": 91,
+    "ratingsRationale": "Computed from verified player ratings and positional cohesion."
   },
-  "strengths": ["...", "..."],
-  "weaknesses": ["...", "..."],
+  "strengths": ["Dynamic attacking threat with high finishing attributes", "Balanced double pivot controlling defensive transitions"],
+  "weaknesses": ["Ensure stamina rotation for wide forwards in the final 20 minutes"],
   "bestXI": [
     {
-      "name": "L. Su\xE1rez",
+      "name": "Player Name",
       "position": "CF",
-      "rating": 102,
+      "rating": 100,
       "playstyle": "Goal Poacher",
       "pitchX": 50,
       "pitchY": 20,
-      "selectionReason": "Verified CF with elite 102 rating and clinical finishing"
+      "selectionReason": "Starting CF spearhead"
     }
   ],
   "individualInstructions": [
@@ -1558,7 +1915,7 @@ OUTPUT FORMAT: Strict JSON matching this schema:
       "player": "Player Name",
       "position": "DMF",
       "instruction": "Deep Line",
-      "why": "Specific tactical reason",
+      "why": "Protects space between center backs during counter-attacks",
       "category": "Defence"
     }
   ],
@@ -1566,11 +1923,11 @@ OUTPUT FORMAT: Strict JSON matching this schema:
     {
       "player": "Player Name",
       "position": "CF",
-      "rating": 102,
-      "action": "Skills Training|Player Progression Training|Level Training|Position Training|No Action",
-      "priority": "High|Medium|Low",
-      "reason": "Specific evidence-based reason",
-      "tacticalBenefit": "Specific benefit"
+      "rating": 100,
+      "action": "Skills Training",
+      "priority": "High",
+      "reason": "Tailored development for clinical finishing",
+      "tacticalBenefit": "Increases scoring efficiency in 1v1 situations"
     }
   ],
   "tacticalRecommendations": {
@@ -1584,10 +1941,10 @@ OUTPUT FORMAT: Strict JSON matching this schema:
 }
 `;
     const candidateModels = [
-      "gemini-3.1-flash-lite",
-      "gemini-flash-latest",
       "gemini-3.8-flash",
-      "gemini-3.1-pro-preview"
+      "gemini-3.1-pro-preview",
+      "gemini-flash-latest",
+      "gemini-3.1-flash-lite"
     ];
     let response = null;
     let lastError = null;
@@ -1597,8 +1954,8 @@ OUTPUT FORMAT: Strict JSON matching this schema:
           console.log("GEMINI_REQUEST_STARTED", { model: modelName, attempt });
           const contentsArray = [
             {
-              text: `Analyze these ${images.length} eFootball screenshots.
-IMPORTANT: Note that player cards often DO NOT have text names! Detect card regions, isolate face portraits, extract ratings and positions, and match candidates using multi-signal evidence.
+              text: `Analyze these ${images.length} eFootball screenshots with precision.
+Extract every player in the squad (both Starting XI and Bench/Substitutes). Read visible player names, positions, ratings, and identify player faces accurately.
 User Preferred Playstyle: ${preferredPlaystyle}
 User Preferred Formation: ${preferredFormation}
 User Tactical Note: ${payload.tacticalPreference || "None"}
@@ -1710,33 +2067,52 @@ async function postProcessAndVerifySquad(parsed, payload, imageBuffers) {
     if (imageBuffers && imageBuffers[srcImgIdx]) {
       croppedCardImage = await cropCardImage(imageBuffers[srcImgIdx], region);
     }
-    let finalName = raw.detectedName || (topCandidate ? topCandidate.player.commonName : "");
+    const rawDetectedName = (raw.detectedName || raw.readableText || raw.faceMatchCandidate || "").trim();
+    let matchedMasterPlayer = null;
+    if (rawDetectedName) {
+      const cleanDetect = normalizeString(rawDetectedName);
+      matchedMasterPlayer = EFOOTBALL_MASTER_PLAYERS.find(
+        (p) => normalizeString(p.commonName) === cleanDetect || normalizeString(p.fullName) === cleanDetect || p.aliases.some((a) => normalizeString(a) === cleanDetect || cleanDetect.includes(normalizeString(a)) || normalizeString(a).includes(cleanDetect))
+      );
+    }
+    let finalName = "";
     let identityStatus = "probable";
-    let confidenceLevel = "MEDIUM";
-    let status = "needs_confirmation";
-    let confidenceScore = typeof raw.confidenceScore === "number" ? raw.confidenceScore : topCandidate?.confidence || 75;
+    let confidenceLevel = "HIGH";
+    let status = "high_confidence";
+    let confidenceScore = typeof raw.confidenceScore === "number" ? raw.confidenceScore : 88;
     const evidenceList = Array.isArray(raw.evidence) ? [...raw.evidence] : [];
-    if (topCandidate && topCandidate.confidence >= 88) {
+    const isRecognizedName = rawDetectedName && !rawDetectedName.toLowerCase().includes("unidentified") && !rawDetectedName.toLowerCase().startsWith("player") && rawDetectedName.length > 1;
+    if (isRecognizedName) {
+      finalName = matchedMasterPlayer ? matchedMasterPlayer.commonName : rawDetectedName;
+      confidenceScore = Math.max(confidenceScore, 90);
+      identityStatus = confidenceScore >= 92 ? "confirmed" : "probable";
+      confidenceLevel = confidenceScore >= 92 ? "VERIFIED" : "HIGH";
+      status = confidenceScore >= 92 ? "verified" : "high_confidence";
+      evidenceList.push(`Extracted from screenshot: '${finalName}' (${position} \xB7 ${rating} OVR)`);
+      if (raw.cardType) evidenceList.push(`Card Edition: ${raw.cardType}`);
+      if (raw.club) evidenceList.push(`Club: ${raw.club}`);
+      if (raw.nationality) evidenceList.push(`Nationality: ${raw.nationality}`);
+    } else if (topCandidate && topCandidate.confidence >= 85) {
       finalName = topCandidate.player.commonName;
-      confidenceScore = Math.max(confidenceScore, topCandidate.confidence);
-      identityStatus = confidenceScore >= 94 ? "confirmed" : "probable";
-      confidenceLevel = confidenceScore >= 94 ? "VERIFIED" : "HIGH";
-      status = confidenceScore >= 94 ? "verified" : "high_confidence";
-      evidenceList.push(`Verified via multi-signal match: ${topCandidate.player.fullName} (${topCandidate.selectionReason})`);
-    } else if (topCandidate && topCandidate.confidence >= 65) {
+      confidenceScore = topCandidate.confidence;
+      identityStatus = confidenceScore >= 90 ? "confirmed" : "probable";
+      confidenceLevel = confidenceScore >= 90 ? "VERIFIED" : "HIGH";
+      status = confidenceScore >= 90 ? "verified" : "high_confidence";
+      evidenceList.push(`Matched via database signals: ${topCandidate.player.fullName} (${topCandidate.selectionReason})`);
+    } else if (topCandidate && topCandidate.confidence >= 60) {
       finalName = topCandidate.player.commonName;
       confidenceScore = topCandidate.confidence;
       identityStatus = "uncertain";
       confidenceLevel = "MEDIUM";
       status = "needs_confirmation";
-      evidenceList.push(`Potential candidate: ${topCandidate.player.commonName} (${topCandidate.confidence}% match). Requires user review.`);
+      evidenceList.push(`Candidate match: ${topCandidate.player.fullName} (${topCandidate.selectionReason}). Please confirm.`);
     } else {
       finalName = `Unidentified Player (${position})`;
       identityStatus = "unidentified";
       confidenceLevel = "UNVERIFIED";
       status = "unverified";
-      confidenceScore = Math.min(confidenceScore, 35);
-      evidenceList.push("Insufficient visual evidence (rating or face likeness ambiguous).");
+      confidenceScore = 40;
+      evidenceList.push("Card was not fully legible. Please review or confirm player name.");
     }
     const playerKey = normalizeString(finalName);
     if (playerKey && seenPlayerKeys.has(playerKey) && !finalName.includes("Unidentified")) {

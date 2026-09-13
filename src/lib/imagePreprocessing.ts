@@ -398,8 +398,8 @@ export async function preprocessImage(
     throw new Error(`Image is too small (${origWidth} × ${origHeight} px). Please provide a clearer squad image.`);
   }
 
-  // 3. Determine target dimensions - keep crisp resolution for player cards while staying well within serverless payload limits
-  const MAX_DIMENSION = 1200;
+  // 3. Determine target dimensions - maintain crisp high resolution (up to 2560px) for small player names, ratings, and card faces
+  const MAX_DIMENSION = 2560;
   let targetWidth = origWidth;
   let targetHeight = origHeight;
 
@@ -413,7 +413,7 @@ export async function preprocessImage(
     }
   }
 
-  // 4. Render to canvas with high-quality smoothing & mild contrast normalization
+  // 4. Render to canvas with high-quality smoothing & crisp text preservation
   const canvas = document.createElement('canvas');
   canvas.width = targetWidth;
   canvas.height = targetHeight;
@@ -430,8 +430,8 @@ export async function preprocessImage(
   // 5. Quality check
   const quality = analyzeImageQuality(canvas, ctx, targetWidth, targetHeight);
 
-  // 6. Export high-fidelity JPEG data with balanced compression (under 200KB per full screen)
-  const base64Data = canvas.toDataURL('image/jpeg', 0.76);
+  // 6. Export high-fidelity JPEG data (quality 0.92) for accurate OCR and card face recognition
+  const base64Data = canvas.toDataURL('image/jpeg', 0.92);
   const previewUrl = URL.createObjectURL(workingBlob);
 
   return {
