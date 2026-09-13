@@ -436,18 +436,11 @@ app.get('/api/user/usage-status', (req, res) => {
 app.post('/api/analyze-squad', async (req, res) => {
   try {
     const payload: AnalyzeSquadPayload = req.body || {};
-    const hasImages = Array.isArray(payload.images) && payload.images.length > 0;
     const hasTyped = Array.isArray(payload.typedPlayers) && payload.typedPlayers.length > 0;
 
-    if (!hasImages && !hasTyped) {
+    if (!hasTyped) {
       return res.status(400).json({
-        error: 'Please upload squad screenshots or enter your squad players.'
-      });
-    }
-
-    if (hasImages && payload.images!.length > 5) {
-      return res.status(400).json({
-        error: 'Maximum 5 images allowed per analysis.'
+        error: 'Please enter your squad players before analyzing.'
       });
     }
 

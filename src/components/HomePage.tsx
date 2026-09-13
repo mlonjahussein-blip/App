@@ -2,15 +2,12 @@ import React from 'react';
 import { 
   Shield, 
   Sparkles, 
-  ArrowRight, 
   Target, 
   Activity, 
   Users, 
   Compass, 
   Award, 
-  BookOpen, 
-  Zap,
-  CheckCircle2
+  Zap
 } from 'lucide-react';
 
 interface HomePageProps {
@@ -30,7 +27,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
         <div className="relative max-w-3xl mx-auto space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-neutral-900 border border-emerald-500/30 text-emerald-400 text-xs sm:text-sm font-semibold shadow-inner">
             <Sparkles className="w-4 h-4" />
-            <span>Next-Gen eFootball Multimodal Tactical Intelligence</span>
+            <span>Next-Gen eFootball Tactical Intelligence & Squad Analyzer</span>
           </div>
 
           <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-[1.1]">
@@ -41,7 +38,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
           </h1>
 
           <p className="text-base sm:text-lg text-neutral-300 leading-relaxed font-normal max-w-2xl mx-auto">
-            Upload your squad, get personalized tactical advice, optimize your players and learn exactly how to use your setup through interactive 2D simulation.
+            Enter your squad players and manager details, get personalized tactical advice, optimize your players, and learn exactly how to use your setup through interactive 2D simulation.
           </p>
 
           {/* Primary & Secondary CTAs */}
@@ -49,15 +46,15 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
             <button
               id="hero-analyze-cta"
               onClick={onStartAnalysis}
-              className="w-full sm:w-auto px-8 py-4 rounded-xl text-base font-black bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5"
+              className="w-full sm:w-auto px-8 py-4 rounded-xl text-base font-black bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5 cursor-pointer"
             >
               <Sparkles className="w-5 h-5" />
-              Analyze My Squad
+              Enter Your Squad & Analyze
             </button>
             <button
               id="hero-community-cta"
               onClick={onExploreCommunity}
-              className="w-full sm:w-auto px-7 py-4 rounded-xl text-base font-semibold bg-neutral-900 hover:bg-neutral-800 text-white border border-neutral-700 flex items-center justify-center gap-2 transition-colors"
+              className="w-full sm:w-auto px-7 py-4 rounded-xl text-base font-semibold bg-neutral-900 hover:bg-neutral-800 text-white border border-neutral-700 flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
               <Users className="w-5 h-5 text-emerald-400" />
               Explore Community
@@ -70,14 +67,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
         </div>
       </section>
 
-      {/* Feature Cards Grid (Requested in Spec 4) */}
+      {/* Feature Cards Grid */}
       <section className="space-y-6">
         <div className="text-center max-w-xl mx-auto">
           <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             Engineered for Modern eFootball Competitors
           </h2>
           <p className="text-sm text-neutral-400 mt-2">
-            Comprehensive tools to evaluate cards, balance playstyles, and eliminate tactical blindspots.
+            Comprehensive tools to evaluate players, balance playstyles, and eliminate tactical blindspots.
           </p>
         </div>
 
@@ -89,7 +86,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
             </div>
             <h3 className="text-lg font-bold text-white mb-2">AI Squad Analysis</h3>
             <p className="text-xs text-neutral-400 leading-relaxed">
-              Multimodal Gemini recognition reads ratings, positions, playstyles and skills directly from up to 5 screenshots.
+              Advanced AI evaluates ratings, positions, playstyles and skills from your structured Starting XI and bench players.
             </p>
           </div>
 
@@ -129,7 +126,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
             </div>
             <h3 className="text-lg font-bold text-white mb-2">Coach Recommendation</h3>
             <p className="text-xs text-neutral-400 leading-relaxed">
-              Evaluates uploaded coach cards or suggests ideal managers like Guardiola or Klopp for maximum affinity.
+              Evaluates your manager profile or suggests ideal managers like Guardiola or Klopp for maximum affinity.
             </p>
           </div>
 
@@ -166,7 +163,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
         </div>
       </section>
 
-      {/* How it Works Step-by-Step (Requested in Spec 4) */}
+      {/* How it Works Step-by-Step */}
       <section className="bg-neutral-950 border border-neutral-800 rounded-3xl p-8 sm:p-12">
         <div className="text-center max-w-xl mx-auto mb-10">
           <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">Step-by-Step Workflow</span>
@@ -177,8 +174,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
 
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {[
-            { step: '1', title: 'Upload Screenshots', desc: 'Upload 1 to 5 screenshots of your squad, cards, or coach.' },
-            { step: '2', title: 'AI Identifies Players', desc: 'Multimodal vision recognizes ratings, positions & playstyles.' },
+            { step: '1', title: 'Enter Squad Players', desc: 'Add Starting XI, substitutes, and manager details manually.' },
+            { step: '2', title: 'AI Tactical Analysis', desc: 'Advanced AI processes ratings, positions & playstyles.' },
             { step: '3', title: 'Squad Evaluation', desc: 'Calculates overall balance, depth, and tactical strengths.' },
             { step: '4', title: 'Best XI & Tactics', desc: 'Receives custom individual instructions and formation advice.' },
             { step: '5', title: '2D Simulation', desc: 'Watch the tactics in motion and learn how to execute them.' },

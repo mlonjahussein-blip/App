@@ -1,35 +1,17 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
-  UploadCloud, 
-  Trash2, 
-  Image as ImageIcon, 
   Sparkles, 
   AlertCircle, 
   Info, 
-  Check, 
-  ShieldAlert,
-  ArrowRight,
-  Camera,
-  Monitor,
-  FileText,
-  AlertTriangle,
-  Eye,
-  X,
-  Maximize2,
-  Keyboard,
-  Layers,
-  Repeat,
-  Zap,
+  Keyboard, 
+  Zap, 
   Sliders,
-  Share2
+  X
 } from 'lucide-react';
-import { AnalysisResult, UploadedImageItem, ImageSourceType, TypedPlayerInput, ManagerInputDetails, FluidFormationSettings, LinkUpPlaySettings } from '../types.ts';
-import { CameraCaptureModal } from './CameraCaptureModal.tsx';
+import { AnalysisResult, TypedPlayerInput, ManagerInputDetails, FluidFormationSettings, LinkUpPlaySettings } from '../types.ts';
 import { ManualPlayerInput } from './ManualPlayerInput.tsx';
-import { ManagerDetailsInput } from './ManagerDetailsInput.tsx';
-import { preprocessImage } from '../lib/imagePreprocessing.ts';
 
-// All official eFootball formations from user gameplan screenshots
+// All official eFootball formations
 export const EFOOTBALL_FORMATIONS = [
   { value: 'Auto-Detect / Balanced', label: 'Auto-Detect / AI Optimal Recommendation', category: 'General' },
   { value: 'Copy from Base Team', label: 'Copy from Base Team (Custom Gameplan Shape)', category: 'General' },
@@ -62,7 +44,6 @@ interface AnalyzerProps {
 }
 
 export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) => {
-  const [files, setFiles] = useState<UploadedImageItem[]>([]);
   const [typedPlayers, setTypedPlayers] = useState<TypedPlayerInput[]>([]);
   const [managerDetails, setManagerDetails] = useState<ManagerInputDetails>({
     name: '',
@@ -77,9 +58,8 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
       overload: 86
     }
   });
-  const [activeInputTab, setActiveInputTab] = useState<'screenshots' | 'enter_players'>('screenshots');
   const [preferredPlaystyle, setPreferredPlaystyle] = useState('Quick Counter');
-  const [preferredFormation, setPreferredFormation] = useState('Auto-Detect / Balanced');
+  const [preferredFormation, setPreferredFormation] = useState('4-2-1-3');
   const [tacticalPreference, setTacticalPreference] = useState('');
 
   // Fluid Formations state
@@ -99,109 +79,23 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
     coachInstructionNote: ''
   });
 
-  // Modals & Active Views
-  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
-  const [previewModalImage, setPreviewModalImage] = useState<UploadedImageItem | null>(null);
-
   // Analysis State & Progress
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isProcessingUploads, setIsProcessingUploads] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
   const analysisSteps = [
-    'Stage 1: Pre-checking image resolution, blur & screen layout...',
-    'Stage 2: Detecting individual player regions & card boundaries...',
-    'Stage 3: Running dual OCR text extraction & multimodal vision...',
-    'Stage 4: Cross-verifying against eFootball Master Database...',
-    'Stage 5: Multi-screenshot deduplication & conflict resolution...',
-    'Stage 6: Computing confidence scores, audit trails & verified squad dataset...',
-    'Stage 7: Assembling verified Best XI, action plan & 2D tactical simulation...'
+    'Stage 1: Validating Starting XI and substitute player configurations...',
+    'Stage 2: Evaluating manager playstyle proficiencies and team chemistry...',
+    'Stage 3: Cross-verifying player positions, OVR ratings and playstyles...',
+    'Stage 4: Computing tactical synergy, balance and tactical weaknesses...',
+    'Stage 5: Assembling verified Best XI, action plan & 2D tactical simulation...'
   ];
 
-  // Process files added through file picker or drag-and-drop
-  const handleFilesAdded = async (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) return;
-    setErrorMessage(null);
-
-    const newFilesArray = Array.from(fileList);
-    if (files.length + newFilesArray.length > 5) {
-      setErrorMessage('You can upload a maximum of 5 screenshots.');
-      return;
-    }
-
-    setIsProcessingUploads(true);
-    const successfullyProcessed: UploadedImageItem[] = [];
-    const errors: string[] = [];
-
-    for (const f of newFilesArray) {
-      try {
-        const item = await preprocessImage(f, 'screenshot');
-        successfullyProcessed.push(item);
-      } catch (err: any) {
-        console.error('File processing error:', err);
-        errors.push(`${f.name}: ${err?.message || 'Unsupported image'}`);
-      }
-    }
-
-    setIsProcessingUploads(false);
-
-    if (errors.length > 0) {
-      setErrorMessage(errors.join(' • '));
-    }
-
-    if (successfullyProcessed.length > 0) {
-      setFiles((prev) => [...prev, ...successfullyProcessed].slice(0, 5));
-    }
-
-    // Reset input so same file can be selected again if needed
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  // Callback when a photo is captured & accepted in CameraCaptureModal
-  const handleCameraPhotoAccepted = (item: UploadedImageItem) => {
-    if (files.length >= 5) {
-      setErrorMessage('You can upload a maximum of 5 screenshots.');
-      return;
-    }
-    setErrorMessage(null);
-    setFiles((prev) => [...prev, item].slice(0, 5));
-  };
-
-  const removeFile = (id: string) => {
-    setFiles((prev) => prev.filter((f) => f.id !== id));
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer.files) {
-      handleFilesAdded(e.dataTransfer.files);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
   const handleStartAnalysis = async () => {
-    if (activeInputTab === 'screenshots') {
-      if (files.length === 0) {
-        setErrorMessage('Please upload at least 1 screenshot to analyze your squad.');
-        return;
-      }
-      if (files.length > 5) {
-        setErrorMessage('You can upload a maximum of 5 screenshots.');
-        return;
-      }
-    } else {
-      if (typedPlayers.length === 0) {
-        setErrorMessage('Please enter at least one squad player to analyze your squad.');
-        return;
-      }
+    if (typedPlayers.length === 0) {
+      setErrorMessage('Please enter at least one squad player (Starting XI recommended) before analyzing your squad.');
+      return;
     }
 
     setIsAnalyzing(true);
@@ -214,18 +108,11 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
         if (prev < analysisSteps.length - 1) return prev + 1;
         return prev;
       });
-    }, 1800);
+    }, 1200);
 
     try {
       const payload = {
-        images: files.map((f) => ({
-          base64Data: f.base64Data,
-          mimeType: f.mimeType || 'image/jpeg',
-          name: f.name,
-          source: f.source,
-          dimensions: f.dimensions,
-          qualityWarning: f.qualityWarning
-        })),
+        images: [],
         typedPlayers: typedPlayers.map(p => ({
           id: p.id,
           name: p.name,
@@ -262,9 +149,6 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
         } catch {
           errMessage = await resp.text().catch(() => '');
         }
-        if (resp.status === 413 || errMessage.includes('Payload Too Large') || errMessage.includes('FUNCTION_PAYLOAD_TOO_LARGE')) {
-          throw new Error('Screenshot upload exceeds payload limits. Please upload fewer screenshots (1 to 3 recommended) or smaller file sizes.');
-        }
         throw new Error(errMessage || `Analysis service encountered an issue (Status ${resp.status}). Please try again.`);
       }
 
@@ -286,28 +170,6 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
     }
   };
 
-  const getSourceIcon = (source: ImageSourceType) => {
-    switch (source) {
-      case 'camera':
-        return <Camera className="w-3.5 h-3.5 text-cyan-400" />;
-      case 'screenshot':
-        return <Monitor className="w-3.5 h-3.5 text-emerald-400" />;
-      default:
-        return <FileText className="w-3.5 h-3.5 text-neutral-400" />;
-    }
-  };
-
-  const getSourceLabel = (source: ImageSourceType) => {
-    switch (source) {
-      case 'camera':
-        return 'Camera photo';
-      case 'screenshot':
-        return 'Screenshot';
-      default:
-        return 'File';
-    }
-  };
-
   return (
     <div id="analyzer-container" className="max-w-4xl mx-auto space-y-8 py-6">
       
@@ -322,128 +184,45 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           </h1>
         </div>
         <p className="text-sm text-neutral-400 mt-1">
-          Upload up to 5 eFootball screenshots, take camera photos, or enter your Starting XI and Substitution squad players with manager details.
+          Enter your Starting XI, substitutes, and manager details for instant AI tactical evaluation and player optimization.
         </p>
       </div>
 
-      {/* Input Mode Selector Tabs */}
-      <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5 shadow-lg">
-        <button
-          type="button"
-          onClick={() => setActiveInputTab('screenshots')}
-          className={`flex-1 min-w-[160px] py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            activeInputTab === 'screenshots'
-              ? 'bg-emerald-500 text-neutral-950 shadow-md'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60'
-          }`}
-        >
-          <ImageIcon className="w-4 h-4" />
-          <span>Upload Screenshots</span>
-          {files.length > 0 && (
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-              activeInputTab === 'screenshots' ? 'bg-neutral-950 text-emerald-400' : 'bg-neutral-800 text-white'
-            }`}>
-              {files.length} / 5
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveInputTab('enter_players')}
-          className={`flex-1 min-w-[160px] py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            activeInputTab === 'enter_players'
-              ? 'bg-emerald-500 text-neutral-950 shadow-md'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60'
-          }`}
-        >
-          <Keyboard className="w-4 h-4" />
-          <span>Enter Squad Players</span>
-          {typedPlayers.length > 0 && (
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-              activeInputTab === 'enter_players' ? 'bg-neutral-950 text-emerald-400' : 'bg-neutral-800 text-white'
-            }`}>
-              {typedPlayers.length} / 23
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* User Guidance Banner (Requirement 14) */}
+      {/* User Guidance Banner */}
       <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-5 sm:p-6 shadow-xl">
         <div className="flex items-start gap-3.5">
           <span className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0 mt-0.5">
             <Info className="w-5 h-5" />
           </span>
-          {activeInputTab === 'screenshots' ? (
-            <div className="space-y-2 text-sm text-neutral-300">
-              <h2 className="text-base font-bold text-white tracking-tight">Add your squad</h2>
-              <p className="text-neutral-400 text-xs sm:text-sm">
-                Upload screenshots or take clear photos of your eFootball screen.
+          <div className="space-y-2 text-sm text-neutral-300">
+            <h2 className="text-base font-bold text-white tracking-tight">Enter Your Squad & Manager Details</h2>
+            <p className="text-neutral-400 text-xs sm:text-sm">
+              Configure your eFootball Starting XI, bench substitutes, formation, and manager proficiencies below to run comprehensive tactical analysis.
+            </p>
+            <div className="pt-1">
+              <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
+                Tips for optimal analysis:
               </p>
-              <div className="pt-1">
-                <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
-                  For best results:
-                </p>
-                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-neutral-300">
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                    Keep the screen fully visible.
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                    Hold the camera straight in front of the screen.
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                    Avoid reflections and glare.
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                    Use good lighting.
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                    Move closer if player names are too small.
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                    Make sure player names and ratings are visible.
-                  </li>
-                </ul>
-              </div>
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-neutral-300">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                  Add manager proficiency ratings for accurate chemistry scores.
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                  Complete your Starting XI (11 players) for full tactical balance.
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                  Add substitutes for bench depth and game-changer recommendations.
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                  Specify playstyles and card types (e.g. Epic, Show Time, POTW).
+                </li>
+              </ul>
             </div>
-          ) : (
-            <div className="space-y-2 text-sm text-neutral-300">
-              <h2 className="text-base font-bold text-white tracking-tight">Enter your Squad & Manager Details</h2>
-              <p className="text-neutral-400 text-xs sm:text-sm">
-                Manually configure your eFootball Starting XI, Substitutes bench, and Manager profile for instant tactical breakdown and synergy evaluation.
-              </p>
-              <div className="pt-1">
-                <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
-                  Tips for optimal squad analysis:
-                </p>
-                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-neutral-300">
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                    Provide manager proficiency values to get accurate team chemistry scores.
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                    Add all 11 Starting XI players with their respective positions and card types.
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                    Add up to 12 substitutes for game-changing bench depth analysis.
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                    Include player club affiliations to check potential team boosts.
-                  </li>
-                </ul>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -454,7 +233,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           <div className="flex-1">{errorMessage}</div>
           <button 
             onClick={() => setErrorMessage(null)}
-            className="text-rose-400 hover:text-rose-200 p-1"
+            className="text-rose-400 hover:text-rose-200 p-1 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -473,7 +252,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
               Analyzing Your Squad...
             </h2>
             <p className="text-xs text-neutral-400">
-              Examining player positions, player types, key playstyles, card ratings, and multi-image evidence.
+              Evaluating player positions, playstyles, chemistry proficiencies, and tactical balance.
             </p>
           </div>
 
@@ -504,230 +283,22 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           </div>
 
           <p className="text-[11px] text-neutral-500 italic">
-            This typically takes 8 to 15 seconds depending on image resolution.
+            This typically takes 4 to 8 seconds.
           </p>
         </div>
       ) : (
-        /* Upload & Configuration Form */
+        /* Enter Squad Players & Configuration Form */
         <div className="space-y-8">
           
-          {/* Section 1: Screenshots Upload (Shown if active tab is screenshots or both) */}
-          {(activeInputTab === 'screenshots' || activeInputTab === 'both') && (
-            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                    <ImageIcon className="w-5 h-5 text-emerald-400" />
-                    Upload screenshots or take photos
-                  </h2>
-                  <p className="text-xs text-neutral-400 mt-0.5">
-                    JPG, JPEG, JFIF, PNG, WebP and supported mobile image formats • Up to 10MB each • Maximum 5 images
-                  </p>
-                </div>
-                <span className={`text-xs font-black px-3 py-1 rounded-full self-start sm:self-auto shrink-0 ${
-                  files.length === 5 
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                    : 'bg-neutral-800 text-neutral-300'
-                }`}>
-                  Images added: {files.length} / 5
-                </span>
-              </div>
-
-              {/* Hidden File Input supporting all formats */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".jpg,.jpeg,.jpe,.jfif,.png,.webp,.heic,.heif,.avif,image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif"
-                onChange={(e) => handleFilesAdded(e.target.files)}
-                className="hidden"
-              />
-
-              {/* Two Input Action Cards: Upload Screenshot & Take Photo (Requirement 2 & 3) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                
-                {/* Option 1: Upload Screenshot */}
-                <div
-                  onDrop={handleDrop}
-                  onDragOver={handleDragOver}
-                  onClick={() => {
-                    if (files.length >= 5) {
-                      setErrorMessage('You can upload a maximum of 5 screenshots.');
-                      return;
-                    }
-                    fileInputRef.current?.click();
-                  }}
-                  className={`border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all group flex flex-col items-center justify-center ${
-                    files.length >= 5
-                      ? 'border-neutral-800 bg-neutral-950/30 opacity-50 cursor-not-allowed'
-                      : 'border-neutral-700 hover:border-emerald-500 bg-neutral-950/60 hover:bg-neutral-950'
-                  }`}
-                >
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <UploadCloud className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">
-                    Upload Screenshot
-                  </h3>
-                  <p className="text-xs text-neutral-400 mt-1 max-w-xs">
-                    Click to browse or drag and drop screenshots from your device
-                  </p>
-                  <span className="mt-3 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
-                    Browse Files
-                  </span>
-                </div>
-
-                {/* Option 2: Take Photo with Mobile/Device Camera */}
-                <div
-                  onClick={() => {
-                    if (files.length >= 5) {
-                      setErrorMessage('You can upload a maximum of 5 screenshots.');
-                      return;
-                    }
-                    setIsCameraModalOpen(true);
-                  }}
-                  className={`border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all group flex flex-col items-center justify-center ${
-                    files.length >= 5
-                      ? 'border-neutral-800 bg-neutral-950/30 opacity-50 cursor-not-allowed'
-                      : 'border-neutral-700 hover:border-cyan-500 bg-neutral-950/60 hover:bg-neutral-950'
-                  }`}
-                >
-                  <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <Camera className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors">
-                    Take Photo
-                  </h3>
-                  <p className="text-xs text-neutral-400 mt-1 max-w-xs">
-                    Open device camera and photograph your eFootball squad screen directly
-                  </p>
-                  <span className="mt-3 text-[11px] font-medium text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-0.5 rounded-full">
-                    Open Camera
-                  </span>
-                </div>
-
-              </div>
-
-              {/* Processing Spinner during HEIC/conversion/upload */}
-              {isProcessingUploads && (
-                <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center gap-3 text-xs text-neutral-300">
-                  <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin shrink-0" />
-                  <span>Validating image format, normalizing EXIF orientation & optimizing resolution...</span>
-                </div>
-              )}
-
-              {/* Thumbnail Preview Cards with Dimensions and Source (Requirement 7) */}
-              {files.length > 0 && (
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-                      Uploaded Squad Images ({files.length}/5)
-                    </p>
-                    <span className="text-[11px] text-neutral-500">
-                      Combined across screenshots & camera photos
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {files.map((f, idx) => (
-                      <div
-                        key={f.id}
-                        className="relative rounded-xl border border-neutral-800 bg-neutral-950 p-3 flex flex-col justify-between space-y-3 hover:border-neutral-700 transition-colors group"
-                      >
-                        <div className="flex items-start gap-3">
-                          {/* Thumbnail */}
-                          <div 
-                            onClick={() => setPreviewModalImage(f)}
-                            className="relative w-20 h-16 rounded-lg overflow-hidden border border-neutral-800 bg-black shrink-0 cursor-pointer group-hover:border-emerald-500/50 transition-colors"
-                          >
-                            <img
-                              src={f.previewUrl}
-                              alt={f.name || `Squad Image ${idx + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-neutral-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <Eye className="w-3.5 h-3.5 text-white" />
-                            </div>
-                          </div>
-
-                          {/* Details */}
-                          <div className="flex-1 min-w-0 space-y-1">
-                            <div className="flex items-center justify-between gap-1">
-                              <h4 className="text-xs font-bold text-white truncate">
-                                Squad Photo {idx + 1}
-                              </h4>
-                              <span className="text-[10px] font-mono text-neutral-500">
-                                #{idx + 1}
-                              </span>
-                            </div>
-
-                            {/* Source Badge */}
-                            <div className="flex items-center gap-1.5 text-[11px] text-neutral-300">
-                              {getSourceIcon(f.source)}
-                              <span>{getSourceLabel(f.source)}</span>
-                            </div>
-
-                            {/* Dimensions */}
-                            <p className="text-[11px] font-mono text-neutral-400">
-                              {f.dimensions?.width || 'Auto'} × {f.dimensions?.height || 'Auto'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Quality Warning if detected */}
-                        {f.qualityWarning && (
-                          <div className="p-2 rounded-lg bg-amber-950/50 border border-amber-800/60 text-[11px] text-amber-300 flex items-start gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                            <span className="line-clamp-2 leading-snug">
-                              Quality notice: Some player info may be faint.
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Card Footer with Remove Button */}
-                        <div className="flex items-center justify-between pt-1 border-t border-neutral-900 text-xs">
-                          <span className="text-[10px] text-neutral-500 truncate max-w-[140px]">
-                            {f.name}
-                          </span>
-                          <button
-                            onClick={() => removeFile(f.id)}
-                            className="px-2 py-1 rounded-md text-rose-400 hover:text-white hover:bg-rose-600/80 transition-colors flex items-center gap-1 text-[11px] font-semibold cursor-pointer"
-                            title="Remove this image"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Remove</span>
-                          </button>
-                        </div>
-
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Manager / Coach Details in Upload Screenshots Tab */}
-              <div className="pt-2">
-                <ManagerDetailsInput
-                  managerDetails={managerDetails}
-                  onManagerChange={setManagerDetails}
-                  subtitle="Enter your manager/coach identity and playstyle proficiency ratings."
-                />
-              </div>
-
-            </div>
-          )}
-
-          {/* Section 2: Enter Squad Players (Shown if active tab is enter_players) */}
-          {activeInputTab === 'enter_players' && (
-            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
-              <ManualPlayerInput
-                typedPlayers={typedPlayers}
-                onChange={setTypedPlayers}
-                managerDetails={managerDetails}
-                onManagerChange={setManagerDetails}
-              />
-            </div>
-          )}
+          {/* Enter Squad Players Component */}
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
+            <ManualPlayerInput
+              typedPlayers={typedPlayers}
+              onChange={setTypedPlayers}
+              managerDetails={managerDetails}
+              onManagerChange={setManagerDetails}
+            />
+          </div>
 
           {/* Tactical Preferences & Advanced System Controls */}
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
@@ -975,7 +546,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
                 )}
               </div>
 
-              {/* Freeform Tactical Note */}
+              {/* Freeform Tactical Objective */}
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
                   Specific Tactical Objective (Optional)
@@ -997,13 +568,9 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
             <div>
               <p className="text-sm font-bold text-white">Ready for comprehensive AI evaluation?</p>
               <p className="text-xs text-neutral-400">
-                {activeInputTab === 'screenshots'
-                  ? files.length > 0
-                    ? `${files.length} squad screenshot(s) / photo(s) loaded${managerDetails.name ? ` • Manager: ${managerDetails.name}` : ''}.`
-                    : 'Add up to 5 screenshots or camera photos to start analysis.'
-                  : typedPlayers.length > 0
-                    ? `${typedPlayers.length} player(s) loaded in squad${managerDetails.name ? ` • Manager: ${managerDetails.name}` : ''}.`
-                    : 'Enter Starting XI or Substitution players to start analysis.'}
+                {typedPlayers.length > 0
+                  ? `${typedPlayers.length} player(s) loaded in squad${managerDetails.name ? ` • Manager: ${managerDetails.name}` : ''}.`
+                  : 'Enter Starting XI or Substitution players to start analysis.'}
               </p>
             </div>
 
@@ -1013,50 +580,10 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
               className="w-full sm:w-auto px-8 py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-lg bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-emerald-500/20 cursor-pointer"
             >
               <Sparkles className="w-4 h-4" />
-              Analyze My Squad {activeInputTab === 'screenshots' && files.length > 0 ? `(${files.length} images)` : activeInputTab === 'enter_players' && typedPlayers.length > 0 ? `(${typedPlayers.length} players)` : ''}
+              Analyze My Squad {typedPlayers.length > 0 ? `(${typedPlayers.length} players)` : ''}
             </button>
           </div>
 
-        </div>
-      )}
-
-      {/* Camera Capture Modal (Requirement 2 & 3) */}
-      <CameraCaptureModal
-        isOpen={isCameraModalOpen}
-        onClose={() => setIsCameraModalOpen(false)}
-        onPhotoAccepted={handleCameraPhotoAccepted}
-        currentImageCount={files.length}
-      />
-
-      {/* Full Image Preview Modal */}
-      {previewModalImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/85 backdrop-blur-md animate-fade-in">
-          <div className="relative max-w-4xl w-full bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800 bg-neutral-950/60">
-              <div className="flex items-center gap-2">
-                {getSourceIcon(previewModalImage.source)}
-                <div>
-                  <h3 className="text-sm font-bold text-white">{previewModalImage.name}</h3>
-                  <p className="text-[11px] text-neutral-400 font-mono">
-                    {previewModalImage.dimensions?.width} × {previewModalImage.dimensions?.height} px • {getSourceLabel(previewModalImage.source)}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setPreviewModalImage(null)}
-                className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4 bg-black flex items-center justify-center min-h-[300px]">
-              <img
-                src={previewModalImage.previewUrl}
-                alt={previewModalImage.name}
-                className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-xl"
-              />
-            </div>
-          </div>
         </div>
       )}
 

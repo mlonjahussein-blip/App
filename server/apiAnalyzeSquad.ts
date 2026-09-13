@@ -38,12 +38,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ success: false, errorCode: 'INVALID_REQUEST', message: 'Missing request body' });
     }
 
-    const hasImages = Array.isArray(payload.images) && payload.images.length > 0;
     const hasTyped = Array.isArray(payload.typedPlayers) && payload.typedPlayers.length > 0;
 
-    if (!hasImages && !hasTyped) {
+    if (!hasTyped) {
       console.error('ANALYZE_FAILED: No input provided');
-      return res.status(400).json({ success: false, errorCode: 'INVALID_INPUT', message: 'Please upload squad screenshots or enter your squad players.' });
+      return res.status(400).json({ success: false, errorCode: 'INVALID_INPUT', message: 'Please enter your squad players before analyzing.' });
     }
 
     // Try Main Pipeline
