@@ -268,6 +268,7 @@ export interface AnalysisResult {
   gamePlanRecommendations?: GamePlanRecommendations;
   freeOrPaidStatus: 'free' | 'paid';
   paymentStatus: 'free' | 'paid' | 'disabled';
+  analysisType?: 'FREE_WEEKLY' | 'PAID_CREDIT';
   analysisQuality?: AnalysisQualityScore;
   screenshotMetadata?: ScreenshotMetadata[];
   pipelineDiagnostics?: {
@@ -433,5 +434,41 @@ export interface AnalyzeSquadRequestPayload {
   linkUpPlay?: LinkUpPlaySettings;
   tacticalPreference?: string;
   hasCoachScreenshot?: boolean;
+  userId?: string;
+}
+
+export type PaymentProviderType = 'pesapal' | 'paypal' | 'google_pay' | 'apple_pay';
+
+export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
+
+export interface PaymentRecord {
+  id: string;
+  userId: string;
+  provider: PaymentProviderType;
+  providerTransactionId: string;
+  productType: 'single_analysis';
+  amount: number;
+  currency: string;
+  status: PaymentStatus;
+  creditAmount: number;
+  creditGranted: boolean;
+  isTestMode: boolean;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  failureReason?: string;
+}
+
+export interface UserEntitlements {
+  userId: string;
+  weeklyFreeAnalysisAvailable: boolean;
+  freeAnalysesRemaining: number;
+  paidAnalysisCredits: number;
+  canAnalyze: boolean;
+  nextFreeResetDate: string;
+  lastFreeResetAt: string;
+  testMode: boolean;
+  paidAnalysisPriceUsd: number;
+  priceDisplay: string;
 }
 

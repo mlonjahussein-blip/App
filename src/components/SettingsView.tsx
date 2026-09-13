@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext.tsx';
 import { 
   User, 
@@ -12,8 +12,13 @@ import {
   AlertTriangle,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
+  CheckCircle2,
+  Calendar,
   X
 } from 'lucide-react';
+import { UserEntitlements, PaymentRecord } from '../types.ts';
+import { PaymentModal } from './PaymentModal.tsx';
 
 interface SettingsProps {
   onLogout: () => void;
@@ -42,6 +47,73 @@ export const SettingsView: React.FC<SettingsProps> = ({
   const [deleteConfirmationText, setDeleteConfirmationText] = useState<string>('');
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Entitlements & Payment state
+  const [entitlements, setEntitlements] = useState<UserEntitlements | null>(null);
+  const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
+  const [isResettingTestQuota, setIsResettingTestQuota] = useState<boolean>(false);
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
+
+  const fetchEntitlements = async () => {
+    const uid = user?.uid || 'guest';
+    try {
+      const res = await fetch(`/api/user/entitlements?userId=${encodeURIComponent(uid)}`);
+      if (res.ok) {
+        const data: UserEntitlements = await res.json();
+        setEntitlements(data);
+      }
+    } catch (e) {
+      console.warn('Error fetching user entitlements in SettingsView:', e);
+    }
+  };
+
+  const fetchPaymentHistory = async () => {
+    const uid = user?.uid || 'guest';
+    setIsLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/payment/history?userId=${encodeURIComponent(uid)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.history)) {
+          setPaymentHistory(data.history);
+        }
+      }
+    } catch (e) {
+      console.warn('Error fetching payment history in SettingsView:', e);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEntitlements();
+    if (activeSubTab === 'payments') {
+      fetchPaymentHistory();
+    }
+  }, [user?.uid, activeSubTab]);
+
+  const handleTestResetQuota = async () => {
+    const uid = user?.uid || 'guest';
+    setIsResettingTestQuota(true);
+    setSettingsNotice(null);
+    try {
+      const res = await fetch('/api/payment/test-reset-free', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uid })
+      });
+      if (res.ok) {
+        setSettingsNotice('Weekly free analysis reset to 1 (Test Mode).');
+        await fetchEntitlements();
+      }
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setIsResettingTestQuota(false);
+    }
+  };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -300,7 +372,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-black text-white flex items-center gap-2">
               <Activity className="w-5 h-5 text-emerald-400" />
-              Weekly Analysis Allocation
+              Weekly Analysis Allocation & Credits
             </h2>
             <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
               1 Free / Week
@@ -311,31 +383,83 @@ export const SettingsView: React.FC<SettingsProps> = ({
             <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-5 space-y-2">
               <span className="text-xs uppercase font-bold text-neutral-400">Free Analyses Remaining</span>
               <div className="text-3xl font-black text-emerald-400">
-                {profile?.freeAnalysesRemaining || 1}
+                {entitlements ? entitlements.freeAnalysesRemaining : (profile?.freeAnalysesRemaining ?? 1)}
               </div>
               <p className="text-xs text-neutral-500">
                 Resets every 7 days automatically for your account.
               </p>
+              {entitlements?.nextFreeResetDate && (
+                <div className="pt-2 text-[11px] text-neutral-400 flex items-center gap-1.5 border-t border-neutral-900">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Next reset: {new Date(entitlements.nextFreeResetDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                </div>
+              )}
             </div>
 
             <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-5 space-y-2">
-              <span className="text-xs uppercase font-bold text-neutral-400">Paid Credits</span>
-              <div className="text-3xl font-black text-neutral-400">
-                0
+              <span className="text-xs uppercase font-bold text-neutral-400">Paid Analysis Credits</span>
+              <div className="text-3xl font-black text-cyan-400">
+                {entitlements ? entitlements.paidAnalysisCredits : (profile?.paidCredits ?? 0)}
               </div>
               <p className="text-xs text-neutral-500">
-                Paid credits are currently disabled during platform development.
+                Purchased credits never expire and carry over between weeks.
               </p>
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(true)}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Get Additional Credits ({entitlements?.priceDisplay || '$0.00 USD'})</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          <button
-            onClick={onNavigateToAnalyzer}
-            className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs inline-flex items-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
-          >
-            <Sparkles className="w-4 h-4" />
-            Analyze Squad Now
-          </button>
+          {/* Test Mode Quota Control */}
+          {entitlements?.testMode && (
+            <div className="bg-neutral-950 border border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4" />
+                  Test Mode Controls Active ($0.00 USD)
+                </span>
+                <p className="text-[11px] text-neutral-400 mt-0.5">
+                  You can reset your weekly free quota at any time during testing.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isResettingTestQuota}
+                  onClick={handleTestResetQuota}
+                  className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isResettingTestQuota ? 'animate-spin' : ''}`} />
+                  <span>Reset Free Quota</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {settingsNotice && (
+            <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800 text-xs text-emerald-300 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{settingsNotice}</span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <button
+              onClick={onNavigateToAnalyzer}
+              className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs inline-flex items-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" />
+              Analyze Squad Now
+            </button>
+          </div>
         </div>
       )}
 
@@ -343,45 +467,164 @@ export const SettingsView: React.FC<SettingsProps> = ({
       {activeSubTab === 'payments' && (
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
           
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-black text-white flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-cyan-400" />
-              Payment Architecture & History
-            </h2>
-            <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
-              Payments Disabled (Dev Mode)
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black text-white flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-cyan-400" />
+                Payment Architecture & History
+              </h2>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                Backend-verified records for single analysis unlock transactions ($2.00 USD standard / $0.00 USD test mode).
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {entitlements?.testMode ? (
+                <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Test Mode Active ($0.00 USD)
+                </span>
+              ) : (
+                <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Production Gateways Active
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowPaymentModal(true)}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-xs font-black transition-all shadow-md cursor-pointer"
+              >
+                + Buy Credit
+              </button>
+            </div>
           </div>
 
-          <div className="bg-neutral-950 border border-amber-500/40 rounded-xl p-4 flex items-start gap-3 text-xs text-amber-200">
-            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <span className="font-bold block text-sm text-white">
-                Paid analysis is currently unavailable while we prepare the payment system.
+          {/* Architecture Status Info Card */}
+          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 text-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white uppercase tracking-wider text-[11px]">
+                Supported Gateways & Business Model
               </span>
-              <p className="text-neutral-400 leading-relaxed">
-                The database schema and architecture are fully implemented for <strong>$2 per analysis</strong>, but transactions and third-party gateways are strictly disabled during this development stage. No money will be charged.
-              </p>
+              <span className="text-neutral-400 font-mono text-[11px]">
+                Rate: $2.00 USD / Analysis
+              </span>
             </div>
+            <p className="text-neutral-400 leading-relaxed">
+              Every registered user receives <strong>1 free analysis per week</strong>. Additional analyses require 1 paid credit ($2.00 USD). Supported payment options include <strong>Pesapal (Cards & M-Pesa / Mobile Money)</strong>, <strong>PayPal</strong>, <strong>Google Pay</strong>, and <strong>Apple Pay</strong>. All transaction intents are verified on the backend before credits are permanently assigned.
+            </p>
           </div>
 
+          {/* Transactions List */}
           <div className="space-y-3">
-            <h3 className="text-sm font-bold text-neutral-300 uppercase tracking-wider">
-              Transaction Records
-            </h3>
-
-            <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-8 text-center space-y-2">
-              <p className="text-sm font-semibold text-neutral-300">
-                No payment transactions yet.
-              </p>
-              <p className="text-xs text-neutral-500 max-w-sm mx-auto">
-                Any future transactions processed once the payment provider is activated will appear here with transaction ID, amount, currency, and date.
-              </p>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-neutral-300 uppercase tracking-wider">
+                Transaction Records ({paymentHistory.length})
+              </h3>
+              <button
+                type="button"
+                onClick={fetchPaymentHistory}
+                disabled={isLoadingHistory}
+                className="text-xs text-neutral-400 hover:text-white flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw className={`w-3 h-3 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
             </div>
+
+            {isLoadingHistory ? (
+              <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-8 text-center text-xs text-neutral-500">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-neutral-400" />
+                Loading payment records...
+              </div>
+            ) : paymentHistory.length === 0 ? (
+              <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-8 text-center space-y-3">
+                <p className="text-sm font-semibold text-neutral-300">
+                  No payment transactions recorded yet.
+                </p>
+                <p className="text-xs text-neutral-500 max-w-sm mx-auto">
+                  When you complete a payment via Pesapal, PayPal, Google Pay, or Apple Pay, verified transactions will be logged here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(true)}
+                  className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Test Payment Checkout Flow
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {paymentHistory.map((rec) => (
+                  <div
+                    key={rec.id}
+                    className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-sm capitalize">
+                          {rec.provider.replace('_', ' ')}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          rec.status === 'SUCCESS'
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : rec.status === 'FAILED'
+                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                            : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        }`}>
+                          {rec.status}
+                        </span>
+                        {rec.isTestMode && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-neutral-800 text-neutral-400">
+                            TEST
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-neutral-400 font-mono">
+                        TX: {rec.providerTransactionId}
+                      </div>
+                      <div className="text-[11px] text-neutral-500">
+                        {new Date(rec.createdAt).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="text-right flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 border-neutral-900 pt-2 sm:pt-0">
+                      <div className="font-black text-sm text-white">
+                        {rec.isTestMode ? '$0.00 USD' : `$${(rec.amount || 2).toFixed(2)} USD`}
+                      </div>
+                      <div className="text-[11px] text-emerald-400 font-semibold">
+                        +{rec.creditAmount || 1} Analysis Credit
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
         </div>
       )}
+
+      {/* Payment Checkout Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        userId={user?.uid || 'guest'}
+        userEmail={user?.email || undefined}
+        displayName={user?.displayName || undefined}
+        entitlements={entitlements}
+        onPaymentSuccess={() => {
+          fetchEntitlements();
+          fetchPaymentHistory();
+        }}
+      />
 
       {/* Account Deletion Confirmation Modal */}
       {showDeleteModal && (

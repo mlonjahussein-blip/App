@@ -1,0 +1,68 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
+export interface PaymentConfiguration {
+  isTestMode: boolean;
+  priceUsd: number;
+  priceDisplay: string;
+  currency: string;
+  freeAnalysisIntervalDays: number;
+  pesapal: {
+    consumerKey: string;
+    consumerSecret: string;
+    ipnUrl: string;
+    environment: 'sandbox' | 'production';
+  };
+  paypal: {
+    clientId: string;
+    clientSecret: string;
+    environment: 'sandbox' | 'live';
+  };
+  googlePay: {
+    merchantId: string;
+    merchantName: string;
+    environment: 'TEST' | 'PRODUCTION';
+  };
+  applePay: {
+    merchantId: string;
+    environment: 'sandbox' | 'production';
+  };
+}
+
+export function getPaymentConfig(): PaymentConfiguration {
+  const isTestMode = process.env.PAYMENT_TEST_MODE !== 'false';
+  
+  // In TEST MODE, the price is strictly $0.00 USD as required
+  // In production, default is $2.00 USD unless overridden by env
+  const rawPrice = process.env.PAID_ANALYSIS_PRICE_USD;
+  const priceUsd = isTestMode ? 0.00 : (rawPrice ? parseFloat(rawPrice) : 2.00);
+  const priceDisplay = isTestMode ? '$0.00 USD (TEST MODE)' : `$${priceUsd.toFixed(2)} USD`;
+
+  return {
+    isTestMode,
+    priceUsd,
+    priceDisplay,
+    currency: 'USD',
+    freeAnalysisIntervalDays: 7,
+    pesapal: {
+      consumerKey: process.env.PESAPAL_CONSUMER_KEY || '',
+      consumerSecret: process.env.PESAPAL_CONSUMER_SECRET || '',
+      ipnUrl: process.env.PESAPAL_IPN_URL || '',
+      environment: isTestMode ? 'sandbox' : 'production'
+    },
+    paypal: {
+      clientId: process.env.PAYPAL_CLIENT_ID || '',
+      clientSecret: process.env.PAYPAL_CLIENT_SECRET || '',
+      environment: isTestMode ? 'sandbox' : 'live'
+    },
+    googlePay: {
+      merchantId: process.env.GOOGLE_PAY_MERCHANT_ID || 'BCR2DN6TEXAMPLE',
+      merchantName: 'eFootball AI Hub',
+      environment: isTestMode ? 'TEST' : 'PRODUCTION'
+    },
+    applePay: {
+      merchantId: process.env.APPLE_PAY_MERCHANT_ID || 'merchant.com.efootballaihub',
+      environment: isTestMode ? 'sandbox' : 'production'
+    }
+  };
+}

@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { performSquadAnalysis, createEvidenceBasedFallback, AnalyzeSquadPayload } from './accuracyPipeline.ts';
+import { consumeEntitlementForAnalysis } from './payment/paymentService.ts';
 
 export const maxDuration = 60;
 
@@ -45,6 +46,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ success: false, errorCode: 'INVALID_INPUT', message: 'Please enter your squad players before analyzing.' });
     }
 
+    const userId = (payload as any).userId || (req.query?.userId as string) || 'guest';
+    const entitlementCheck = await consumeEntitlementForAnalysis(userId);
+    if (!entitlementCheck.allowed) {
+      return res.status(402).json({
+        success: false,
+        paymentRequired: true,
+        errorCode: 'PAYMENT_REQUIRED',
+        message: entitlementCheck.error || 'Weekly free analysis used. Additional analysis requires payment.'
+      });
+    }
+
     // Try Main Pipeline
     try {
       console.log('SQUAD_ANALYSIS_STARTED');
@@ -52,7 +64,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log('ANALYSIS_COMPLETED');
       return res.status(200).json({
         success: true,
-        analysis: result,
+        analysis: {
+          ...result,
+          analysisType: entitlementCheck.analysisType || 'FREE_WEEKLY'
+        },
+        analysisType: entitlementCheck.analysisType || 'FREE_WEEKLY',
         ...result
       });
     } catch (analysisErr: any) {
@@ -64,7 +80,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const fallbackResult = createEvidenceBasedFallback(payload);
         return res.status(200).json({
           success: true,
-          analysis: fallbackResult,
+          analysis: {
+            ...fallbackResult,
+            analysisType: entitlementCheck.analysisType || 'FREE_WEEKLY'
+          },
+          analysisType: entitlementCheck.analysisType || 'FREE_WEEKLY',
           ...fallbackResult
         });
       } catch (fallbackErr: any) {

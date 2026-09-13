@@ -14,18 +14,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = (req.query.userId as string) || 'guest';
   try {
     const entitlements = await getUserEntitlements(userId);
-    return res.status(200).json({
-      userId,
-      freeAnalysesRemaining: entitlements.freeAnalysesRemaining,
-      paidCredits: entitlements.paidAnalysisCredits,
-      paidAnalysisEnabled: true,
-      canAnalyze: entitlements.canAnalyze,
-      testMode: entitlements.testMode,
-      priceUsd: entitlements.paidAnalysisPriceUsd,
-      priceDisplay: entitlements.priceDisplay,
-      nextFreeResetDate: entitlements.nextFreeResetDate
-    });
+    return res.status(200).json(entitlements);
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Failed to fetch usage status' });
+    return res.status(500).json({ error: err?.message || 'Failed to fetch entitlements' });
   }
 }

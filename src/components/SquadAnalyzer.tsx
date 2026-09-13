@@ -1,12 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, 
   Info, 
   Sliders,
-  X
+  X,
+  CreditCard,
+  ShieldCheck,
+  RefreshCw,
+  Zap,
+  CheckCircle2
 } from 'lucide-react';
-import { AnalysisResult, TypedPlayerInput, ManagerInputDetails, FluidFormationSettings, LinkUpPlaySettings } from '../types.ts';
+import { 
+  AnalysisResult, 
+  TypedPlayerInput, 
+  ManagerInputDetails, 
+  FluidFormationSettings, 
+  LinkUpPlaySettings,
+  UserEntitlements,
+  PaymentRecord
+} from '../types.ts';
 import { ManualPlayerInput } from './ManualPlayerInput.tsx';
+import { useAuth } from '../lib/AuthContext.tsx';
+import { PaymentModal } from './PaymentModal.tsx';
 
 // All official eFootball formations
 export const EFOOTBALL_FORMATIONS = [
@@ -41,6 +56,7 @@ interface AnalyzerProps {
 }
 
 export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) => {
+  const { user } = useAuth();
   const [typedPlayers, setTypedPlayers] = useState<TypedPlayerInput[]>([]);
   const [managerDetails, setManagerDetails] = useState<ManagerInputDetails>({
     name: '',
@@ -82,6 +98,53 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Payment Entitlements & Modal State
+  const [entitlements, setEntitlements] = useState<UserEntitlements | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
+  const [isResettingTestQuota, setIsResettingTestQuota] = useState<boolean>(false);
+  const [testActionNotice, setTestActionNotice] = useState<string | null>(null);
+
+  const fetchEntitlements = async () => {
+    const uid = user?.uid || 'guest';
+    try {
+      const res = await fetch(`/api/user/entitlements?userId=${encodeURIComponent(uid)}`);
+      if (res.ok) {
+        const data: UserEntitlements = await res.json();
+        setEntitlements(data);
+      }
+    } catch (err) {
+      console.warn('Could not fetch entitlements:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchEntitlements();
+  }, [user?.uid]);
+
+  const handleTestResetQuota = async () => {
+    const uid = user?.uid || 'guest';
+    setIsResettingTestQuota(true);
+    setTestActionNotice(null);
+    try {
+      const res = await fetch('/api/payment/test-reset-free', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uid })
+      });
+      if (res.ok) {
+        setTestActionNotice('Test Mode: Weekly free analysis quota reset to 1.');
+        await fetchEntitlements();
+      } else {
+        const err = await res.json();
+        setErrorMessage(err.error || 'Failed to reset test quota.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Error resetting test quota.');
+    } finally {
+      setIsResettingTestQuota(false);
+    }
+  };
+
   const analysisSteps = [
     'Stage 1: Validating Starting XI and substitute player configurations...',
     'Stage 2: Evaluating manager playstyle proficiencies and team chemistry...',
@@ -93,6 +156,12 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
   const handleStartAnalysis = async () => {
     if (typedPlayers.length === 0) {
       setErrorMessage('Please enter at least one squad player (Starting XI recommended) before analyzing your squad.');
+      return;
+    }
+
+    // Backend Source of Truth pre-check: If user has neither free quota nor paid credits, prompt payment
+    if (entitlements && !entitlements.canAnalyze) {
+      setShowPaymentModal(true);
       return;
     }
 
@@ -114,6 +183,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
         : preferredFormation;
 
       const payload = {
+        userId: user?.uid || 'guest',
         images: [],
         typedPlayers: typedPlayers.map(p => ({
           id: p.id,
@@ -143,10 +213,23 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
 
       clearInterval(interval);
 
+      if (resp.status === 402) {
+        setIsAnalyzing(false);
+        await fetchEntitlements();
+        setShowPaymentModal(true);
+        return;
+      }
+
       if (!resp.ok) {
         let errMessage = '';
         try {
           const errJson = await resp.json();
+          if (errJson.paymentRequired) {
+            setIsAnalyzing(false);
+            await fetchEntitlements();
+            setShowPaymentModal(true);
+            return;
+          }
           errMessage = errJson.error || errJson.message || '';
         } catch {
           errMessage = await resp.text().catch(() => '');
@@ -156,6 +239,8 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
 
       const result: AnalysisResult = await resp.json();
       setIsAnalyzing(false);
+      // Refresh entitlement state so counter updates in real time
+      fetchEntitlements();
       onAnalysisCompleted(result);
     } catch (err: any) {
       clearInterval(interval);
@@ -171,10 +256,31 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-neutral-900 via-neutral-900 to-emerald-950/40 border border-neutral-800 rounded-2xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
-            <Sparkles className="w-3.5 h-3.5" />
-            eFootball 2027 AI Squad Engine
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
+              <Sparkles className="w-3.5 h-3.5" />
+              eFootball 2027 AI Squad Engine
+            </div>
+
+            {/* Entitlement Quota Pill */}
+            {entitlements?.weeklyFreeAnalysisAvailable ? (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                1 Free Analysis Available This Week
+              </div>
+            ) : (entitlements?.paidAnalysisCredits || 0) > 0 ? (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-xs font-bold">
+                <Zap className="w-3 h-3 text-cyan-400" />
+                {entitlements?.paidAnalysisCredits} Paid Analysis Credit{(entitlements?.paidAnalysisCredits || 0) > 1 ? 's' : ''} Available
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold">
+                <CreditCard className="w-3 h-3 text-amber-400" />
+                Weekly Free Analysis Used
+              </div>
+            )}
           </div>
+
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             AI Squad Analyzer & Tactical Advisor
           </h1>
@@ -190,6 +296,8 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           className={`px-6 py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] ${
             isAnalyzing || typedPlayers.length === 0
               ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed shadow-none'
+              : entitlements && !entitlements.canAnalyze
+              ? 'bg-amber-500 hover:bg-amber-400 text-neutral-950 shadow-amber-500/20 cursor-pointer'
               : 'bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-emerald-500/20 cursor-pointer'
           }`}
         >
@@ -197,6 +305,11 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
             <>
               <span className="w-4 h-4 rounded-full border-2 border-neutral-950 border-t-transparent animate-spin" />
               Analyzing Squad...
+            </>
+          ) : entitlements && !entitlements.canAnalyze ? (
+            <>
+              <CreditCard className="w-4 h-4" />
+              Get 1 Additional Analysis ({entitlements?.priceDisplay || '$0.00 USD'})
             </>
           ) : (
             <>
@@ -206,6 +319,63 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           )}
         </button>
       </div>
+
+      {/* Developer / Admin Test Mode Controls Toolbar (Only active when testMode is true) */}
+      {entitlements?.testMode && (
+        <div className="bg-neutral-900/90 border border-amber-500/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-amber-500/5">
+          <div className="flex items-start sm:items-center gap-3">
+            <span className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs text-amber-300 uppercase tracking-wider">
+                  Payment Test Mode Active ($0.00 USD)
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-neutral-800 text-neutral-300 border border-neutral-700">
+                  Simulated Gateways
+                </span>
+              </div>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                All Pesapal, PayPal, Google Pay & Apple Pay checkouts are simulated without charging real funds.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <button
+              type="button"
+              disabled={isResettingTestQuota}
+              onClick={handleTestResetQuota}
+              className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isResettingTestQuota ? 'animate-spin' : ''}`} />
+              <span>Reset Free Quota</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowPaymentModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Test Payment Modal</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {testActionNotice && (
+        <div className="bg-emerald-950/40 border border-emerald-800/80 rounded-xl p-3.5 text-emerald-300 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{testActionNotice}</span>
+          </div>
+          <button onClick={() => setTestActionNotice(null)} className="text-emerald-400 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Error Alert */}
       {errorMessage && (
@@ -541,16 +711,45 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
               className={`px-8 py-4 rounded-xl font-black text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] ${
                 isAnalyzing || typedPlayers.length === 0
                   ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed shadow-none'
+                  : entitlements && !entitlements.canAnalyze
+                  ? 'bg-amber-500 hover:bg-amber-400 text-neutral-950 shadow-amber-500/30 cursor-pointer'
                   : 'bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-emerald-500/30 cursor-pointer'
               }`}
             >
-              <Sparkles className="w-5 h-5" />
-              Analyze Squad & Generate Match Strategy ({typedPlayers.length} Players)
+              {isAnalyzing ? (
+                <>
+                  <span className="w-5 h-5 rounded-full border-2 border-neutral-950 border-t-transparent animate-spin" />
+                  <span>Analyzing Squad...</span>
+                </>
+              ) : entitlements && !entitlements.canAnalyze ? (
+                <>
+                  <CreditCard className="w-5 h-5" />
+                  <span>Unlock 1 Additional Analysis ({entitlements?.priceDisplay || '$0.00 USD'})</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>Analyze Squad & Generate Match Strategy ({typedPlayers.length} Players)</span>
+                </>
+              )}
             </button>
           </div>
 
         </div>
       )}
+
+      {/* Payment Checkout Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        userId={user?.uid || 'guest'}
+        userEmail={user?.email || undefined}
+        displayName={user?.displayName || undefined}
+        entitlements={entitlements}
+        onPaymentSuccess={() => {
+          fetchEntitlements();
+        }}
+      />
 
     </div>
   );

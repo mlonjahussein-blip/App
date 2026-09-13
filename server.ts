@@ -4,6 +4,15 @@ import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { performSquadAnalysis, createEvidenceBasedFallback, AnalyzeSquadPayload } from './server/accuracyPipeline.ts';
 import { sendVerificationEmail, verifyEmailOtp } from './server/emailService.ts';
+import {
+  getUserEntitlements,
+  consumeEntitlementForAnalysis,
+  createPaymentOrder,
+  verifyAndCompletePayment,
+  getPaymentHistory,
+  resetUserFreeAnalysisForTesting
+} from './server/payment/paymentService.ts';
+import { getPaymentConfig } from './server/payment/config.ts';
 
 dotenv.config();
 
@@ -418,21 +427,112 @@ app.post('/api/auth/reset-password', async (req, res) => {
   }
 });
 
-// User usage status & payment eligibility endpoint
-app.get('/api/user/usage-status', (req, res) => {
-  const userId = (req.query.userId as string) || 'guest';
-  // 1 free analysis per week rule
-  res.json({
-    userId,
-    freeAnalysesRemaining: 1,
-    paidCredits: 0,
-    paidAnalysisEnabled: false,
-    paymentStatusNotice: 'Paid analysis is currently unavailable while we prepare the payment system. Enjoy your weekly free analysis!',
-    nextFreeResetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-  });
+// User entitlements & usage status endpoint (Backend source of truth)
+app.get('/api/user/entitlements', async (req, res) => {
+  try {
+    const userId = (req.query.userId as string) || 'guest';
+    const entitlements = await getUserEntitlements(userId);
+    res.json(entitlements);
+  } catch (err: any) {
+    console.error('Error fetching entitlements:', err);
+    res.status(500).json({ error: err?.message || 'Failed to fetch user entitlements' });
+  }
 });
 
-// Perform AI Analysis endpoint
+// Backward-compatible usage status endpoint
+app.get('/api/user/usage-status', async (req, res) => {
+  try {
+    const userId = (req.query.userId as string) || 'guest';
+    const entitlements = await getUserEntitlements(userId);
+    res.json({
+      userId,
+      freeAnalysesRemaining: entitlements.freeAnalysesRemaining,
+      paidCredits: entitlements.paidAnalysisCredits,
+      paidAnalysisEnabled: true,
+      canAnalyze: entitlements.canAnalyze,
+      testMode: entitlements.testMode,
+      priceUsd: entitlements.paidAnalysisPriceUsd,
+      priceDisplay: entitlements.priceDisplay,
+      nextFreeResetDate: entitlements.nextFreeResetDate
+    });
+  } catch (err: any) {
+    console.error('Error in usage-status:', err);
+    res.status(500).json({ error: err?.message || 'Failed to query usage status' });
+  }
+});
+
+// Create Payment Order Intent endpoint
+app.post('/api/payment/create', async (req, res) => {
+  try {
+    const { userId, provider, userEmail, displayName } = req.body || {};
+    if (!userId || !provider) {
+      return res.status(400).json({ error: 'userId and provider are required.' });
+    }
+
+    const order = await createPaymentOrder({
+      userId,
+      provider,
+      userEmail,
+      displayName
+    });
+
+    res.json({ success: true, order });
+  } catch (err: any) {
+    console.error('Error in /api/payment/create:', err);
+    res.status(500).json({ success: false, error: err?.message || 'Failed to create payment order' });
+  }
+});
+
+// Verify & Complete Payment endpoint (Idempotent: grants credit once)
+app.post('/api/payment/verify', async (req, res) => {
+  try {
+    const { paymentId, providerTransactionId, simulateAction } = req.body || {};
+    if (!paymentId) {
+      return res.status(400).json({ error: 'paymentId is required.' });
+    }
+
+    const result = await verifyAndCompletePayment(
+      paymentId,
+      simulateAction || 'success',
+      providerTransactionId
+    );
+
+    res.json({ success: result.status === 'SUCCESS', result });
+  } catch (err: any) {
+    console.error('Error in /api/payment/verify:', err);
+    res.status(500).json({ success: false, error: err?.message || 'Failed to verify payment' });
+  }
+});
+
+// Payment History endpoint
+app.get('/api/payment/history', async (req, res) => {
+  try {
+    const userId = (req.query.userId as string) || 'guest';
+    const history = await getPaymentHistory(userId);
+    res.json({ success: true, history });
+  } catch (err: any) {
+    console.error('Error in /api/payment/history:', err);
+    res.status(500).json({ success: false, error: err?.message || 'Failed to fetch payment history' });
+  }
+});
+
+// Test Mode: Reset Free Analysis Quota (Only allowed when PAYMENT_TEST_MODE = true)
+app.post('/api/payment/test-reset-free', async (req, res) => {
+  try {
+    const { userId } = req.body || {};
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required.' });
+    }
+
+    const result = await resetUserFreeAnalysisForTesting(userId);
+    res.json(result);
+  } catch (err: any) {
+    console.error('Error in /api/payment/test-reset-free:', err);
+    res.status(400).json({ success: false, error: err?.message || 'Failed to reset free analysis' });
+  }
+});
+
+// Perform AI Analysis endpoint with server-side entitlement enforcement
 app.post('/api/analyze-squad', async (req, res) => {
   try {
     const payload: AnalyzeSquadPayload = req.body || {};
@@ -441,6 +541,18 @@ app.post('/api/analyze-squad', async (req, res) => {
     if (!hasTyped) {
       return res.status(400).json({
         error: 'Please enter your squad players before analyzing.'
+      });
+    }
+
+    // Backend Source of Truth: Verify & Consume analysis entitlement
+    const userId = (payload as any).userId || (req.query?.userId as string) || 'guest';
+    const entitlementCheck = await consumeEntitlementForAnalysis(userId);
+    if (!entitlementCheck.allowed) {
+      return res.status(402).json({
+        success: false,
+        paymentRequired: true,
+        errorCode: 'PAYMENT_REQUIRED',
+        error: entitlementCheck.error || 'Weekly free analysis used. Additional analysis requires payment.'
       });
     }
 
@@ -455,7 +567,11 @@ app.post('/api/analyze-squad', async (req, res) => {
 
     res.json({
       success: true,
-      analysis: result
+      analysis: {
+        ...result,
+        analysisType: entitlementCheck.analysisType || 'FREE_WEEKLY'
+      },
+      analysisType: entitlementCheck.analysisType || 'FREE_WEEKLY'
     });
   } catch (error: any) {
     console.error('API Error in /api/analyze-squad:', error);
