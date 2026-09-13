@@ -225,7 +225,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
         </div>
 
         <div className="text-neutral-500 font-medium">
-          (c) 2026 eFootball AI Hub. All rights are reserved.
+          © 2026 eFootball AI Hub. All rights are reserved.
         </div>
       </footer>
 
