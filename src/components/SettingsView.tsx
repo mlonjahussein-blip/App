@@ -26,14 +26,54 @@ export const SettingsView: React.FC<SettingsProps> = ({
   onNavigateToAnalyzer,
   onAccountDeleted
 }) => {
-  const { user, profile, deleteAccount } = useAuth();
+  const { user, profile, deleteAccount, changePassword } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<'account' | 'usage' | 'payments'>('account');
+
+  // Password change states
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Account deletion states
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState<string>('');
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordMessage(null);
+    setPasswordError(null);
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError('Please fill in all password fields.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New password and confirmation do not match.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters long.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setPasswordMessage('Password successfully updated! Your new password will be required for future sign-ins.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      setPasswordError(err?.message || 'Failed to change password. Please verify your current password.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmationText.trim().toUpperCase() !== 'DELETE') {
@@ -80,7 +120,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
         <button
           onClick={onLogout}
-          className="px-4 py-2 rounded-xl bg-neutral-900 hover:bg-rose-950/60 text-rose-400 border border-neutral-800 hover:border-rose-800 font-bold text-xs flex items-center gap-2 transition-all self-start sm:self-auto"
+          className="px-4 py-2 rounded-xl bg-neutral-900 hover:bg-rose-950/60 text-rose-400 border border-neutral-800 hover:border-rose-800 font-bold text-xs flex items-center gap-2 transition-all self-start sm:self-auto cursor-pointer"
         >
           <LogOut className="w-4 h-4" />
           Sign Out
@@ -97,7 +137,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
           <button
             key={tab.id}
             onClick={() => setActiveSubTab(tab.id as any)}
-            className={`pb-3 border-b-2 transition-all ${
+            className={`pb-3 border-b-2 transition-all cursor-pointer ${
               activeSubTab === tab.id
                 ? 'border-emerald-500 text-emerald-400'
                 : 'border-transparent text-neutral-400 hover:text-white'
@@ -148,6 +188,77 @@ export const SettingsView: React.FC<SettingsProps> = ({
               <p className="font-mono text-xs text-neutral-400 bg-neutral-950 p-3 rounded-xl border border-neutral-800 break-all">
                 {user?.uid || 'Not authenticated'}
               </p>
+            </div>
+
+            {/* Change Password Section */}
+            <div className="pt-6 mt-6 border-t border-neutral-800 space-y-4">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Settings className="w-4 h-4 text-emerald-400" />
+                Change Sign-In Password
+              </h3>
+              <p className="text-xs text-neutral-400">
+                Update your account password. Your new password will be required for subsequent sign-ins across all devices.
+              </p>
+
+              <form onSubmit={handlePasswordChange} className="space-y-3 pt-2">
+                {passwordMessage && (
+                  <div className="p-3 bg-emerald-950/40 border border-emerald-800/80 text-emerald-300 text-xs rounded-xl">
+                    {passwordMessage}
+                  </div>
+                )}
+                {passwordError && (
+                  <div className="p-3 bg-rose-950/40 border border-rose-800/80 text-rose-300 text-xs rounded-xl">
+                    {passwordError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-neutral-400 mb-1">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Enter current password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-neutral-400 mb-1">
+                    New Password (min 6 characters)
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Enter new password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-neutral-400 mb-1">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs transition-all shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isChangingPassword ? 'Updating Password...' : 'Update Password'}
+                </button>
+              </form>
             </div>
 
             {/* Danger Zone: Delete Account */}
@@ -220,7 +331,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
           <button
             onClick={onNavigateToAnalyzer}
-            className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs inline-flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+            className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs inline-flex items-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
           >
             <Sparkles className="w-4 h-4" />
             Analyze Squad Now
@@ -228,7 +339,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
         </div>
       )}
 
-      {/* 3. Payment Architecture & History (Strictly complying with Specs 24 & 25) */}
+      {/* 3. Payment Architecture & History */}
       {activeSubTab === 'payments' && (
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
           
@@ -242,7 +353,6 @@ export const SettingsView: React.FC<SettingsProps> = ({
             </span>
           </div>
 
-          {/* Explicit Notice per Spec 25 */}
           <div className="bg-neutral-950 border border-amber-500/40 rounded-xl p-4 flex items-start gap-3 text-xs text-amber-200">
             <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
             <div className="space-y-1">
@@ -255,13 +365,11 @@ export const SettingsView: React.FC<SettingsProps> = ({
             </div>
           </div>
 
-          {/* Required Spec 24: Payment History Table with empty state */}
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-neutral-300 uppercase tracking-wider">
               Transaction Records
             </h3>
 
-            {/* Empty state per spec: "No payment transactions yet." Do not generate fake records. */}
             <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-8 text-center space-y-2">
               <p className="text-sm font-semibold text-neutral-300">
                 No payment transactions yet.

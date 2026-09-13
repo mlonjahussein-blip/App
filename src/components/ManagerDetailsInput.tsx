@@ -76,7 +76,7 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
             Manager Playing Style Strengths (Proficiency):
           </label>
           <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
-            eFootball 2027 Ready
+            eFootball 2027 Ready (50 - 90)
           </span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
@@ -108,7 +108,45 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
                     max="90"
                     value={currentVal}
                     onChange={(e) => {
-                      const val = Math.min(90, Math.max(50, Number(e.target.value) || 50));
+                      const valStr = e.target.value;
+                      if (valStr === '') {
+                        onManagerChange({
+                          ...managerDetails,
+                          playstyleProficiencies: {
+                            ...(managerDetails.playstyleProficiencies || {
+                              possessionGame: 85,
+                              quickCounter: 87,
+                              longBallCounter: 85,
+                              outWide: 80,
+                              longBall: 75,
+                              overload: 86
+                            }),
+                            [key]: 50
+                          }
+                        });
+                        return;
+                      }
+                      const num = parseInt(valStr, 10);
+                      if (!isNaN(num)) {
+                        onManagerChange({
+                          ...managerDetails,
+                          playstyleProficiencies: {
+                            ...(managerDetails.playstyleProficiencies || {
+                              possessionGame: 85,
+                              quickCounter: 87,
+                              longBallCounter: 85,
+                              outWide: 80,
+                              longBall: 75,
+                              overload: 86
+                            }),
+                            [key]: num
+                          }
+                        });
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const num = parseInt(e.target.value, 10);
+                      const clamped = isNaN(num) ? 50 : Math.min(90, Math.max(50, num));
                       onManagerChange({
                         ...managerDetails,
                         playstyleProficiencies: {
@@ -120,7 +158,7 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
                             longBall: 75,
                             overload: 86
                           }),
-                          [key]: val
+                          [key]: clamped
                         }
                       });
                     }}

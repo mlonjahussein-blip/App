@@ -77,6 +77,7 @@ interface AuthContextType {
   deleteAccount: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -721,6 +722,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await signIn(cleanId, cleanPass);
   };
 
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    if (!user) throw new Error('You must be signed in to change your password.');
+    const cleanCurrent = (currentPassword || '').trim();
+    const cleanNew = (newPassword || '').trim();
+
+    if (!cleanCurrent) {
+      throw new Error('Please enter your current password.');
+    }
+    if (!cleanNew || cleanNew.length < 6) {
+      throw new Error('New password must be at least 6 characters long.');
+    }
+
+    const identifier = user.email || user.whatsappNumber || user.uid;
+    const cloudAcc = await findCloudAccount(identifier);
+    if (!cloudAcc || !cloudAcc.salt || !cloudAcc.hash) {
+      throw new Error('Account record not found in system cloud database.');
+    }
+
+    const computedCurrentHash = await hashPasswordWithSalt(cleanCurrent, cloudAcc.salt);
+    if (computedCurrentHash !== cloudAcc.hash) {
+      throw new Error('Current password is incorrect.');
+    }
+
+    const newSalt = generateSalt();
+    const newHash = await hashPasswordWithSalt(cleanNew, newSalt);
+
+    await updateUniversalCloudPassword(identifier, newSalt, newHash);
+    try {
+      fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, salt: newSalt, hash: newHash })
+      }).catch(() => {});
+    } catch {}
+  };
+
   /**
    * Passwordless Sign In with verified 6-digit Email OTP code
    */
@@ -945,7 +982,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         deleteAccount,
         refreshProfile,
-        resetPassword
+        resetPassword,
+        changePassword
       }}
     >
       {children}

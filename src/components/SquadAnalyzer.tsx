@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Sparkles, 
-  AlertCircle, 
   Info, 
-  Keyboard, 
-  Zap, 
   Sliders,
   X
 } from 'lucide-react';
@@ -14,7 +11,7 @@ import { ManualPlayerInput } from './ManualPlayerInput.tsx';
 // All official eFootball formations
 export const EFOOTBALL_FORMATIONS = [
   { value: 'Auto-Detect / Balanced', label: 'Auto-Detect / AI Optimal Recommendation', category: 'General' },
-  { value: 'Copy from Base Team', label: 'Copy from Base Team (Custom Gameplan Shape)', category: 'General' },
+  { value: 'Custom Gameplan', label: 'Custom Gameplan', category: 'General' },
   
   // 4-Back Formations
   { value: '4-2-1-3', label: '4-2-1-3 (Double Pivot + Central AMF + Wingers)', category: '4-Back' },
@@ -60,6 +57,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
   });
   const [preferredPlaystyle, setPreferredPlaystyle] = useState('Quick Counter');
   const [preferredFormation, setPreferredFormation] = useState('4-2-1-3');
+  const [customGameplan, setCustomGameplan] = useState('');
   const [tacticalPreference, setTacticalPreference] = useState('');
 
   // Fluid Formations state
@@ -111,6 +109,10 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
     }, 1200);
 
     try {
+      const finalFormation = preferredFormation === 'Custom Gameplan' 
+        ? `Custom Gameplan: ${customGameplan.trim() || 'Custom Formation'}` 
+        : preferredFormation;
+
       const payload = {
         images: [],
         typedPlayers: typedPlayers.map(p => ({
@@ -126,7 +128,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
         })),
         managerDetails: managerDetails.name.trim() ? managerDetails : undefined,
         preferredPlaystyle,
-        preferredFormation,
+        preferredFormation: finalFormation,
         fluidFormations: fluidFormations.enabled ? fluidFormations : undefined,
         linkUpPlay: linkUpPlay.enabled ? linkUpPlay : undefined,
         tacticalPreference,
@@ -149,93 +151,74 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
         } catch {
           errMessage = await resp.text().catch(() => '');
         }
-        throw new Error(errMessage || `Analysis service encountered an issue (Status ${resp.status}). Please try again.`);
+        throw new Error(errMessage || `Server responded with status ${resp.status}`);
       }
 
-      const data = await resp.json();
-      const analysisResult = data.analysis || (data.squadRatings || data.recommendedFormation ? data : null);
-      if (analysisResult) {
-        onAnalysisCompleted(analysisResult);
-      } else {
-        throw new Error('No analysis data was returned by the tactical server.');
-      }
+      const result: AnalysisResult = await resp.json();
+      setIsAnalyzing(false);
+      onAnalysisCompleted(result);
     } catch (err: any) {
       clearInterval(interval);
+      console.error('Squad analysis error:', err);
+      setErrorMessage(err?.message || 'Failed to analyze squad. Please check your connection and try again.');
       setIsAnalyzing(false);
-      let msg = err?.message || 'Failed to process squad analysis.';
-      if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Load failed')) {
-        msg = 'Network connection interrupted. Please check your internet connection and try again.';
-      }
-      setErrorMessage(msg);
     }
   };
 
   return (
-    <div id="analyzer-container" className="max-w-4xl mx-auto space-y-8 py-6">
+    <div className="max-w-6xl mx-auto space-y-8 py-6">
       
-      {/* Title */}
-      <div>
-        <div className="flex items-center gap-2">
-          <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
-            <Sparkles className="w-5 h-5" />
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            AI Squad Analyzer
-          </h1>
-        </div>
-        <p className="text-sm text-neutral-400 mt-1">
-          Enter your Starting XI, substitutes, and manager details for instant AI tactical evaluation and player optimization.
-        </p>
-      </div>
-
-      {/* User Guidance Banner */}
-      <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-5 sm:p-6 shadow-xl">
-        <div className="flex items-start gap-3.5">
-          <span className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0 mt-0.5">
-            <Info className="w-5 h-5" />
-          </span>
-          <div className="space-y-2 text-sm text-neutral-300">
-            <h2 className="text-base font-bold text-white tracking-tight">Enter Your Squad & Manager Details</h2>
-            <p className="text-neutral-400 text-xs sm:text-sm">
-              Configure your eFootball Starting XI, bench substitutes, formation, and manager proficiencies below to run comprehensive tactical analysis.
-            </p>
-            <div className="pt-1">
-              <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
-                Tips for optimal analysis:
-              </p>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-neutral-300">
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  Add manager proficiency ratings for accurate chemistry scores.
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  Complete your Starting XI (11 players) for full tactical balance.
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  Add substitutes for bench depth and game-changer recommendations.
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  Specify playstyles and card types (e.g. Epic, Show Time, POTW).
-                </li>
-              </ul>
-            </div>
+      {/* Header Banner */}
+      <div className="bg-gradient-to-r from-neutral-900 via-neutral-900 to-emerald-950/40 border border-neutral-800 rounded-2xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
+            <Sparkles className="w-3.5 h-3.5" />
+            eFootball 2027 AI Squad Engine
           </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            AI Squad Analyzer & Tactical Advisor
+          </h1>
+          <p className="text-sm text-neutral-400 max-w-2xl">
+            Input your squad players and manager details manually. Our AI engine computes chemistry, tactical suitability, Best XI formation, and match-winning instructions.
+          </p>
         </div>
+
+        <button
+          type="button"
+          onClick={handleStartAnalysis}
+          disabled={isAnalyzing || typedPlayers.length === 0}
+          className={`px-6 py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] ${
+            isAnalyzing || typedPlayers.length === 0
+              ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed shadow-none'
+              : 'bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-emerald-500/20 cursor-pointer'
+          }`}
+        >
+          {isAnalyzing ? (
+            <>
+              <span className="w-4 h-4 rounded-full border-2 border-neutral-950 border-t-transparent animate-spin" />
+              Analyzing Squad...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              Analyze Squad ({typedPlayers.length} Players)
+            </>
+          )}
+        </button>
       </div>
 
-      {/* Error Banner */}
+      {/* Error Alert */}
       {errorMessage && (
-        <div className="bg-rose-950/60 border border-rose-800 rounded-xl p-4 flex items-start gap-3 text-rose-200 text-sm">
-          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-          <div className="flex-1">{errorMessage}</div>
+        <div className="bg-rose-950/40 border border-rose-800/80 rounded-xl p-4 text-rose-300 text-sm flex items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <X className="w-5 h-5 text-rose-400 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
           <button 
             onClick={() => setErrorMessage(null)}
-            className="text-rose-400 hover:text-rose-200 p-1 cursor-pointer"
+            className="text-rose-400 hover:text-white font-bold text-xs px-2 py-1"
           >
-            <X className="w-4 h-4" />
+            Dismiss
           </button>
         </div>
       )}
@@ -358,6 +341,22 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
                     </option>
                   ))}
                 </select>
+
+                {/* Custom Gameplan Input Area */}
+                {preferredFormation === 'Custom Gameplan' && (
+                  <div className="mt-3 animate-fade-in">
+                    <label className="text-[11px] font-bold text-emerald-400 block mb-1">
+                      Enter Your Custom Gameplan / Shape:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 3-1-3-3 Asymmetrical Build-up with Floating AMF"
+                      value={customGameplan}
+                      onChange={(e) => setCustomGameplan(e.target.value)}
+                      className="w-full bg-neutral-950 border border-emerald-500/60 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Fluid Formations Toggle & Configuration Block */}
@@ -407,180 +406,62 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
                         onChange={(e) => setFluidFormations(prev => ({ ...prev, kickoffFormation: e.target.value }))}
                         className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
                       >
-                        {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced').map(f => (
-                          <option key={`kickoff-${f.value}`} value={f.value}>{f.label}</option>
+                        {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced' && f.value !== 'Custom Gameplan').map(f => (
+                          <option key={f.value} value={f.value}>{f.label.split(' ')[0]}</option>
                         ))}
                       </select>
                     </div>
 
                     <div>
-                      <label className="text-[11px] font-bold text-emerald-400 block mb-1">
-                        2. When in Possession (Attacking)
+                      <label className="text-[11px] font-bold text-cyan-400 block mb-1">
+                        2. In Possession (Attacking)
                       </label>
                       <select
                         value={fluidFormations.inPossessionFormation || '3-2-4-1'}
                         onChange={(e) => setFluidFormations(prev => ({ ...prev, inPossessionFormation: e.target.value }))}
-                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
                       >
-                        {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced').map(f => (
-                          <option key={`inpos-${f.value}`} value={f.value}>{f.label}</option>
+                        {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced' && f.value !== 'Custom Gameplan').map(f => (
+                          <option key={f.value} value={f.value}>{f.label.split(' ')[0]}</option>
                         ))}
                       </select>
                     </div>
 
                     <div>
-                      <label className="text-[11px] font-bold text-amber-400 block mb-1">
-                        3. When out of Possession (Defending)
+                      <label className="text-[11px] font-bold text-cyan-400 block mb-1">
+                        3. Out of Possession (Defending)
                       </label>
                       <select
                         value={fluidFormations.outOfPossessionFormation || '5-3-2'}
                         onChange={(e) => setFluidFormations(prev => ({ ...prev, outOfPossessionFormation: e.target.value }))}
-                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
                       >
-                        {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced').map(f => (
-                          <option key={`outpos-${f.value}`} value={f.value}>{f.label}</option>
+                        {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced' && f.value !== 'Custom Gameplan').map(f => (
+                          <option key={f.value} value={f.value}>{f.label.split(' ')[0]}</option>
                         ))}
                       </select>
                     </div>
                   </div>
                 )}
-              </div>
-
-              {/* Linked-Up Play Style Toggle & Configuration Block */}
-              <div className="md:col-span-2 bg-neutral-950/70 border border-neutral-800 rounded-xl p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
-                      <Zap className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-white">Linked-Up Play Style</span>
-                        <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-bold">
-                          Coach Combination Link
-                        </span>
-                      </div>
-                      <p className="text-xs text-neutral-400">
-                        Specify player-to-player link-up movements and combinations based on your coach's special tactical description.
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Toggle Switch */}
-                  <button
-                    type="button"
-                    onClick={() => setLinkUpPlay(prev => ({ ...prev, enabled: !prev.enabled }))}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      linkUpPlay.enabled ? 'bg-amber-500' : 'bg-neutral-800'
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        linkUpPlay.enabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {linkUpPlay.enabled && (
-                  <div className="pt-3 border-t border-neutral-800/80 space-y-3 animate-fade-in">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-[11px] font-bold text-neutral-300 block mb-1">
-                          From Player (Initiator / Passer)
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Kevin De Bruyne (AMF) / Rodri"
-                          value={linkUpPlay.fromPlayer || ''}
-                          onChange={(e) => setLinkUpPlay(prev => ({ ...prev, fromPlayer: e.target.value }))}
-                          className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-bold text-neutral-300 block mb-1">
-                          To Player (Target / Runner)
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Erling Haaland (CF) / Vinícius Jr"
-                          value={linkUpPlay.toPlayer || ''}
-                          onChange={(e) => setLinkUpPlay(prev => ({ ...prev, toPlayer: e.target.value }))}
-                          className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-bold text-neutral-300 block mb-1">
-                          Link-Up Combination Style
-                        </label>
-                        <select
-                          value={linkUpPlay.linkPattern || 'Give & Go (1-2 Quick Return Pass)'}
-                          onChange={(e) => setLinkUpPlay(prev => ({ ...prev, linkPattern: e.target.value }))}
-                          className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
-                        >
-                          <option value="Give & Go (1-2 Quick Return Pass)">Give & Go (1-2 Quick Return Pass)</option>
-                          <option value="Third-Man Overload Run (eFootball 2027)">Third-Man Overload Run (eFootball 2027)</option>
-                          <option value="Target Man Wall Pass & Direct Release">Target Man Wall Pass & Direct Release</option>
-                          <option value="Inverted Fullback Central Underlap">Inverted Fullback Central Underlap</option>
-                          <option value="Inside Forward Overlap & Far Post Cut">Inside Forward Overlap & Far Post Cut</option>
-                          <option value="Custom Coach Combination">Custom Coach Combination</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-neutral-400 block mb-1">
-                        Coach's Link-Up Description / Special Instruction (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 'Coach instructs DMF to trigger quick triangle pass to AMF, unlocking CF behind the defensive line.'"
-                        value={linkUpPlay.coachInstructionNote || ''}
-                        onChange={(e) => setLinkUpPlay(prev => ({ ...prev, coachInstructionNote: e.target.value }))}
-                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Freeform Tactical Objective */}
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
-                  Specific Tactical Objective (Optional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g., 'I want to counter opponent 4-3-3s' or 'Struggling with conceding crosses'"
-                  value={tacticalPreference}
-                  onChange={(e) => setTacticalPreference(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
-                />
               </div>
 
             </div>
           </div>
 
-          {/* Action Trigger CTA */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 bg-neutral-950 border border-neutral-800 rounded-2xl">
-            <div>
-              <p className="text-sm font-bold text-white">Ready for comprehensive AI evaluation?</p>
-              <p className="text-xs text-neutral-400">
-                {typedPlayers.length > 0
-                  ? `${typedPlayers.length} player(s) loaded in squad${managerDetails.name ? ` • Manager: ${managerDetails.name}` : ''}.`
-                  : 'Enter Starting XI or Substitution players to start analysis.'}
-              </p>
-            </div>
-
+          {/* Bottom Analysis Action Bar */}
+          <div className="flex justify-end pt-2">
             <button
-              id="start-squad-analysis-btn"
+              type="button"
               onClick={handleStartAnalysis}
-              className="w-full sm:w-auto px-8 py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-lg bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-emerald-500/20 cursor-pointer"
+              disabled={isAnalyzing || typedPlayers.length === 0}
+              className={`px-8 py-4 rounded-xl font-black text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] ${
+                isAnalyzing || typedPlayers.length === 0
+                  ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed shadow-none'
+                  : 'bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-emerald-500/30 cursor-pointer'
+              }`}
             >
-              <Sparkles className="w-4 h-4" />
-              Analyze My Squad {typedPlayers.length > 0 ? `(${typedPlayers.length} players)` : ''}
+              <Sparkles className="w-5 h-5" />
+              Analyze Squad & Generate Match Strategy ({typedPlayers.length} Players)
             </button>
           </div>
 

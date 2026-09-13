@@ -4,9 +4,7 @@ import {
   Trash2, 
   Plus, 
   UserCheck, 
-  ShieldCheck, 
   Layers, 
-  Award,
   Users
 } from 'lucide-react';
 import { TypedPlayerInput, ManagerInputDetails } from '../types.ts';
@@ -29,6 +27,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const [xiName, setXiName] = useState('');
   const [xiPos, setXiPos] = useState('CF');
   const [xiCardType, setXiCardType] = useState('Highlight');
+  const [xiPlaystyle, setXiPlaystyle] = useState('Goal Poacher');
   const [xiRating, setXiRating] = useState<number>(95);
   const [xiTeam, setXiTeam] = useState('');
 
@@ -36,11 +35,34 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const [subName, setSubName] = useState('');
   const [subPos, setSubPos] = useState('CF');
   const [subCardType, setSubCardType] = useState('Highlight');
+  const [subPlaystyle, setSubPlaystyle] = useState('Goal Poacher');
   const [subRating, setSubRating] = useState<number>(92);
   const [subTeam, setSubTeam] = useState('');
 
   const positions = ['CF', 'SS', 'LWF', 'RWF', 'AMF', 'CMF', 'DMF', 'LMF', 'RMF', 'LB', 'CB', 'RB', 'GK'];
   const cardTypes = ['Epic', 'Show Time', 'Highlight', 'POTW', 'Standard', 'Legendary', 'Big Time', 'Booster', 'Featured'];
+  const playstyles = [
+    'Goal Poacher',
+    'Fox in the Box',
+    'Target Man',
+    'Creative Playmaker',
+    'Hole Player',
+    'Box-to-Box',
+    'Anchor Man',
+    'Orchestrator',
+    'Destroyer',
+    'Build Up',
+    'Offensive Fullback',
+    'Defensive Fullback',
+    'Roaming Flank',
+    'Prolific Winger',
+    'Cross Specialist',
+    'Extra Frontman',
+    'Deep-Lying Forward',
+    'Full-back Finisher',
+    'Counter Target',
+    'No Playstyle'
+  ];
 
   const startingXI = typedPlayers.filter(p => p.role === 'starting_xi' || !p.role);
   const substitutes = typedPlayers.filter(p => p.role === 'substitute');
@@ -54,6 +76,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       name: xiName.trim(),
       position: xiPos,
       cardType: xiCardType,
+      playstyle: xiPlaystyle,
       rating: Math.min(110, Math.max(60, Number(xiRating) || 90)),
       club: xiTeam.trim() || undefined,
       role: 'starting_xi'
@@ -73,6 +96,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       name: subName.trim(),
       position: subPos,
       cardType: subCardType,
+      playstyle: subPlaystyle,
       rating: Math.min(110, Math.max(60, Number(subRating) || 90)),
       club: subTeam.trim() || undefined,
       role: 'substitute'
@@ -93,6 +117,10 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
 
   const updatePlayerPosition = (id: string, newPosition: string) => {
     onChange(typedPlayers.map(p => p.id === id ? { ...p, position: newPosition } : p));
+  };
+
+  const updatePlayerPlaystyle = (id: string, newPlaystyle: string) => {
+    onChange(typedPlayers.map(p => p.id === id ? { ...p, playstyle: newPlaystyle } : p));
   };
 
   const clearAllSquad = () => {
@@ -211,28 +239,43 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             </select>
           </div>
 
-          {/* Player Team / Club */}
-          <div className="sm:col-span-3">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Player Team / Club</label>
-            <input
-              type="text"
-              placeholder="e.g. Real Madrid, Arsenal"
-              value={xiTeam}
-              onChange={(e) => setXiTeam(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addStartingXIPlayer(); }}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
-            />
+          {/* Player Playing Style */}
+          <div className="sm:col-span-2">
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Playing Style</label>
+            <select
+              value={xiPlaystyle}
+              onChange={(e) => setXiPlaystyle(e.target.value)}
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+            >
+              {playstyles.map(ps => (
+                <option key={ps} value={ps}>{ps}</option>
+              ))}
+            </select>
           </div>
 
           {/* Rating (OVR) */}
-          <div className="sm:col-span-1">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR</label>
+          <div className="sm:col-span-2">
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR (60-110)</label>
             <input
               type="number"
               min="60"
               max="110"
               value={xiRating}
-              onChange={(e) => setXiRating(Number(e.target.value))}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setXiRating(60);
+                  return;
+                }
+                const num = parseInt(val, 10);
+                if (!isNaN(num)) {
+                  setXiRating(num);
+                }
+              }}
+              onBlur={(e) => {
+                const num = parseInt(e.target.value, 10);
+                setXiRating(isNaN(num) ? 90 : Math.min(110, Math.max(60, num)));
+              }}
               onKeyDown={(e) => { if (e.key === 'Enter') addStartingXIPlayer(); }}
               className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-1.5 py-2 text-xs font-black text-amber-300 placeholder-neutral-500 focus:outline-none focus:border-emerald-500 text-center"
             />
@@ -317,28 +360,43 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             </select>
           </div>
 
-          {/* Player Team / Club */}
-          <div className="sm:col-span-3">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Player Team / Club</label>
-            <input
-              type="text"
-              placeholder="e.g. Real Madrid, Chelsea"
-              value={subTeam}
-              onChange={(e) => setSubTeam(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addSubstitutePlayer(); }}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-cyan-500"
-            />
+          {/* Player Playing Style */}
+          <div className="sm:col-span-2">
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Playing Style</label>
+            <select
+              value={subPlaystyle}
+              onChange={(e) => setSubPlaystyle(e.target.value)}
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+            >
+              {playstyles.map(ps => (
+                <option key={ps} value={ps}>{ps}</option>
+              ))}
+            </select>
           </div>
 
           {/* Rating (OVR) */}
-          <div className="sm:col-span-1">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR</label>
+          <div className="sm:col-span-2">
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR (60-110)</label>
             <input
               type="number"
               min="60"
               max="110"
               value={subRating}
-              onChange={(e) => setSubRating(Number(e.target.value))}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setSubRating(60);
+                  return;
+                }
+                const num = parseInt(val, 10);
+                if (!isNaN(num)) {
+                  setSubRating(num);
+                }
+              }}
+              onBlur={(e) => {
+                const num = parseInt(e.target.value, 10);
+                setSubRating(isNaN(num) ? 90 : Math.min(110, Math.max(60, num)));
+              }}
               onKeyDown={(e) => { if (e.key === 'Enter') addSubstitutePlayer(); }}
               className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-1.5 py-2 text-xs font-black text-amber-300 placeholder-neutral-500 focus:outline-none focus:border-cyan-500 text-center"
             />
@@ -425,64 +483,87 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                   {startingXI.map((player, idx) => (
                     <div
                       key={player.id}
-                      className="bg-neutral-900/90 border border-neutral-800 hover:border-emerald-500/40 rounded-xl p-3 flex items-center justify-between gap-2 shadow-sm transition-colors"
+                      className="bg-neutral-900/90 border border-neutral-800 hover:border-emerald-500/40 rounded-xl p-3 flex flex-col gap-2 shadow-sm transition-colors"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-[10px] font-bold text-neutral-500 w-4 text-right shrink-0">
-                          {idx + 1}.
-                        </span>
-
-                        {/* Editable Position */}
-                        <select
-                          value={player.position}
-                          onChange={(e) => updatePlayerPosition(player.id, e.target.value)}
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-black border cursor-pointer ${getPositionColor(player.position)}`}
-                        >
-                          {positions.map(p => (
-                            <option key={p} value={p}>{p}</option>
-                          ))}
-                        </select>
-
-                        <div className="min-w-0">
-                          <span className="text-xs font-bold text-white block truncate">
-                            {player.name}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[10px] font-bold text-neutral-500 w-4 text-right shrink-0">
+                            {idx + 1}.
                           </span>
-                          <div className="flex items-center gap-1.5 text-[10px] text-neutral-400">
-                            <span className={`inline-block px-1.5 py-0.2 rounded border text-[9px] font-bold ${getCardTypeBadgeStyle(player.cardType)}`}>
-                              {player.cardType || 'Highlight'}
+
+                          {/* Editable Position */}
+                          <select
+                            value={player.position}
+                            onChange={(e) => updatePlayerPosition(player.id, e.target.value)}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-black border cursor-pointer ${getPositionColor(player.position)}`}
+                          >
+                            {positions.map(p => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                          </select>
+
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-white block truncate">
+                              {player.name}
                             </span>
-                            {player.club && (
-                              <span className="truncate text-neutral-400 text-[10px]">
-                                {player.club}
-                              </span>
-                            )}
                           </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {/* Rating Input */}
+                          <div className="flex items-center gap-1 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
+                            <input
+                              type="number"
+                              min="60"
+                              max="110"
+                              value={player.rating}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '') {
+                                  updatePlayerRating(player.id, 60);
+                                  return;
+                                }
+                                const num = parseInt(val, 10);
+                                if (!isNaN(num)) {
+                                  updatePlayerRating(player.id, num);
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const num = parseInt(e.target.value, 10);
+                                updatePlayerRating(player.id, isNaN(num) ? 90 : Math.min(110, Math.max(60, num)));
+                              }}
+                              className="w-8 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
+                            />
+                            <span className="text-[9px] font-bold text-neutral-500">OVR</span>
+                          </div>
+
+                          {/* Remove Button */}
+                          <button
+                            type="button"
+                            onClick={() => removePlayer(player.id)}
+                            className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
+                            title="Remove player"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        {/* Rating Input */}
-                        <div className="flex items-center gap-1 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
-                          <input
-                            type="number"
-                            min="60"
-                            max="110"
-                            value={player.rating}
-                            onChange={(e) => updatePlayerRating(player.id, Number(e.target.value))}
-                            className="w-8 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
-                          />
-                          <span className="text-[9px] font-bold text-neutral-500">OVR</span>
-                        </div>
-
-                        {/* Remove Button */}
-                        <button
-                          type="button"
-                          onClick={() => removePlayer(player.id)}
-                          className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
-                          title="Remove player"
+                      {/* Card Type & Editable Playstyle */}
+                      <div className="flex items-center justify-between pt-1 border-t border-neutral-800/60 text-[10px]">
+                        <span className={`inline-block px-1.5 py-0.2 rounded border text-[9px] font-bold ${getCardTypeBadgeStyle(player.cardType)}`}>
+                          {player.cardType || 'Highlight'}
+                        </span>
+                        
+                        <select
+                          value={player.playstyle || 'Goal Poacher'}
+                          onChange={(e) => updatePlayerPlaystyle(player.id, e.target.value)}
+                          className="bg-neutral-950 border border-neutral-700 text-neutral-300 rounded px-2 py-1 text-[10px] focus:outline-none focus:border-emerald-500"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          {playstyles.map(ps => (
+                            <option key={ps} value={ps}>{ps}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   ))}
@@ -513,64 +594,87 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                   {substitutes.map((player, idx) => (
                     <div
                       key={player.id}
-                      className="bg-neutral-900/90 border border-neutral-800 hover:border-cyan-500/40 rounded-xl p-3 flex items-center justify-between gap-2 shadow-sm transition-colors"
+                      className="bg-neutral-900/90 border border-neutral-800 hover:border-cyan-500/40 rounded-xl p-3 flex flex-col gap-2 shadow-sm transition-colors"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-[10px] font-bold text-neutral-500 w-4 text-right shrink-0">
-                          {idx + 1}.
-                        </span>
-
-                        {/* Editable Position */}
-                        <select
-                          value={player.position}
-                          onChange={(e) => updatePlayerPosition(player.id, e.target.value)}
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-black border cursor-pointer ${getPositionColor(player.position)}`}
-                        >
-                          {positions.map(p => (
-                            <option key={p} value={p}>{p}</option>
-                          ))}
-                        </select>
-
-                        <div className="min-w-0">
-                          <span className="text-xs font-bold text-white block truncate">
-                            {player.name}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[10px] font-bold text-neutral-500 w-4 text-right shrink-0">
+                            {idx + 1}.
                           </span>
-                          <div className="flex items-center gap-1.5 text-[10px] text-neutral-400">
-                            <span className={`inline-block px-1.5 py-0.2 rounded border text-[9px] font-bold ${getCardTypeBadgeStyle(player.cardType)}`}>
-                              {player.cardType || 'Highlight'}
+
+                          {/* Editable Position */}
+                          <select
+                            value={player.position}
+                            onChange={(e) => updatePlayerPosition(player.id, e.target.value)}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-black border cursor-pointer ${getPositionColor(player.position)}`}
+                          >
+                            {positions.map(p => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                          </select>
+
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-white block truncate">
+                              {player.name}
                             </span>
-                            {player.club && (
-                              <span className="truncate text-neutral-400 text-[10px]">
-                                {player.club}
-                              </span>
-                            )}
                           </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {/* Rating Input */}
+                          <div className="flex items-center gap-1 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
+                            <input
+                              type="number"
+                              min="60"
+                              max="110"
+                              value={player.rating}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '') {
+                                  updatePlayerRating(player.id, 60);
+                                  return;
+                                }
+                                const num = parseInt(val, 10);
+                                if (!isNaN(num)) {
+                                  updatePlayerRating(player.id, num);
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const num = parseInt(e.target.value, 10);
+                                updatePlayerRating(player.id, isNaN(num) ? 90 : Math.min(110, Math.max(60, num)));
+                              }}
+                              className="w-8 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
+                            />
+                            <span className="text-[9px] font-bold text-neutral-500">OVR</span>
+                          </div>
+
+                          {/* Remove Button */}
+                          <button
+                            type="button"
+                            onClick={() => removePlayer(player.id)}
+                            className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
+                            title="Remove player"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        {/* Rating Input */}
-                        <div className="flex items-center gap-1 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
-                          <input
-                            type="number"
-                            min="60"
-                            max="110"
-                            value={player.rating}
-                            onChange={(e) => updatePlayerRating(player.id, Number(e.target.value))}
-                            className="w-8 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
-                          />
-                          <span className="text-[9px] font-bold text-neutral-500">OVR</span>
-                        </div>
-
-                        {/* Remove Button */}
-                        <button
-                          type="button"
-                          onClick={() => removePlayer(player.id)}
-                          className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
-                          title="Remove player"
+                      {/* Card Type & Editable Playstyle */}
+                      <div className="flex items-center justify-between pt-1 border-t border-neutral-800/60 text-[10px]">
+                        <span className={`inline-block px-1.5 py-0.2 rounded border text-[9px] font-bold ${getCardTypeBadgeStyle(player.cardType)}`}>
+                          {player.cardType || 'Highlight'}
+                        </span>
+                        
+                        <select
+                          value={player.playstyle || 'Goal Poacher'}
+                          onChange={(e) => updatePlayerPlaystyle(player.id, e.target.value)}
+                          className="bg-neutral-950 border border-neutral-700 text-neutral-300 rounded px-2 py-1 text-[10px] focus:outline-none focus:border-cyan-500"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          {playstyles.map(ps => (
+                            <option key={ps} value={ps}>{ps}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   ))}
