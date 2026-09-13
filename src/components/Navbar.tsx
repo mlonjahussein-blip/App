@@ -20,10 +20,9 @@ import {
 interface NavbarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
-  onOpenPaymentModal?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpenPaymentModal }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => {
   const { user, profile, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -99,17 +98,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
                 >
                   Community
                 </button>
-                {onOpenPaymentModal && (
-                  <button
-                    id="nav-test-payment-guest"
-                    onClick={onOpenPaymentModal}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-neutral-900 hover:bg-neutral-800 text-emerald-400 border border-emerald-500/30 transition-all cursor-pointer"
-                    title="Test Payment Modal ($0.00)"
-                  >
-                    <CreditCard className="w-3.5 h-3.5" />
-                    <span>Test Payment</span>
-                  </button>
-                )}
                 <div className="h-5 w-px bg-neutral-800 mx-2" />
                 <button
                   id="nav-login"
@@ -202,18 +190,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
                   Profile
                 </button>
 
-                {onOpenPaymentModal && (
-                  <button
-                    id="nav-test-payment-auth"
-                    onClick={onOpenPaymentModal}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all cursor-pointer shadow-sm"
-                    title="Test Payment Checkout"
-                  >
-                    <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Test Payment</span>
-                  </button>
-                )}
-
                 <div className="h-5 w-px bg-neutral-800 mx-2" />
 
                 <div className="flex items-center gap-3">
@@ -268,24 +244,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
               >
                 Community
               </button>
-              {onOpenPaymentModal && (
-                <button
-                  id="mobile-nav-test-payment-guest"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenPaymentModal();
-                  }}
-                  className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between"
-                >
-                  <span className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-emerald-400" />
-                    <span>Test Payment Modal</span>
-                  </span>
-                  <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
-                    $0.00 Test
-                  </span>
-                </button>
-              )}
               <div className="pt-2 border-t border-neutral-800 flex gap-2">
                 <button
                   onClick={() => handleNav('login')}
@@ -343,24 +301,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
               >
                 Profile & Settings
               </button>
-              {onOpenPaymentModal && (
-                <button
-                  id="mobile-nav-test-payment-auth"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenPaymentModal();
-                  }}
-                  className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between"
-                >
-                  <span className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-emerald-400" />
-                    <span>Test Payment Modal</span>
-                  </span>
-                  <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
-                    $0.00 Test
-                  </span>
-                </button>
-              )}
               <button
                 onClick={handleLogout}
                 className="w-full text-left px-3 py-2 rounded-lg text-sm text-rose-400 font-medium hover:bg-rose-500/10"

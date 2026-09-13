@@ -21,18 +21,26 @@ import { UserEntitlements, PaymentRecord } from '../types.ts';
 import { PaymentModal } from './PaymentModal.tsx';
 
 interface SettingsProps {
+  initialSubTab?: 'account' | 'usage' | 'payments';
   onLogout: () => void;
   onNavigateToAnalyzer: () => void;
   onAccountDeleted?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsProps> = ({
+  initialSubTab = 'account',
   onLogout,
   onNavigateToAnalyzer,
   onAccountDeleted
 }) => {
   const { user, profile, deleteAccount, changePassword } = useAuth();
-  const [activeSubTab, setActiveSubTab] = useState<'account' | 'usage' | 'payments'>('account');
+  const [activeSubTab, setActiveSubTab] = useState<'account' | 'usage' | 'payments'>(initialSubTab);
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
 
   // Password change states
   const [currentPassword, setCurrentPassword] = useState('');

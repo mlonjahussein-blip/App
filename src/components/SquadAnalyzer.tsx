@@ -5,10 +5,9 @@ import {
   Sliders,
   X,
   CreditCard,
-  ShieldCheck,
-  RefreshCw,
   Zap,
-  CheckCircle2
+  CheckCircle2,
+  ArrowRight
 } from 'lucide-react';
 import { 
   AnalysisResult, 
@@ -16,12 +15,10 @@ import {
   ManagerInputDetails, 
   FluidFormationSettings, 
   LinkUpPlaySettings,
-  UserEntitlements,
-  PaymentRecord
+  UserEntitlements
 } from '../types.ts';
 import { ManualPlayerInput } from './ManualPlayerInput.tsx';
 import { useAuth } from '../lib/AuthContext.tsx';
-import { PaymentModal } from './PaymentModal.tsx';
 
 // All official eFootball formations
 export const EFOOTBALL_FORMATIONS = [
@@ -53,9 +50,10 @@ export const EFOOTBALL_FORMATIONS = [
 
 interface AnalyzerProps {
   onAnalysisCompleted: (result: AnalysisResult) => void;
+  onNavigateToPayments?: () => void;
 }
 
-export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) => {
+export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, onNavigateToPayments }) => {
   const { user } = useAuth();
   const [typedPlayers, setTypedPlayers] = useState<TypedPlayerInput[]>([]);
   const [managerDetails, setManagerDetails] = useState<ManagerInputDetails>({
@@ -98,11 +96,8 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Payment Entitlements & Modal State
+  // Payment Entitlements
   const [entitlements, setEntitlements] = useState<UserEntitlements | null>(null);
-  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
-  const [isResettingTestQuota, setIsResettingTestQuota] = useState<boolean>(false);
-  const [testActionNotice, setTestActionNotice] = useState<string | null>(null);
 
   const fetchEntitlements = async () => {
     const uid = user?.uid || 'guest';
@@ -121,30 +116,6 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
     fetchEntitlements();
   }, [user?.uid]);
 
-  const handleTestResetQuota = async () => {
-    const uid = user?.uid || 'guest';
-    setIsResettingTestQuota(true);
-    setTestActionNotice(null);
-    try {
-      const res = await fetch('/api/payment/test-reset-free', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: uid })
-      });
-      if (res.ok) {
-        setTestActionNotice('Test Mode: Weekly free analysis quota reset to 1.');
-        await fetchEntitlements();
-      } else {
-        const err = await res.json();
-        setErrorMessage(err.error || 'Failed to reset test quota.');
-      }
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Error resetting test quota.');
-    } finally {
-      setIsResettingTestQuota(false);
-    }
-  };
-
   const analysisSteps = [
     'Stage 1: Validating Starting XI and substitute player configurations...',
     'Stage 2: Evaluating manager playstyle proficiencies and team chemistry...',
@@ -159,9 +130,11 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
       return;
     }
 
-    // Backend Source of Truth pre-check: If user has neither free quota nor paid credits, prompt payment
+    // Backend Source of Truth pre-check: If user has neither free quota nor paid credits, navigate to Payment Architecture & History
     if (entitlements && !entitlements.canAnalyze) {
-      setShowPaymentModal(true);
+      if (onNavigateToPayments) {
+        onNavigateToPayments();
+      }
       return;
     }
 
@@ -216,7 +189,9 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
       if (resp.status === 402) {
         setIsAnalyzing(false);
         await fetchEntitlements();
-        setShowPaymentModal(true);
+        if (onNavigateToPayments) {
+          onNavigateToPayments();
+        }
         return;
       }
 
@@ -227,7 +202,9 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           if (errJson.paymentRequired) {
             setIsAnalyzing(false);
             await fetchEntitlements();
-            setShowPaymentModal(true);
+            if (onNavigateToPayments) {
+              onNavigateToPayments();
+            }
             return;
           }
           errMessage = errJson.error || errJson.message || '';
@@ -309,7 +286,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
           ) : entitlements && !entitlements.canAnalyze ? (
             <>
               <CreditCard className="w-4 h-4" />
-              Get 1 Additional Analysis ({entitlements?.priceDisplay || '$0.00 USD'})
+              Buy Credits in Payment & History
             </>
           ) : (
             <>
@@ -320,60 +297,30 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
         </button>
       </div>
 
-      {/* Developer / Admin Test Mode Controls Toolbar (Only active when testMode is true) */}
-      {entitlements?.testMode && (
-        <div className="bg-neutral-900/90 border border-amber-500/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-amber-500/5">
+      {/* Out of credit guidance card */}
+      {entitlements && !entitlements.canAnalyze && (
+        <div className="bg-neutral-900/90 border border-amber-500/30 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
           <div className="flex items-start sm:items-center gap-3">
-            <span className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
-              <ShieldCheck className="w-5 h-5" />
+            <span className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 shrink-0 mt-0.5 sm:mt-0">
+              <CreditCard className="w-5 h-5" />
             </span>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-xs text-amber-300 uppercase tracking-wider">
-                  Payment Test Mode Active ($0.00 USD)
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-neutral-800 text-neutral-300 border border-neutral-700">
-                  Simulated Gateways
-                </span>
-              </div>
+              <h4 className="text-sm font-bold text-white">Free Weekly Analysis Used</h4>
               <p className="text-xs text-neutral-400 mt-0.5">
-                All Pesapal, PayPal, Google Pay & Apple Pay checkouts are simulated without charging real funds.
+                You have reached your 1 free analysis for this week. Visit Payment Architecture & History to purchase additional credits.
               </p>
             </div>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {onNavigateToPayments && (
             <button
               type="button"
-              disabled={isResettingTestQuota}
-              onClick={handleTestResetQuota}
-              className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              onClick={onNavigateToPayments}
+              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs flex items-center gap-2 transition-all self-start sm:self-auto cursor-pointer shadow-md shadow-emerald-500/20 shrink-0"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isResettingTestQuota ? 'animate-spin' : ''}`} />
-              <span>Reset Free Quota</span>
+              <span>Payment Architecture & History</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
-
-            <button
-              type="button"
-              onClick={() => setShowPaymentModal(true)}
-              className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <CreditCard className="w-3.5 h-3.5" />
-              <span>Test Payment Modal</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {testActionNotice && (
-        <div className="bg-emerald-950/40 border border-emerald-800/80 rounded-xl p-3.5 text-emerald-300 text-xs flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{testActionNotice}</span>
-          </div>
-          <button onClick={() => setTestActionNotice(null)} className="text-emerald-400 hover:text-white">
-            <X className="w-4 h-4" />
-          </button>
+          )}
         </div>
       )}
 
@@ -724,7 +671,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
               ) : entitlements && !entitlements.canAnalyze ? (
                 <>
                   <CreditCard className="w-5 h-5" />
-                  <span>Unlock 1 Additional Analysis ({entitlements?.priceDisplay || '$0.00 USD'})</span>
+                  <span>Buy Credits in Payment Architecture & History</span>
                 </>
               ) : (
                 <>
@@ -737,19 +684,6 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
 
         </div>
       )}
-
-      {/* Payment Checkout Modal */}
-      <PaymentModal
-        isOpen={showPaymentModal}
-        onClose={() => setShowPaymentModal(false)}
-        userId={user?.uid || 'guest'}
-        userEmail={user?.email || undefined}
-        displayName={user?.displayName || undefined}
-        entitlements={entitlements}
-        onPaymentSuccess={() => {
-          fetchEntitlements();
-        }}
-      />
 
     </div>
   );
