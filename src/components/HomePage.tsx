@@ -10,15 +10,17 @@ import {
   Zap,
   FileText,
   AlertCircle,
-  Lock
+  Lock,
+  CreditCard
 } from 'lucide-react';
 
 interface HomePageProps {
   onStartAnalysis: () => void;
   onExploreCommunity: () => void;
+  onOpenPaymentModal?: () => void;
 }
 
-export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCommunity }) => {
+export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCommunity, onOpenPaymentModal }) => {
   const [activeModal, setActiveModal] = useState<'privacy' | 'disclaimer' | 'terms' | null>(null);
 
   return (
@@ -47,7 +49,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
           </p>
 
           {/* Primary & Secondary CTAs */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
             <button
               id="hero-analyze-cta"
               onClick={onStartAnalysis}
@@ -59,11 +61,21 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
             <button
               id="hero-community-cta"
               onClick={onExploreCommunity}
-              className="w-full sm:w-auto px-7 py-4 rounded-xl text-base font-semibold bg-neutral-900 hover:bg-neutral-800 text-white border border-neutral-700 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-6 py-4 rounded-xl text-base font-semibold bg-neutral-900 hover:bg-neutral-800 text-white border border-neutral-700 flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
               <Users className="w-5 h-5 text-emerald-400" />
               Explore Community
             </button>
+            {onOpenPaymentModal && (
+              <button
+                id="hero-test-payment-cta"
+                onClick={onOpenPaymentModal}
+                className="w-full sm:w-auto px-5 py-4 rounded-xl text-sm font-bold bg-neutral-900/90 hover:bg-neutral-850 text-emerald-400 border border-emerald-500/40 hover:border-emerald-400 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
+              >
+                <CreditCard className="w-4 h-4 text-emerald-400" />
+                <span>Test Payment ($0.00)</span>
+              </button>
+            )}
           </div>
 
           <p className="text-xs text-neutral-400 font-medium pt-2">

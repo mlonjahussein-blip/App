@@ -11,10 +11,11 @@ import { SettingsView } from './components/SettingsView.tsx';
 import { AuthView } from './components/AuthView.tsx';
 import { PlayerBuilderModal } from './components/PlayerBuilderModal.tsx';
 import { PlayerComparisonModal } from './components/PlayerComparisonModal.tsx';
-import { AnalysisResult, PlayerData } from './types.ts';
+import { PaymentModal } from './components/PaymentModal.tsx';
+import { AnalysisResult, PlayerData, UserEntitlements } from './types.ts';
 import { db } from './lib/firebase.ts';
 import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
-import { ShieldAlert, Sparkles, Heart } from 'lucide-react';
+import { ShieldAlert, Sparkles, Heart, CreditCard } from 'lucide-react';
 import { MaintenanceView } from './components/MaintenanceView.tsx';
 
 // Temporary maintenance mode flag (set to false to reactivate)
@@ -30,6 +31,24 @@ function AppContent() {
   // Modals
   const [selectedBuilderPlayer, setSelectedBuilderPlayer] = useState<PlayerData | null>(null);
   const [comparisonPair, setComparisonPair] = useState<{ p1: PlayerData; p2: PlayerData } | null>(null);
+  const [showTestPaymentModal, setShowTestPaymentModal] = useState<boolean>(false);
+  const [userEntitlements, setUserEntitlements] = useState<UserEntitlements | null>(null);
+
+  const fetchEntitlements = async () => {
+    try {
+      const resp = await fetch(`/api/user/entitlements?userId=${user?.uid || 'guest'}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        setUserEntitlements(data);
+      }
+    } catch (e) {
+      console.warn('Error fetching entitlements:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchEntitlements();
+  }, [user]);
 
   // Start analysis trigger with authentication guard
   const handleStartAnalysis = () => {
@@ -182,7 +201,11 @@ function AppContent() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-neutral-950">
       
       {/* Top Navbar */}
-      <Navbar currentTab={currentTab} setCurrentTab={setCurrentTab} />
+      <Navbar 
+        currentTab={currentTab} 
+        setCurrentTab={setCurrentTab} 
+        onOpenPaymentModal={() => setShowTestPaymentModal(true)} 
+      />
 
       {/* Main View Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
@@ -190,6 +213,7 @@ function AppContent() {
           <HomePage
             onStartAnalysis={handleStartAnalysis}
             onExploreCommunity={() => setCurrentTab('community')}
+            onOpenPaymentModal={() => setShowTestPaymentModal(true)}
           />
         )}
 
@@ -311,6 +335,49 @@ function AppContent() {
           tacticalPlaystyle={activeAnalysis?.coachRecommendation?.tacticalStyle || 'Quick Counter'}
         />
       )}
+
+      {/* Global Interactive Payment Modal for Website Testing */}
+      {showTestPaymentModal && (
+        <PaymentModal
+          isOpen={showTestPaymentModal}
+          onClose={() => setShowTestPaymentModal(false)}
+          userId={user?.uid || 'guest-tester'}
+          userEmail={user?.email || 'tester@efootballaihub.com'}
+          displayName={profile?.displayName || user?.email?.split('@')[0] || 'Tactician Tester'}
+          entitlements={userEntitlements || {
+            userId: user?.uid || 'guest-tester',
+            weeklyFreeQuota: 1,
+            freeAnalysesRemaining: profile?.freeAnalysesRemaining ?? 1,
+            paidAnalysisCredits: 0,
+            totalCreditsAvailable: (profile?.freeAnalysesRemaining ?? 1),
+            canAnalyze: true,
+            pricePerAnalysisUSD: 0,
+            priceDisplay: '$0.00 USD (TEST MODE)',
+            testMode: true
+          }}
+          onPaymentSuccess={() => {
+            fetchEntitlements();
+          }}
+          onRefreshEntitlements={fetchEntitlements}
+        />
+      )}
+
+      {/* Floating Quick Test Payment Modal Pill */}
+      <div className="fixed bottom-4 left-4 z-40">
+        <button
+          id="floating-test-payment-btn"
+          onClick={() => setShowTestPaymentModal(true)}
+          className="group flex items-center gap-2 px-3.5 py-2 rounded-full bg-neutral-900/95 hover:bg-neutral-850 text-neutral-200 border border-emerald-500/40 hover:border-emerald-400 shadow-2xl backdrop-blur-md transition-all cursor-pointer transform hover:scale-105"
+          title="Open Interactive Payment Test Modal"
+        >
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="text-xs font-bold text-white tracking-tight">Test Payment Modal</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold uppercase">
+            $0.00 Test
+          </span>
+        </button>
+      </div>
 
       {/* Footer */}
       <footer className="mt-20 border-t border-neutral-900 bg-neutral-950 py-8 px-4 sm:px-6 lg:px-8 text-center text-xs text-neutral-500 space-y-2">
