@@ -445,6 +445,90 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted }) 
                 )}
               </div>
 
+              {/* Linked-Up Play Style Configuration Block */}
+              <div className="md:col-span-2 bg-neutral-950/70 border border-neutral-800 rounded-xl p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-white">Linked-Up Play Style</span>
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
+                          Synergy Combo
+                        </span>
+                      </div>
+                      <p className="text-xs text-neutral-400">
+                        Designate specific passing triangles or combination play between two key players (e.g. AMF to CF Give & Go).
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={() => setLinkUpPlay(prev => ({ ...prev, enabled: !prev.enabled }))}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      linkUpPlay.enabled ? 'bg-emerald-500' : 'bg-neutral-800'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        linkUpPlay.enabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {linkUpPlay.enabled && (
+                  <div className="pt-3 border-t border-neutral-800/80 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
+                    <div>
+                      <label className="text-[11px] font-bold text-emerald-400 block mb-1">
+                        Player A (Initiator)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Wirtz or De Bruyne"
+                        value={linkUpPlay.fromPlayer}
+                        onChange={(e) => setLinkUpPlay(prev => ({ ...prev, fromPlayer: e.target.value }))}
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-emerald-400 block mb-1">
+                        Player B (Receiver / Target)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Mbappé or Haaland"
+                        value={linkUpPlay.toPlayer}
+                        onChange={(e) => setLinkUpPlay(prev => ({ ...prev, toPlayer: e.target.value }))}
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="text-[11px] font-bold text-emerald-400 block mb-1">
+                        Link Pattern & Coach Instruction
+                      </label>
+                      <select
+                        value={linkUpPlay.linkPattern}
+                        onChange={(e) => setLinkUpPlay(prev => ({ ...prev, linkPattern: e.target.value }))}
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="Give & Go (1-2 Quick Return Pass)">Give & Go (1-2 Quick Return Pass)</option>
+                        <option value="Overlapping Fullback & Winger Combination">Overlapping Fullback & Winger Combination</option>
+                        <option value="Third-Man Run through Half-Space">Third-Man Run through Half-Space</option>
+                        <option value="Target Man Hold-Up & Runner Off-Ball">Target Man Hold-Up & Runner Off-Ball</option>
+                        <option value="Inverted Winger Cut Inside & AMF Late Surge">Inverted Winger Cut Inside & AMF Late Surge</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
 

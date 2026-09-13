@@ -197,7 +197,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-13 gap-2.5">
           {/* Player Name */}
           <div className="sm:col-span-3">
             <label className="text-[10px] font-bold text-neutral-400 block mb-1">Player Name</label>
@@ -211,13 +211,26 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             />
           </div>
 
-          {/* Position */}
+          {/* Team / Club */}
           <div className="sm:col-span-2">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Position</label>
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Team / Club</label>
+            <input
+              type="text"
+              placeholder="e.g. Real Madrid, Man City"
+              value={xiTeam}
+              onChange={(e) => setXiTeam(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addStartingXIPlayer(); }}
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          {/* Position */}
+          <div className="sm:col-span-1">
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Pos</label>
             <select
               value={xiPos}
               onChange={(e) => setXiPos(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
             >
               {positions.map(p => (
                 <option key={p} value={p}>{p}</option>
@@ -231,7 +244,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             <select
               value={xiCardType}
               onChange={(e) => setXiCardType(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
             >
               {cardTypes.map(c => (
                 <option key={c} value={c}>{c}</option>
@@ -245,7 +258,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             <select
               value={xiPlaystyle}
               onChange={(e) => setXiPlaystyle(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
             >
               {playstyles.map(ps => (
                 <option key={ps} value={ps}>{ps}</option>
@@ -254,8 +267,8 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Rating (OVR) */}
-          <div className="sm:col-span-2">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR (60-110)</label>
+          <div className="sm:col-span-1">
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR</label>
             <input
               type="number"
               min="60"
@@ -282,7 +295,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Add XI Button */}
-          <div className="sm:col-span-1 flex items-end">
+          <div className="sm:col-span-2 flex items-end">
             <button
               type="button"
               onClick={addStartingXIPlayer}
@@ -295,6 +308,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
               title={startingXI.length >= 11 ? 'Starting XI full (11 players maximum)' : 'Add player to Starting XI'}
             >
               <Plus className="w-4 h-4" />
+              <span>Add XI</span>
             </button>
           </div>
         </div>
@@ -318,7 +332,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-13 gap-2.5">
           {/* Player Name */}
           <div className="sm:col-span-3">
             <label className="text-[10px] font-bold text-neutral-400 block mb-1">Player Name</label>
@@ -332,13 +346,26 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             />
           </div>
 
-          {/* Position */}
+          {/* Team / Club */}
           <div className="sm:col-span-2">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Position</label>
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Team / Club</label>
+            <input
+              type="text"
+              placeholder="e.g. Arsenal, Bayern"
+              value={subTeam}
+              onChange={(e) => setSubTeam(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addSubstitutePlayer(); }}
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+
+          {/* Position */}
+          <div className="sm:col-span-1">
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Pos</label>
             <select
               value={subPos}
               onChange={(e) => setSubPos(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
             >
               {positions.map(p => (
                 <option key={p} value={p}>{p}</option>
@@ -352,7 +379,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             <select
               value={subCardType}
               onChange={(e) => setSubCardType(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
             >
               {cardTypes.map(c => (
                 <option key={c} value={c}>{c}</option>
@@ -366,7 +393,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             <select
               value={subPlaystyle}
               onChange={(e) => setSubPlaystyle(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
             >
               {playstyles.map(ps => (
                 <option key={ps} value={ps}>{ps}</option>
@@ -375,8 +402,8 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Rating (OVR) */}
-          <div className="sm:col-span-2">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR (60-110)</label>
+          <div className="sm:col-span-1">
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR</label>
             <input
               type="number"
               min="60"
@@ -403,7 +430,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Add Substitute Button */}
-          <div className="sm:col-span-1 flex items-end">
+          <div className="sm:col-span-2 flex items-end">
             <button
               type="button"
               onClick={addSubstitutePlayer}
@@ -416,6 +443,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
               title={substitutes.length >= 12 ? 'Substitutes full (12 players maximum)' : 'Add player to Substitutes'}
             >
               <Plus className="w-4 h-4" />
+              <span>Add Sub</span>
             </button>
           </div>
         </div>
