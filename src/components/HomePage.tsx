@@ -257,7 +257,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
             <div className="text-xs sm:text-sm text-neutral-300 leading-relaxed max-h-80 overflow-y-auto space-y-3">
               {activeModal === 'privacy' && (
                 <>
-                  <p><strong>eFootball AI Hub</strong> respects your privacy. We store only your saved squad reports and user profile authentication details securely in Firebase Firestore.</p>
+                  <p><strong>eFootball AI Hub</strong> respects your privacy. We store only your saved squad reports and user profile authentication details securely.</p>
                   <p>Your data is never sold, shared with third parties, or used for unsolicited marketing. You have full control to update or delete your saved squad reports at any time.</p>
                 </>
               )}
