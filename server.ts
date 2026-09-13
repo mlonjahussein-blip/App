@@ -30,7 +30,7 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     service: 'eFootball AI Hub API',
     timestamp: new Date().toISOString(),
-    paymentStatus: 'disabled_development'
+    paymentStatus: 'active_test_mode'
   });
 });
 

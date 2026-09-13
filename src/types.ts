@@ -350,17 +350,6 @@ export interface DirectMessage {
   isRead?: boolean;
 }
 
-export interface PaymentRecord {
-  id: string;
-  userId: string;
-  transactionId: string;
-  amount: number;
-  currency: string;
-  product: string;
-  status: 'Completed' | 'Pending' | 'Failed';
-  createdAt: string;
-}
-
 export interface SavedSquad {
   id: string;
   userId: string;
