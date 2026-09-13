@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { exportSquadAnalysisToPdf } from '../lib/pdfReportGenerator.ts';
+import { searchMasterPlayers } from '../lib/efootballDatabase.ts';
 import { 
   generatePlayerTrainingReport, 
   generateTacticalPreferences, 
@@ -78,6 +79,11 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const [expandedAuditPlayerId, setExpandedAuditPlayerId] = useState<string | null>(null);
   const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
+
+  const dbMatchedCount = squadAnalysis.identifiedPlayers.filter((p) => {
+    if (p.matchedDatabaseName) return true;
+    return searchMasterPlayers(p.name, 1).length > 0;
+  }).length;
 
   const showToast = (msg: string) => {
     setFeedbackToast(msg);
@@ -486,15 +492,15 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                 <span className="font-bold text-white">{squadAnalysis.identifiedPlayers.length} cards</span>
               </li>
               <li className="flex items-center justify-between p-2 rounded-lg bg-neutral-950">
-                <span>Coach in Screenshot:</span>
+                <span>Squad Coach:</span>
                 <span className="font-bold text-white">
-                  {squadAnalysis.coachRecommendation.isIdentifiedFromScreenshot ? 'Detected' : 'Not Visible (Recommended)'}
+                  {squadAnalysis.managerDetails?.name || squadAnalysis.coachRecommendation?.name || 'Custom Manager'}
                 </span>
               </li>
               <li className="flex items-center justify-between p-2 rounded-lg bg-neutral-950">
                 <span>Database Matched:</span>
                 <span className="font-bold text-emerald-400">
-                  {squadAnalysis.identifiedPlayers.filter((p) => p.matchedDatabaseName).length} players
+                  {dbMatchedCount} / {squadAnalysis.identifiedPlayers.length} matched
                 </span>
               </li>
               <li className="flex items-center justify-between p-2 rounded-lg bg-neutral-950">
@@ -526,7 +532,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
               </li>
               <li className="flex items-center justify-between p-2 rounded-lg bg-neutral-950">
                 <span>Overall Squad Balance:</span>
-                <span className="font-bold text-white">{ratings.balance}/100</span>
+                <span className="font-bold text-white">{ratings.balance}</span>
               </li>
               <li className="p-2.5 rounded-lg bg-neutral-950 text-[11px] text-neutral-300 leading-relaxed">
                 <strong className="text-white block mb-0.5">Key Strength:</strong>
