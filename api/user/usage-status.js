@@ -496,7 +496,7 @@ async function getUserEntitlements(userId) {
   };
 }
 
-// api/user/usage-status.ts
+// server/serverless/userUsageStatus.ts
 async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");

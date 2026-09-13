@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createPaymentOrder } from '../../server/payment/paymentService.ts';
+import { resetUserFreeAnalysisForTesting } from '../payment/paymentService.ts';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -16,21 +16,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { userId, provider, userEmail, displayName } = req.body || {};
-    if (!userId || !provider) {
-      return res.status(400).json({ error: 'userId and provider are required.' });
+    const { userId } = req.body || {};
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required.' });
     }
 
-    const order = await createPaymentOrder({
-      userId,
-      provider,
-      userEmail,
-      displayName
-    });
-
-    return res.status(200).json({ success: true, order });
+    const result = await resetUserFreeAnalysisForTesting(userId);
+    return res.status(200).json(result);
   } catch (err: any) {
-    console.error('API Error in /api/payment/create:', err);
-    return res.status(500).json({ success: false, error: err?.message || 'Failed to create payment order' });
+    console.error('API Error in /api/payment/test-reset-free:', err);
+    return res.status(400).json({ success: false, error: err?.message || 'Failed to reset free analysis' });
   }
 }

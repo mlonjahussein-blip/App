@@ -444,7 +444,7 @@ async function resetUserFreeAnalysisForTesting(userId) {
   };
 }
 
-// api/payment/test-reset-free.ts
+// server/serverless/paymentTestResetFree.ts
 async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");

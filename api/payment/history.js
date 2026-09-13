@@ -449,7 +449,7 @@ async function getPaymentHistory(userId) {
   return records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-// api/payment/history.ts
+// server/serverless/paymentHistory.ts
 async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");

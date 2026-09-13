@@ -521,7 +521,7 @@ async function verifyAndCompletePayment(paymentId, simulateAction = "success", p
   }
 }
 
-// api/payment/verify.ts
+// server/serverless/paymentVerify.ts
 async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");

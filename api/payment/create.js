@@ -462,7 +462,7 @@ async function createPaymentOrder(params) {
   return paymentCreation;
 }
 
-// api/payment/create.ts
+// server/serverless/paymentCreate.ts
 async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");

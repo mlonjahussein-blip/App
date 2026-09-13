@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getUserEntitlements } from '../../server/payment/paymentService.ts';
+import { getPaymentHistory } from '../payment/paymentService.ts';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -13,9 +13,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const userId = (req.query.userId as string) || 'guest';
   try {
-    const entitlements = await getUserEntitlements(userId);
-    return res.status(200).json(entitlements);
+    const history = await getPaymentHistory(userId);
+    return res.status(200).json({ success: true, history });
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Failed to fetch entitlements' });
+    console.error('API Error in /api/payment/history:', err);
+    return res.status(500).json({ success: false, error: err?.message || 'Failed to fetch payment history' });
   }
 }
