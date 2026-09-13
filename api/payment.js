@@ -377,6 +377,13 @@ var providers = {
   google_pay: new GooglePayPaymentProvider(),
   apple_pay: new ApplePayPaymentProvider()
 };
+function getPaymentProvider(type) {
+  const provider = providers[type];
+  if (!provider) {
+    throw new Error(`Unsupported payment provider: ${type}`);
+  }
+  return provider;
+}
 
 // server/payment/paymentService.ts
 var PROJECT_ID = "emergent-fastness-8lcf1";
@@ -444,83 +451,262 @@ async function writeFirestoreDoc(collection, docId, data) {
   }
 }
 var fallbackUserStore = /* @__PURE__ */ new Map();
-async function getUserEntitlements(userId) {
+var fallbackPaymentStore = /* @__PURE__ */ new Map();
+async function createPaymentOrder(params) {
   const config = getPaymentConfig();
-  const cleanUid = (userId || "guest").trim();
-  let userDoc = await fetchFirestoreDoc("users", cleanUid);
-  if (!userDoc) {
-    const cached = fallbackUserStore.get(cleanUid);
-    if (cached) {
-      userDoc = cached;
-    } else {
-      userDoc = {
-        freeAnalysesRemaining: 1,
-        paidCredits: 0,
-        lastFreeResetAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1e3).toISOString()
-      };
-      fallbackUserStore.set(cleanUid, userDoc);
-    }
-  }
-  let freeAnalysesRemaining = typeof userDoc.freeAnalysesRemaining === "number" ? userDoc.freeAnalysesRemaining : 1;
-  let paidCredits = typeof userDoc.paidCredits === "number" ? userDoc.paidCredits : 0;
-  let lastFreeResetAt = userDoc.lastFreeResetAt || new Date(Date.now() - 8 * 24 * 60 * 60 * 1e3).toISOString();
-  const lastResetTime = new Date(lastFreeResetAt).getTime();
-  const now = Date.now();
-  const sevenDaysMs = config.freeAnalysisIntervalDays * 24 * 60 * 60 * 1e3;
-  if (now - lastResetTime >= sevenDaysMs) {
-    if (freeAnalysesRemaining < 1) {
-      freeAnalysesRemaining = 1;
-      lastFreeResetAt = (/* @__PURE__ */ new Date()).toISOString();
-      await writeFirestoreDoc("users", cleanUid, {
-        freeAnalysesRemaining: 1,
-        lastFreeResetAt,
-        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-      });
-      fallbackUserStore.set(cleanUid, { freeAnalysesRemaining, paidCredits, lastFreeResetAt });
-    }
-  }
-  const weeklyFreeAnalysisAvailable = freeAnalysesRemaining > 0;
-  const canAnalyze = weeklyFreeAnalysisAvailable || paidCredits > 0;
-  const nextFreeResetDate = new Date(lastResetTime + sevenDaysMs).toISOString();
-  return {
+  const cleanUid = (params.userId || "guest").trim();
+  const provider = getPaymentProvider(params.provider);
+  const paymentCreation = await provider.createPayment({
     userId: cleanUid,
-    weeklyFreeAnalysisAvailable,
-    freeAnalysesRemaining,
-    paidAnalysisCredits: paidCredits,
-    canAnalyze,
-    nextFreeResetDate,
-    lastFreeResetAt,
-    testMode: config.isTestMode,
-    paidAnalysisPriceUsd: config.priceUsd,
-    priceDisplay: config.priceDisplay
+    userEmail: params.userEmail,
+    displayName: params.displayName,
+    amount: config.priceUsd,
+    currency: config.currency,
+    productType: "single_analysis",
+    isTestMode: config.isTestMode,
+    callbackUrl: params.callbackUrl
+  });
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const paymentRecord = {
+    id: paymentCreation.paymentId,
+    userId: cleanUid,
+    provider: params.provider,
+    providerTransactionId: paymentCreation.providerTransactionId,
+    productType: "single_analysis",
+    amount: config.priceUsd,
+    currency: config.currency,
+    status: "PENDING",
+    creditAmount: 1,
+    creditGranted: false,
+    isTestMode: config.isTestMode,
+    createdAt: now,
+    updatedAt: now
+  };
+  await writeFirestoreDoc("paymentRecords", paymentRecord.id, paymentRecord);
+  fallbackPaymentStore.set(paymentRecord.id, paymentRecord);
+  return paymentCreation;
+}
+async function verifyAndCompletePayment(paymentId, simulateAction = "success", providerTransactionId) {
+  const config = getPaymentConfig();
+  const cleanId = (paymentId || "").trim();
+  let paymentRecord = await fetchFirestoreDoc("paymentRecords", cleanId);
+  if (!paymentRecord) {
+    paymentRecord = fallbackPaymentStore.get(cleanId) || null;
+  }
+  if (!paymentRecord) {
+    throw new Error(`Payment record with ID ${cleanId} not found.`);
+  }
+  if (paymentRecord.status === "SUCCESS" && paymentRecord.creditGranted) {
+    console.log(`[Payment Idempotency] Payment ${cleanId} already completed and credit granted. Skipping double credit.`);
+    return {
+      paymentId: cleanId,
+      providerTransactionId: paymentRecord.providerTransactionId,
+      status: "SUCCESS",
+      creditGranted: true,
+      amount: paymentRecord.amount,
+      currency: paymentRecord.currency
+    };
+  }
+  const provider = getPaymentProvider(paymentRecord.provider);
+  const verifyResult = await provider.verifyPayment(cleanId, providerTransactionId || paymentRecord.providerTransactionId, simulateAction);
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  if (verifyResult.status === "SUCCESS") {
+    paymentRecord.status = "SUCCESS";
+    paymentRecord.creditGranted = true;
+    paymentRecord.completedAt = now;
+    paymentRecord.updatedAt = now;
+    await writeFirestoreDoc("paymentRecords", cleanId, paymentRecord);
+    fallbackPaymentStore.set(cleanId, paymentRecord);
+    const userDoc = await fetchFirestoreDoc("users", paymentRecord.userId) || { paidCredits: 0 };
+    const currentPaidCredits = typeof userDoc.paidCredits === "number" ? userDoc.paidCredits : 0;
+    const newPaidCredits = currentPaidCredits + 1;
+    await writeFirestoreDoc("users", paymentRecord.userId, {
+      paidCredits: newPaidCredits,
+      updatedAt: now
+    });
+    const cachedUser = fallbackUserStore.get(paymentRecord.userId);
+    if (cachedUser) {
+      cachedUser.paidCredits = newPaidCredits;
+      fallbackUserStore.set(paymentRecord.userId, cachedUser);
+    } else {
+      fallbackUserStore.set(paymentRecord.userId, {
+        freeAnalysesRemaining: typeof userDoc.freeAnalysesRemaining === "number" ? userDoc.freeAnalysesRemaining : 1,
+        paidCredits: newPaidCredits,
+        lastFreeResetAt: userDoc.lastFreeResetAt || now
+      });
+    }
+    return {
+      ...verifyResult,
+      status: "SUCCESS",
+      creditGranted: true
+    };
+  } else {
+    paymentRecord.status = verifyResult.status;
+    paymentRecord.creditGranted = false;
+    paymentRecord.failureReason = verifyResult.failureReason || "Payment not completed";
+    paymentRecord.updatedAt = now;
+    await writeFirestoreDoc("paymentRecords", cleanId, paymentRecord);
+    fallbackPaymentStore.set(cleanId, paymentRecord);
+    return {
+      ...verifyResult,
+      status: verifyResult.status,
+      creditGranted: false
+    };
+  }
+}
+async function getPaymentHistory(userId) {
+  const cleanUid = (userId || "guest").trim();
+  const records = [];
+  try {
+    const queryUrl = `${BASE_REST_URL}:runQuery?key=${API_KEY}`;
+    const queryBody = {
+      structuredQuery: {
+        from: [{ collectionId: "paymentRecords" }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: "userId" },
+            op: "EQUAL",
+            value: { stringValue: cleanUid }
+          }
+        },
+        orderBy: [
+          {
+            field: { fieldPath: "createdAt" },
+            direction: "DESCENDING"
+          }
+        ],
+        limit: 50
+      }
+    };
+    const res = await fetch(queryUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(queryBody)
+    });
+    if (res.ok) {
+      const results = await res.json();
+      if (Array.isArray(results)) {
+        for (const item of results) {
+          if (item.document) {
+            const parsed = fromFirestoreDoc(item.document);
+            if (parsed && parsed.id) {
+              records.push(parsed);
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[Payment History] Error querying Firestore:", err);
+  }
+  for (const r of fallbackPaymentStore.values()) {
+    if (r.userId === cleanUid && !records.some((existing) => existing.id === r.id)) {
+      records.unshift(r);
+    }
+  }
+  return records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+async function resetUserFreeAnalysisForTesting(userId) {
+  const config = getPaymentConfig();
+  if (!config.isTestMode) {
+    throw new Error("Test reset controls are strictly disabled in production mode.");
+  }
+  const cleanUid = (userId || "guest").trim();
+  const pastResetDate = new Date(Date.now() - 8 * 24 * 60 * 60 * 1e3).toISOString();
+  await writeFirestoreDoc("users", cleanUid, {
+    freeAnalysesRemaining: 1,
+    lastFreeResetAt: pastResetDate,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  });
+  const cached = fallbackUserStore.get(cleanUid) || { paidCredits: 0 };
+  fallbackUserStore.set(cleanUid, {
+    freeAnalysesRemaining: 1,
+    paidCredits: cached.paidCredits,
+    lastFreeResetAt: pastResetDate
+  });
+  return {
+    success: true,
+    message: "Free weekly analysis successfully reset for testing."
   };
 }
 
-// server/serverless/userUsageStatus.ts
+// server/serverless/paymentRouter.ts
+function getAction(req) {
+  if (req.query?.action) {
+    const act = Array.isArray(req.query.action) ? req.query.action[0] : String(req.query.action);
+    if (act) return act.toLowerCase().trim();
+  }
+  const cleanUrl = (req.url || "").split("?")[0];
+  const parts = cleanUrl.split("/").filter(Boolean);
+  const last = parts[parts.length - 1];
+  if (last && last !== "payment") {
+    return last.toLowerCase().trim();
+  }
+  return "";
+}
 async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
-  const userId = req.query.userId || "guest";
+  const action = getAction(req);
   try {
-    const entitlements = await getUserEntitlements(userId);
-    return res.status(200).json({
-      userId,
-      freeAnalysesRemaining: entitlements.freeAnalysesRemaining,
-      paidCredits: entitlements.paidAnalysisCredits,
-      paidAnalysisEnabled: true,
-      canAnalyze: entitlements.canAnalyze,
-      testMode: entitlements.testMode,
-      priceUsd: entitlements.paidAnalysisPriceUsd,
-      priceDisplay: entitlements.priceDisplay,
-      nextFreeResetDate: entitlements.nextFreeResetDate
+    if (action === "create") {
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed. Use POST." });
+      }
+      const { userId, provider, userEmail, displayName } = req.body || {};
+      if (!userId || !provider) {
+        return res.status(400).json({ error: "userId and provider are required." });
+      }
+      const order = await createPaymentOrder({
+        userId,
+        provider,
+        userEmail,
+        displayName
+      });
+      return res.status(200).json({ success: true, order });
+    }
+    if (action === "verify") {
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed. Use POST." });
+      }
+      const { paymentId, providerTransactionId, simulateAction } = req.body || {};
+      if (!paymentId) {
+        return res.status(400).json({ error: "paymentId is required." });
+      }
+      const result = await verifyAndCompletePayment(
+        paymentId,
+        simulateAction || "success",
+        providerTransactionId
+      );
+      return res.status(200).json({ success: result.status === "SUCCESS", result });
+    }
+    if (action === "history") {
+      const userId = req.query.userId || "guest";
+      const history = await getPaymentHistory(userId);
+      return res.status(200).json({ success: true, history });
+    }
+    if (action === "test-reset-free") {
+      if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed. Use POST." });
+      }
+      const { userId } = req.body || {};
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required." });
+      }
+      const result = await resetUserFreeAnalysisForTesting(userId);
+      return res.status(200).json(result);
+    }
+    return res.status(404).json({
+      error: `Unknown payment action: "${action}". Valid actions: create, verify, history, test-reset-free.`
     });
   } catch (err) {
-    return res.status(500).json({ error: err?.message || "Failed to fetch usage status" });
+    console.error(`API Error in /api/payment/${action}:`, err);
+    return res.status(500).json({ success: false, error: err?.message || "Payment server error" });
   }
 }
 export {

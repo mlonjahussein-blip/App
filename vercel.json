@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/payment/:action*",
+      "destination": "/api/payment?action=:action*"
+    },
+    {
+      "source": "/api/user/:action*",
+      "destination": "/api/user?action=:action*"
+    },
+    {
+      "source": "/api/auth/:action*",
+      "destination": "/api/auth?action=:action*"
+    },
+    {
+      "source": "/api/send-email-otp",
+      "destination": "/api/auth?action=send-email-otp"
+    }
+  ]
+}
