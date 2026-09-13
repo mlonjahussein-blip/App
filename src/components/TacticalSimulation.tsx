@@ -82,11 +82,20 @@ export const TacticalSimulation: React.FC<TacticalSimulationProps> = ({ scenario
     }
   }
 
-  // Linear interpolation function
-  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+  // Smooth cubic easing for realistic football acceleration and deceleration
+  const easeFactor = factor < 0.5 ? 4 * factor * factor * factor : 1 - Math.pow(-2 * factor + 2, 3) / 2;
 
-  const currentBallX = lerp(currentKeyFrame?.ball.x ?? 50, nextKeyFrame?.ball.x ?? 50, factor);
-  const currentBallY = lerp(currentKeyFrame?.ball.y ?? 50, nextKeyFrame?.ball.y ?? 50, factor);
+  // Linear interpolation with easing function
+  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+  const lerpEase = (a: number, b: number, t: number) => lerp(a, b, easeFactor);
+
+  const rawBallX = lerpEase(currentKeyFrame?.ball.x ?? 50, nextKeyFrame?.ball.x ?? 50, factor);
+  const rawBallY = lerpEase(currentKeyFrame?.ball.y ?? 50, nextKeyFrame?.ball.y ?? 50, factor);
+
+  // Realistic passing arc physics (parabolic trajectory during passes)
+  const ballArcOffset = Math.sin(factor * Math.PI) * 2.8;
+  const currentBallX = rawBallX + ballArcOffset * 0.4;
+  const currentBallY = rawBallY - ballArcOffset;
 
   return (
     <div id="simulation-section" className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6 shadow-2xl">
@@ -180,8 +189,8 @@ export const TacticalSimulation: React.FC<TacticalSimulationProps> = ({ scenario
             {/* Our Team Players (Home Team - Emerald/Cyan) */}
             {currentKeyFrame?.ourTeam?.map((p, idx) => {
               const nextP = nextKeyFrame?.ourTeam?.find(np => np.id === p.id) || p;
-              const posX = lerp(p.x, nextP.x, factor);
-              const posY = lerp(p.y, nextP.y, factor);
+              const posX = lerpEase(p.x, nextP.x, factor) + Math.sin(progress * 0.15 + (idx * 0.4)) * 0.35;
+              const posY = lerpEase(p.y, nextP.y, factor) + Math.cos(progress * 0.15 + (idx * 0.4)) * 0.35;
               const isSelected = selectedPlayer?.name === p.name;
 
               return (
@@ -221,8 +230,8 @@ export const TacticalSimulation: React.FC<TacticalSimulationProps> = ({ scenario
             {/* Opponent Team Players (Away Team - Rose/Red) */}
             {currentKeyFrame?.oppTeam?.map((op, idx) => {
               const nextOp = nextKeyFrame?.oppTeam?.find(nop => nop.id === op.id) || op;
-              const posX = lerp(op.x, nextOp.x, factor);
-              const posY = lerp(op.y, nextOp.y, factor);
+              const posX = lerpEase(op.x, nextOp.x, factor) + Math.cos(progress * 0.12 + (idx * 0.3)) * 0.3;
+              const posY = lerpEase(op.y, nextOp.y, factor) + Math.sin(progress * 0.12 + (idx * 0.3)) * 0.3;
 
               return (
                 <div

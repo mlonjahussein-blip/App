@@ -77,7 +77,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   const [selectedPlayerForCorrection, setSelectedPlayerForCorrection] = useState<PlayerData | null>(null);
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const [expandedAuditPlayerId, setExpandedAuditPlayerId] = useState<string | null>(null);
-  const [isDeveloperModeOpen, setIsDeveloperModeOpen] = useState(false);
   const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -315,33 +314,19 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
               Verified Analysis Pipeline V2
             </span>
             <span className="text-xs text-neutral-400">
-              {squadAnalysis.screenshotCount} screenshots · {squadAnalysis.identifiedPlayers.length} verified assets · Free analysis
+              {squadAnalysis.identifiedPlayers.length} verified players · Free analysis
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             {squadAnalysis.title}
           </h1>
           <p className="text-xs sm:text-sm text-neutral-400 max-w-2xl">
-            Multistage accuracy pipeline completed: Layout check, OCR text extraction, eFootball reference database matching, and cross-screenshot deduplication.
+            Multistage accuracy pipeline completed: Tactical formation parsing, player data verification, and eFootball master database matching.
           </p>
         </div>
 
-        {/* Action Buttons: Developer Mode, Save & Share */}
+        {/* Action Buttons: Save & Share */}
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          <button
-            id="developer-mode-toggle"
-            onClick={() => setIsDeveloperModeOpen(!isDeveloperModeOpen)}
-            className={`px-4 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              isDeveloperModeOpen
-                ? 'bg-emerald-500 text-neutral-950 font-black'
-                : 'bg-neutral-950 hover:bg-neutral-800 text-emerald-400 border border-neutral-700'
-            }`}
-            title="Toggle Developer & Inspection Mode"
-          >
-            <Terminal className="w-4 h-4" />
-            <span>{isDeveloperModeOpen ? 'Hide Inspector' : 'Developer Mode'}</span>
-          </button>
-
           <button
             id="save-report-btn"
             onClick={handleSave}
@@ -377,11 +362,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
           </button>
         </div>
       </div>
-
-      {/* Developer Mode Inspector Panel */}
-      {isDeveloperModeOpen && (
-        <DeveloperInspectionPanel analysis={squadAnalysis} />
-      )}
 
       {/* 2. Analysis Quality Score & Verification Verdict Banner */}
       <div className="bg-neutral-900/90 border border-neutral-800 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xl">
@@ -1454,7 +1434,20 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             </p>
           </div>
           <button
-            onClick={() => onComparePlayersSelect(squadAnalysis.identifiedPlayers[0], squadAnalysis.identifiedPlayers[1])}
+            onClick={() => {
+              const players = squadAnalysis.identifiedPlayers;
+              let p1 = players[0];
+              let p2 = players[1];
+              for (let i = 0; i < players.length; i++) {
+                const match = players.find((other, idx) => idx !== i && other.position.toUpperCase() === players[i].position.toUpperCase());
+                if (match) {
+                  p1 = players[i];
+                  p2 = match;
+                  break;
+                }
+              }
+              onComparePlayersSelect(p1, p2);
+            }}
             className="px-5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-emerald-400 font-bold text-xs border border-neutral-700 transition-colors whitespace-nowrap cursor-pointer"
           >
             Launch Player Comparison →
