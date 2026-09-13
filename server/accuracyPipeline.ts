@@ -1386,6 +1386,8 @@ export function generatePitchCoordinatesForFormation(
   const gk = players.find(p => p.position === 'GK') || players[0];
   const others = players.filter(p => p !== gk);
 
+  const cleanForm = (formation || '4-2-1-3').replace(/custom\s+gameplan:?/i, '').trim();
+
   const coordsMap: Record<string, Array<{ pos: string; x: number; y: number }>> = {
     '4-2-1-3': [
       { pos: 'GK', x: 50, y: 90 },
@@ -1399,6 +1401,31 @@ export function generatePitchCoordinatesForFormation(
       { pos: 'LWF', x: 18, y: 22 },
       { pos: 'CF', x: 50, y: 16 },
       { pos: 'RWF', x: 82, y: 22 }
+    ],
+    '5-3-1-1': [
+      { pos: 'GK', x: 50, y: 90 },
+      { pos: 'LWB', x: 14, y: 72 },
+      { pos: 'CB', x: 32, y: 77 },
+      { pos: 'CB', x: 50, y: 78 },
+      { pos: 'CB', x: 68, y: 77 },
+      { pos: 'RWB', x: 86, y: 72 },
+      { pos: 'CMF', x: 32, y: 55 },
+      { pos: 'DMF', x: 50, y: 58 },
+      { pos: 'CMF', x: 68, y: 55 },
+      { pos: 'AMF', x: 50, y: 36 },
+      { pos: 'CF', x: 50, y: 16 }
+    ],
+    '4-2-1-1': [
+      { pos: 'GK', x: 50, y: 90 },
+      { pos: 'LB', x: 16, y: 74 },
+      { pos: 'CB', x: 38, y: 77 },
+      { pos: 'CB', x: 62, y: 77 },
+      { pos: 'RB', x: 84, y: 74 },
+      { pos: 'DMF', x: 38, y: 60 },
+      { pos: 'CMF', x: 62, y: 60 },
+      { pos: 'AMF', x: 50, y: 40 },
+      { pos: 'SS', x: 50, y: 26 },
+      { pos: 'CF', x: 50, y: 16 }
     ],
     '4-3-1-2': [
       { pos: 'GK', x: 50, y: 90 },
@@ -1428,7 +1455,31 @@ export function generatePitchCoordinatesForFormation(
     ]
   };
 
-  const layout = coordsMap[formation] || coordsMap['4-2-1-3'];
+  let layout = coordsMap[cleanForm];
+  if (!layout) {
+    const digits = cleanForm.match(/\d+/g);
+    if (digits && digits.length >= 2) {
+      layout = [{ pos: 'GK', x: 50, y: 90 }];
+      const defs = parseInt(digits[0], 10) || 4;
+      const mids = parseInt(digits[1], 10) || 3;
+      const atts = parseInt(digits.slice(2).join(''), 10) || (digits.length > 2 ? 3 : 2);
+
+      for (let i = 0; i < defs; i++) {
+        const xStep = 80 / (defs + 1);
+        layout.push({ pos: defs >= 5 ? (i === 0 ? 'LWB' : i === defs - 1 ? 'RWB' : 'CB') : (i === 0 ? 'LB' : i === defs - 1 ? 'RB' : 'CB'), x: Math.round(15 + (i + 1) * xStep), y: 76 });
+      }
+      for (let i = 0; i < mids; i++) {
+        const xStep = 80 / (mids + 1);
+        layout.push({ pos: i === 0 ? 'DMF' : 'CMF', x: Math.round(15 + (i + 1) * xStep), y: 55 });
+      }
+      for (let i = 0; i < atts; i++) {
+        const xStep = 80 / (atts + 1);
+        layout.push({ pos: atts === 1 ? 'CF' : i === 0 ? 'LWF' : i === atts - 1 ? 'RWF' : 'AMF', x: Math.round(15 + (i + 1) * xStep), y: 24 });
+      }
+    } else {
+      layout = coordsMap['4-2-1-3'];
+    }
+  }
   const result: (PlayerData & { pitchX: number; pitchY: number; selectionReason: string })[] = [];
 
   const unassigned = [...players];
