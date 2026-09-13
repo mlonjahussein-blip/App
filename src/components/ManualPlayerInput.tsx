@@ -61,6 +61,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     'Deep-Lying Forward',
     'Full-back Finisher',
     'Counter Target',
+    'Offensive Goalkeeper',
+    'Defensive Goalkeeper',
+    'Classic No. 10',
     'No Playstyle'
   ];
 
