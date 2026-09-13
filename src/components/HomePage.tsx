@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Shield, 
   Sparkles, 
@@ -7,7 +7,10 @@ import {
   Users, 
   Compass, 
   Award, 
-  Zap
+  Zap,
+  FileText,
+  AlertCircle,
+  Lock
 } from 'lucide-react';
 
 interface HomePageProps {
@@ -16,6 +19,8 @@ interface HomePageProps {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCommunity }) => {
+  const [activeModal, setActiveModal] = useState<'privacy' | 'disclaimer' | 'terms' | null>(null);
+
   return (
     <div className="space-y-16 py-6 sm:py-10">
       
@@ -194,6 +199,95 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
         </div>
       </section>
 
+      {/* Footer with Legal Links & Copyright */}
+      <footer className="pt-8 pb-4 border-t border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-400">
+        <div className="flex flex-wrap items-center gap-4">
+          <button 
+            onClick={() => setActiveModal('privacy')}
+            className="hover:text-emerald-400 transition-colors cursor-pointer"
+          >
+            Privacy Policy
+          </button>
+          <span>•</span>
+          <button 
+            onClick={() => setActiveModal('disclaimer')}
+            className="hover:text-emerald-400 transition-colors cursor-pointer"
+          >
+            Disclaimer
+          </button>
+          <span>•</span>
+          <button 
+            onClick={() => setActiveModal('terms')}
+            className="hover:text-emerald-400 transition-colors cursor-pointer"
+          >
+            Terms of Services
+          </button>
+        </div>
+
+        <div className="text-neutral-500 font-medium">
+          (c) 2026 eFootball AI Hub. All rights are reserved.
+        </div>
+      </footer>
+
+      {/* Legal Modals */}
+      {activeModal && (
+        <div className="fixed inset-0 z-50 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                  {activeModal === 'privacy' && <Lock className="w-4 h-4" />}
+                  {activeModal === 'disclaimer' && <AlertCircle className="w-4 h-4" />}
+                  {activeModal === 'terms' && <FileText className="w-4 h-4" />}
+                </span>
+                <h3 className="text-base font-black text-white">
+                  {activeModal === 'privacy' && 'Privacy Policy'}
+                  {activeModal === 'disclaimer' && 'Disclaimer'}
+                  {activeModal === 'terms' && 'Terms of Services'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="text-neutral-400 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="text-xs sm:text-sm text-neutral-300 leading-relaxed max-h-80 overflow-y-auto space-y-3">
+              {activeModal === 'privacy' && (
+                <>
+                  <p><strong>eFootball AI Hub</strong> respects your privacy. We store only your saved squad reports and user profile authentication details securely in Firebase Firestore.</p>
+                  <p>Your data is never sold, shared with third parties, or used for unsolicited marketing. You have full control to update or delete your saved squad reports at any time.</p>
+                </>
+              )}
+              {activeModal === 'disclaimer' && (
+                <>
+                  <p><strong>eFootball AI Hub</strong> is an independent tactical analysis tool created by fans and competitors for the eFootball community.</p>
+                  <p>Konami and eFootball are registered trademarks of Konami Digital Entertainment. This application is not officially endorsed by, affiliated with, or sponsored by Konami.</p>
+                </>
+              )}
+              {activeModal === 'terms' && (
+                <>
+                  <p>By using <strong>eFootball AI Hub</strong>, you agree to use our tactical recommendation engine and community sharing features responsibly.</p>
+                  <p>All analysis outputs and community tactics are provided as-is for educational and competitive enhancement purposes.</p>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setActiveModal(null)}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-neutral-950"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
+

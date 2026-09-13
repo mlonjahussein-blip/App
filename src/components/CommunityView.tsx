@@ -14,7 +14,7 @@ import {
   deleteDoc, 
   getDoc 
 } from 'firebase/firestore';
-import { CommunityPost, PostComment, AnalysisResult } from '../types.ts';
+import { CommunityPost, PostComment, DirectMessage, AnalysisResult } from '../types.ts';
 import { 
   Users, 
   Heart, 
@@ -50,6 +50,13 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
   const [newPostPlaystyle, setNewPostPlaystyle] = useState('Quick Counter');
   const [newPostRating, setNewPostRating] = useState(88);
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
+
+  // Direct Messaging state
+  const [activeDmUser, setActiveDmUser] = useState<{ uid: string; name: string } | null>(null);
+  const [dmMessages, setDmMessages] = useState<DirectMessage[]>([]);
+  const [dmInputText, setDmInputText] = useState('');
+  const [showInboxModal, setShowInboxModal] = useState(false);
+  const [allUserMessages, setAllUserMessages] = useState<DirectMessage[]>([]);
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -95,6 +102,7 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
             commentsCount: 3
           }
         ];
+        defaultPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setPosts(defaultPosts);
       } else {
         list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -102,8 +110,7 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
       }
     } catch (err) {
       console.warn('Error fetching community posts:', err);
-      // Fallback to sample tactical community posts if offline
-      setPosts((prev) => (prev.length > 0 ? prev : [
+      const fallbackPosts = [
         {
           id: 'post_seed_1',
           userId: 'coach_alex',
@@ -134,7 +141,9 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
           likesCount: 18,
           commentsCount: 3
         }
-      ]));
+      ];
+      fallbackPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setPosts(fallbackPosts);
     } finally {
       setLoading(false);
     }
@@ -143,6 +152,85 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
   useEffect(() => {
     fetchPosts();
   }, []);
+
+  const openDirectMessage = async (targetUid: string, targetName: string) => {
+    if (!user) {
+      alert('Please log in or sign up to send direct messages to other community members.');
+      return;
+    }
+    if (targetUid === user.uid) {
+      alert('You cannot send a direct message to yourself.');
+      return;
+    }
+    setActiveDmUser({ uid: targetUid, name: targetName });
+    await fetchDirectMessages(targetUid);
+  };
+
+  const fetchDirectMessages = async (otherUid: string) => {
+    if (!user) return;
+    try {
+      const snap = await getDocs(collection(db, 'directMessages'));
+      const msgs: DirectMessage[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as DirectMessage;
+        if (
+          (data.senderId === user.uid && data.receiverId === otherUid) ||
+          (data.senderId === otherUid && data.receiverId === user.uid)
+        ) {
+          msgs.push({ ...data, id: d.id });
+        }
+      });
+      msgs.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      setDmMessages(msgs);
+    } catch (e) {
+      console.warn('Error fetching DMs:', e);
+    }
+  };
+
+  const sendDirectMessage = async () => {
+    if (!user || !activeDmUser || !dmInputText.trim()) return;
+
+    const newMsg: DirectMessage = {
+      id: 'dm_' + Date.now(),
+      senderId: user.uid,
+      senderName: profile?.displayName || user.email?.split('@')[0] || 'Coach',
+      receiverId: activeDmUser.uid,
+      receiverName: activeDmUser.name,
+      content: dmInputText.trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    setDmMessages((prev) => [...prev, newMsg]);
+    setDmInputText('');
+
+    try {
+      await addDoc(collection(db, 'directMessages'), newMsg);
+    } catch (e) {
+      console.warn('Error sending DM:', e);
+    }
+  };
+
+  const fetchAllInboxMessages = async () => {
+    if (!user) {
+      alert('Please log in to view your direct messages inbox.');
+      return;
+    }
+    try {
+      const snap = await getDocs(collection(db, 'directMessages'));
+      const msgs: DirectMessage[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as DirectMessage;
+        if (data.senderId === user.uid || data.receiverId === user.uid) {
+          msgs.push({ ...data, id: d.id });
+        }
+      });
+      msgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setAllUserMessages(msgs);
+      setShowInboxModal(true);
+    } catch (e) {
+      console.warn('Error fetching inbox:', e);
+    }
+  };
 
   const handleLike = async (post: CommunityPost) => {
     if (!user) {
@@ -291,8 +379,15 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
 
         <div className="flex items-center gap-2">
           <button
+            onClick={fetchAllInboxMessages}
+            className="px-4 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white border border-neutral-700 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+          >
+            <MessageSquare className="w-4 h-4 text-emerald-400" />
+            Direct Messages
+          </button>
+          <button
             onClick={() => setShowCreatePostModal(true)}
-            className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 transition-all"
+            className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
           >
             <Share2 className="w-4 h-4" />
             Share Your Squad
@@ -345,6 +440,14 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
                     <span className="text-xs font-bold text-neutral-200">
                       {post.authorName}
                     </span>
+                    <button
+                      onClick={() => openDirectMessage(post.userId, post.authorName)}
+                      className="ml-1 px-2.5 py-0.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-emerald-400 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Send Direct Message to User"
+                    >
+                      <MessageSquare className="w-3 h-3" />
+                      <span>Message</span>
+                    </button>
                     <span className="text-neutral-600 text-xs">•</span>
                     <span className="text-[11px] text-neutral-500">
                       {new Date(post.createdAt).toLocaleDateString()}
@@ -572,6 +675,152 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Active DM Chat Modal */}
+      {activeDmUser && (
+        <div className="fixed inset-0 z-50 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 flex flex-col h-[500px]">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-sm flex items-center justify-center">
+                  {activeDmUser.name[0]?.toUpperCase() || 'U'}
+                </span>
+                <div>
+                  <h3 className="text-sm font-black text-white">Chat with {activeDmUser.name}</h3>
+                  <span className="text-[10px] text-emerald-400">Direct Message Connection</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveDmUser(null)}
+                className="text-neutral-400 hover:text-white cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Messages Stream */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {dmMessages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center text-neutral-500 space-y-1">
+                  <MessageSquare className="w-8 h-8 text-neutral-700" />
+                  <p className="text-xs">No direct messages yet. Send your first message below!</p>
+                </div>
+              ) : (
+                dmMessages.map((msg) => {
+                  const isMe = msg.senderId === user?.uid;
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                    >
+                      <div
+                        className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-xs ${
+                          isMe
+                            ? 'bg-emerald-500 text-neutral-950 rounded-br-none'
+                            : 'bg-neutral-800 text-neutral-200 rounded-bl-none border border-neutral-700'
+                        }`}
+                      >
+                        <p>{msg.content}</p>
+                      </div>
+                      <span className="text-[9px] text-neutral-500 mt-1 px-1">
+                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Input Bar */}
+            <div className="pt-3 border-t border-neutral-800 flex gap-2">
+              <input
+                type="text"
+                placeholder="Type a direct message..."
+                value={dmInputText}
+                onChange={(e) => setDmInputText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') sendDirectMessage();
+                }}
+                className="flex-1 bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+              />
+              <button
+                onClick={sendDirectMessage}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold rounded-xl text-xs flex items-center gap-1 cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inbox Modal */}
+      {showInboxModal && (
+        <div className="fixed inset-0 z-50 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 flex flex-col h-[500px]">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-base font-black text-white">Direct Messages Inbox</h3>
+              </div>
+              <button
+                onClick={() => setShowInboxModal(false)}
+                className="text-neutral-400 hover:text-white cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {allUserMessages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center text-neutral-500 space-y-2">
+                  <MessageSquare className="w-8 h-8 text-neutral-700" />
+                  <p className="text-xs">Your inbox is empty. Message community members from their shared tactical posts!</p>
+                </div>
+              ) : (
+                allUserMessages.map((msg) => {
+                  const isSender = msg.senderId === user?.uid;
+                  const otherName = isSender ? msg.receiverName : msg.senderName;
+                  const otherUid = isSender ? msg.receiverId : msg.senderId;
+                  return (
+                    <div
+                      key={msg.id}
+                      onClick={() => {
+                        setShowInboxModal(false);
+                        openDirectMessage(otherUid, otherName);
+                      }}
+                      className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/50 transition-all cursor-pointer flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs flex items-center justify-center">
+                          {otherName[0]?.toUpperCase() || 'U'}
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-bold text-white">{otherName}</h4>
+                          <p className="text-xs text-neutral-400 truncate max-w-[260px]">{msg.content}</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-neutral-500">
+                        {new Date(msg.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-neutral-800">
+              <button
+                onClick={() => setShowInboxModal(false)}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-neutral-800 hover:bg-neutral-700 text-white cursor-pointer"
+              >
+                Close Inbox
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -338,6 +338,17 @@ export interface PostComment {
   createdAt: string;
 }
 
+export interface DirectMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  receiverId: string;
+  receiverName: string;
+  content: string;
+  createdAt: string;
+  isRead?: boolean;
+}
+
 export interface PaymentRecord {
   id: string;
   userId: string;
