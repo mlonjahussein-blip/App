@@ -155,6 +155,10 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     onChange(typedPlayers.map(p => p.id === id ? { ...p, playstyle: newPlaystyle } : p));
   };
 
+  const updatePlayerCardType = (id: string, newCardType: string) => {
+    onChange(typedPlayers.map(p => p.id === id ? { ...p, cardType: newCardType } : p));
+  };
+
   const clearAllSquad = () => {
     onChange([]);
   };
@@ -507,12 +511,14 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                     const mapped: TypedPlayerInput[] = found.identifiedPlayers.map((p, i) => ({
                       id: p.id || `loaded_${i}_${Date.now()}`,
                       name: p.name,
-                      position: p.position,
+                      position: p.position || 'CF',
                       rating: p.rating || 90,
                       cardType: p.cardType || 'Highlight',
                       playstyle: p.playstyle || 'Goal Poacher',
                       club: p.club,
-                      role: i < 11 ? 'starting_xi' : 'substitute'
+                      nationality: p.nationality,
+                      skills: p.skills,
+                      role: p.role || (i < 11 ? 'starting_xi' : 'substitute')
                     }));
                     onChange(mapped);
                     if (found.managerDetails && onManagerChange) {
@@ -630,7 +636,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                                 const num = parseInt(e.target.value, 10);
                                 updatePlayerRating(player.id, isNaN(num) ? 90 : Math.min(110, Math.max(60, num)));
                               }}
-                              className="w-8 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
+                              className="w-12 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
                             />
                             <span className="text-[9px] font-bold text-neutral-500">OVR</span>
                           </div>
@@ -649,9 +655,15 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
 
                       {/* Card Type & Editable Playstyle */}
                       <div className="flex items-center justify-between pt-1 border-t border-neutral-800/60 text-[10px]">
-                        <span className={`inline-block px-1.5 py-0.2 rounded border text-[9px] font-bold ${getCardTypeBadgeStyle(player.cardType)}`}>
-                          {player.cardType || 'Highlight'}
-                        </span>
+                        <select
+                          value={player.cardType || 'Highlight'}
+                          onChange={(e) => updatePlayerCardType(player.id, e.target.value)}
+                          className={`bg-neutral-950 border border-neutral-700 text-[9px] font-bold rounded px-1.5 py-0.5 focus:outline-none focus:border-emerald-500 cursor-pointer ${getCardTypeBadgeStyle(player.cardType)}`}
+                        >
+                          {cardTypes.map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
                         
                         <select
                           value={player.playstyle || 'Goal Poacher'}
@@ -741,7 +753,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                                 const num = parseInt(e.target.value, 10);
                                 updatePlayerRating(player.id, isNaN(num) ? 90 : Math.min(110, Math.max(60, num)));
                               }}
-                              className="w-8 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
+                              className="w-12 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
                             />
                             <span className="text-[9px] font-bold text-neutral-500">OVR</span>
                           </div>
@@ -760,9 +772,15 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
 
                       {/* Card Type & Editable Playstyle */}
                       <div className="flex items-center justify-between pt-1 border-t border-neutral-800/60 text-[10px]">
-                        <span className={`inline-block px-1.5 py-0.2 rounded border text-[9px] font-bold ${getCardTypeBadgeStyle(player.cardType)}`}>
-                          {player.cardType || 'Highlight'}
-                        </span>
+                        <select
+                          value={player.cardType || 'Highlight'}
+                          onChange={(e) => updatePlayerCardType(player.id, e.target.value)}
+                          className={`bg-neutral-950 border border-neutral-700 text-[9px] font-bold rounded px-1.5 py-0.5 focus:outline-none focus:border-cyan-500 cursor-pointer ${getCardTypeBadgeStyle(player.cardType)}`}
+                        >
+                          {cardTypes.map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
                         
                         <select
                           value={player.playstyle || 'Goal Poacher'}
