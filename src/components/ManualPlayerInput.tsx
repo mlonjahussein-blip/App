@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   UserPlus, 
   Trash2, 
@@ -7,8 +7,11 @@ import {
   Layers, 
   Users
 } from 'lucide-react';
-import { TypedPlayerInput, ManagerInputDetails } from '../types.ts';
+import { TypedPlayerInput, ManagerInputDetails, AnalysisResult } from '../types.ts';
 import { ManagerDetailsInput } from './ManagerDetailsInput.tsx';
+import { useAuth } from '../lib/AuthContext.tsx';
+import { db } from '../lib/firebase.ts';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 interface ManualPlayerInputProps {
   typedPlayers: TypedPlayerInput[];
@@ -23,6 +26,32 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   managerDetails,
   onManagerChange
 }) => {
+  const { user } = useAuth();
+  const [savedSquadsList, setSavedSquadsList] = useState<AnalysisResult[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    async function loadSaved() {
+      try {
+        const q = query(collection(db, 'savedAnalyses'), where('userId', '==', user.uid));
+        const snap = await getDocs(q);
+        const list: AnalysisResult[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          if (data.analysisData) {
+            list.push({ ...data.analysisData, id: d.id });
+          }
+        });
+        setSavedSquadsList(list);
+      } catch (e) {
+        const cached = localStorage.getItem(`ef_saved_reports_${user.uid}`);
+        if (cached) {
+          try { setSavedSquadsList(JSON.parse(cached)); } catch (err) {}
+        }
+      }
+    }
+    loadSaved();
+  }, [user]);
   // Starting XI Form State
   const [xiName, setXiName] = useState('');
   const [xiPos, setXiPos] = useState('CF');
@@ -467,15 +496,53 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             </div>
           </div>
 
-          {typedPlayers.length > 0 && (
-            <button
-              type="button"
-              onClick={clearAllSquad}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 transition-colors self-start sm:self-auto"
-            >
-              Clear All Players
-            </button>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {savedSquadsList.length > 0 && (
+              <select
+                onChange={(e) => {
+                  const sId = e.target.value;
+                  if (!sId) return;
+                  const found = savedSquadsList.find(s => s.id === sId);
+                  if (found && found.identifiedPlayers) {
+                    const mapped: TypedPlayerInput[] = found.identifiedPlayers.map((p, i) => ({
+                      id: p.id || `loaded_${i}_${Date.now()}`,
+                      name: p.name,
+                      position: p.position,
+                      rating: p.rating || 90,
+                      cardType: p.cardType || 'Highlight',
+                      playstyle: p.playstyle || 'Goal Poacher',
+                      club: p.club,
+                      role: i < 11 ? 'starting_xi' : 'substitute'
+                    }));
+                    onChange(mapped);
+                    if (found.managerDetails && onManagerChange) {
+                      onManagerChange(found.managerDetails);
+                    }
+                  }
+                  e.target.value = '';
+                }}
+                defaultValue=""
+                className="bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-emerald-500 cursor-pointer"
+              >
+                <option value="" disabled>📂 Load Saved Squad...</option>
+                {savedSquadsList.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.title || 'Saved Squad'} ({s.identifiedPlayers?.length || 0} players)
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {typedPlayers.length > 0 && (
+              <button
+                type="button"
+                onClick={clearAllSquad}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 transition-colors"
+              >
+                Clear All Players
+              </button>
+            )}
+          </div>
         </div>
 
         {typedPlayers.length === 0 ? (
