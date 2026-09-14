@@ -106,7 +106,7 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
                     type="number"
                     min="50"
                     max="90"
-                    value={currentVal}
+                    value={currentVal === '' ? '' : currentVal}
                     onChange={(e) => {
                       const valStr = e.target.value;
                       if (valStr === '') {
@@ -121,28 +121,26 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
                               longBall: 75,
                               overload: 86
                             }),
-                            [key]: 50
+                            [key]: ''
                           }
                         });
                         return;
                       }
                       const num = parseInt(valStr, 10);
-                      if (!isNaN(num)) {
-                        onManagerChange({
-                          ...managerDetails,
-                          playstyleProficiencies: {
-                            ...(managerDetails.playstyleProficiencies || {
-                              possessionGame: 85,
-                              quickCounter: 87,
-                              longBallCounter: 85,
-                              outWide: 80,
-                              longBall: 75,
-                              overload: 86
-                            }),
-                            [key]: num
-                          }
-                        });
-                      }
+                      onManagerChange({
+                        ...managerDetails,
+                        playstyleProficiencies: {
+                          ...(managerDetails.playstyleProficiencies || {
+                            possessionGame: 85,
+                            quickCounter: 87,
+                            longBallCounter: 85,
+                            outWide: 80,
+                            longBall: 75,
+                            overload: 86
+                          }),
+                          [key]: isNaN(num) ? valStr : num
+                        }
+                      });
                     }}
                     onBlur={(e) => {
                       const num = parseInt(e.target.value, 10);

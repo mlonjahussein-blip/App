@@ -15,13 +15,15 @@ import {
   ShieldCheck,
   CheckCircle2,
   Calendar,
+  MessageSquareText,
+  Send,
   X
 } from 'lucide-react';
 import { UserEntitlements, PaymentRecord } from '../types.ts';
 import { PaymentModal } from './PaymentModal.tsx';
 
 interface SettingsProps {
-  initialSubTab?: 'account' | 'usage' | 'payments';
+  initialSubTab?: 'account' | 'usage' | 'payments' | 'feedback';
   onLogout: () => void;
   onNavigateToAnalyzer: () => void;
   onAccountDeleted?: () => void;
@@ -34,13 +36,32 @@ export const SettingsView: React.FC<SettingsProps> = ({
   onAccountDeleted
 }) => {
   const { user, profile, deleteAccount, changePassword } = useAuth();
-  const [activeSubTab, setActiveSubTab] = useState<'account' | 'usage' | 'payments'>(initialSubTab);
+  const [activeSubTab, setActiveSubTab] = useState<'account' | 'usage' | 'payments' | 'feedback'>(initialSubTab);
 
   useEffect(() => {
     if (initialSubTab) {
       setActiveSubTab(initialSubTab);
     }
   }, [initialSubTab]);
+
+  // Feedback states
+  const [feedbackName, setFeedbackName] = useState(profile?.displayName || user?.displayName || '');
+  const [feedbackEmail, setFeedbackEmail] = useState(profile?.email || user?.email || '');
+  const [feedbackCategory, setFeedbackCategory] = useState('Tactical & Squad Query');
+  const [feedbackSubject, setFeedbackSubject] = useState('');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [feedbackSuccessMessage, setFeedbackSuccessMessage] = useState<string | null>(null);
+  const [feedbackErrorMessage, setFeedbackErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (profile?.displayName || user?.displayName) {
+      setFeedbackName(profile?.displayName || user?.displayName || '');
+    }
+    if (profile?.email || user?.email) {
+      setFeedbackEmail(profile?.email || user?.email || '');
+    }
+  }, [profile, user]);
 
   // Password change states
   const [currentPassword, setCurrentPassword] = useState('');
@@ -179,6 +200,52 @@ export const SettingsView: React.FC<SettingsProps> = ({
     }
   };
 
+  const handleSubmitFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedbackSuccessMessage(null);
+    setFeedbackErrorMessage(null);
+
+    if (!feedbackEmail.trim()) {
+      setFeedbackErrorMessage('Please provide a valid email address so we can reach you.');
+      return;
+    }
+
+    if (!feedbackMessage.trim()) {
+      setFeedbackErrorMessage('Please write your queries, suggestions, questions, or feedback.');
+      return;
+    }
+
+    setIsSubmittingFeedback(true);
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.uid,
+          name: feedbackName.trim() || 'Manager',
+          email: feedbackEmail.trim(),
+          category: feedbackCategory,
+          subject: feedbackSubject.trim(),
+          message: feedbackMessage.trim()
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setFeedbackSuccessMessage('Thank you for reaching out! Your feedback and queries have been submitted successfully. If follow-up is needed, we will get back to you directly at your provided email.');
+        setFeedbackSubject('');
+        setFeedbackMessage('');
+      } else {
+        throw new Error(data.error || 'Failed to submit feedback.');
+      }
+    } catch (err: any) {
+      console.error('Feedback submit error:', err);
+      setFeedbackErrorMessage(err?.message || 'Failed to send feedback. Please check your connection and try again.');
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
   return (
     <div id="settings-page" className="max-w-4xl mx-auto space-y-8 py-6">
       
@@ -194,7 +261,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
             </h1>
           </div>
           <p className="text-sm text-neutral-400 mt-1">
-            Manage your manager credentials, free analysis quota, and architected billing records.
+            Manage your manager credentials, free analysis quota, architected billing records, and queries.
           </p>
         </div>
 
@@ -208,11 +275,12 @@ export const SettingsView: React.FC<SettingsProps> = ({
       </div>
 
       {/* Sub Tabs */}
-      <div className="flex border-b border-neutral-800 gap-4 text-sm font-bold">
+      <div className="flex flex-wrap border-b border-neutral-800 gap-4 text-sm font-bold">
         {[
           { id: 'account', label: 'Account Profile' },
           { id: 'usage', label: 'Analysis Usage' },
-          { id: 'payments', label: 'Payment Architecture & History' }
+          { id: 'payments', label: 'Payment Architecture & History' },
+          { id: 'feedback', label: 'Feedback' }
         ].map((tab) => (
           <button
             key={tab.id}
@@ -617,6 +685,149 @@ export const SettingsView: React.FC<SettingsProps> = ({
             )}
           </div>
 
+        </div>
+      )}
+
+      {/* 4. Feedback Section */}
+      {activeSubTab === 'feedback' && (
+        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-800">
+            <div>
+              <h2 className="text-lg font-black text-white flex items-center gap-2">
+                <MessageSquareText className="w-5 h-5 text-emerald-400" />
+                Feedback, Suggestions & Queries
+              </h2>
+              <p className="text-xs text-neutral-400 mt-1">
+                Have questions, tactical ideas, feature suggestions, or database corrections? Submit your message directly to our tactical development team.
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold self-start sm:self-auto">
+              Direct Support
+            </span>
+          </div>
+
+          {feedbackSuccessMessage && (
+            <div className="p-4 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-xs text-emerald-300 flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold text-white text-sm">Feedback Sent Successfully!</p>
+                <p className="leading-relaxed">{feedbackSuccessMessage}</p>
+              </div>
+            </div>
+          )}
+
+          {feedbackErrorMessage && (
+            <div className="p-4 rounded-xl bg-rose-950/60 border border-rose-800 text-xs text-rose-300 flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+              <span>{feedbackErrorMessage}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmitFeedback} className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Manager Name */}
+              <div>
+                <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                  Your Name / Manager Handle <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={feedbackName}
+                  onChange={(e) => setFeedbackName(e.target.value)}
+                  placeholder="e.g. Tactician Pep"
+                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-white text-sm font-semibold outline-none transition-colors"
+                />
+              </div>
+
+              {/* Email Address */}
+              <div>
+                <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                  Your Reply Email <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={feedbackEmail}
+                  onChange={(e) => setFeedbackEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-white text-sm outline-none transition-colors"
+                />
+                <p className="text-[10px] text-neutral-500 mt-1">
+                  We will use this email if our team needs to reply to your inquiry.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Category */}
+              <div>
+                <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                  Category
+                </label>
+                <select
+                  value={feedbackCategory}
+                  onChange={(e) => setFeedbackCategory(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-white text-sm font-semibold outline-none transition-colors cursor-pointer"
+                >
+                  <option value="Tactical & Squad Query">Tactical & Squad Query</option>
+                  <option value="Feature Suggestion">Feature Suggestion</option>
+                  <option value="Report a Bug / Issue">Report a Bug / Issue</option>
+                  <option value="Player & Database Correction">Player & Database Correction</option>
+                  <option value="General Feedback">General Feedback</option>
+                </select>
+              </div>
+
+              {/* Subject */}
+              <div>
+                <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                  Subject / Topic (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={feedbackSubject}
+                  onChange={(e) => setFeedbackSubject(e.target.value)}
+                  placeholder="e.g. Suggestion for Wing Play analysis"
+                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-white text-sm outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Message Body */}
+            <div>
+              <label className="block text-xs font-bold uppercase text-neutral-400 tracking-wider mb-1.5">
+                Your Queries, Suggestions, Questions or Feedback <span className="text-rose-400">*</span>
+              </label>
+              <textarea
+                required
+                rows={5}
+                value={feedbackMessage}
+                onChange={(e) => setFeedbackMessage(e.target.value)}
+                placeholder="Write your suggestions, questions, or detailed feedback here..."
+                className="w-full bg-neutral-950 border border-neutral-800 focus:border-emerald-500 rounded-xl p-4 text-white text-sm leading-relaxed outline-none transition-colors resize-y"
+              />
+            </div>
+
+            <div className="flex items-center justify-end pt-2">
+              <button
+                type="submit"
+                disabled={isSubmittingFeedback || !feedbackMessage.trim() || !feedbackEmail.trim()}
+                className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-neutral-950 font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
+              >
+                {isSubmittingFeedback ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Submitting Feedback...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Submit Feedback</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

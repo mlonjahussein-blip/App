@@ -375,12 +375,12 @@ export interface ManagerInputDetails {
   nationality?: string;
   team?: string;
   playstyleProficiencies?: {
-    possessionGame: number;
-    quickCounter: number;
-    longBallCounter: number;
-    outWide: number;
-    longBall: number;
-    overload?: number; // eFootball 2027 new Overload playstyle
+    possessionGame: number | string;
+    quickCounter: number | string;
+    longBallCounter: number | string;
+    outWide: number | string;
+    longBall: number | string;
+    overload?: number | string; // eFootball 2027 new Overload playstyle
   };
 }
 
@@ -403,7 +403,7 @@ export interface TypedPlayerInput {
   id: string;
   name: string;
   position: string;
-  rating: number;
+  rating: number | string;
   cardType?: string;
   playstyle?: string;
   club?: string;

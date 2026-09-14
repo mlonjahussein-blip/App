@@ -57,7 +57,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const [xiPos, setXiPos] = useState('CF');
   const [xiCardType, setXiCardType] = useState('Highlight');
   const [xiPlaystyle, setXiPlaystyle] = useState('Goal Poacher');
-  const [xiRating, setXiRating] = useState<number>(95);
+  const [xiRating, setXiRating] = useState<number | string>(95);
   const [xiTeam, setXiTeam] = useState('');
 
   // Substitute Form State
@@ -65,7 +65,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const [subPos, setSubPos] = useState('CF');
   const [subCardType, setSubCardType] = useState('Highlight');
   const [subPlaystyle, setSubPlaystyle] = useState('Goal Poacher');
-  const [subRating, setSubRating] = useState<number>(92);
+  const [subRating, setSubRating] = useState<number | string>(92);
   const [subTeam, setSubTeam] = useState('');
 
   const positions = ['CF', 'SS', 'LWF', 'RWF', 'AMF', 'CMF', 'DMF', 'LMF', 'RMF', 'LB', 'CB', 'RB', 'GK'];
@@ -170,8 +170,8 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     onChange(typedPlayers.filter(p => p.id !== id));
   };
 
-  const updatePlayerRating = (id: string, newRating: number) => {
-    onChange(typedPlayers.map(p => p.id === id ? { ...p, rating: Math.min(110, Math.max(60, newRating)) } : p));
+  const updatePlayerRating = (id: string, newRating: number | string) => {
+    onChange(typedPlayers.map(p => p.id === id ? { ...p, rating: newRating } : p));
   };
 
   const updatePlayerPosition = (id: string, newPosition: string) => {
@@ -336,17 +336,15 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
               type="number"
               min="60"
               max="110"
-              value={xiRating}
+              value={xiRating === '' ? '' : xiRating}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === '') {
-                  setXiRating(60);
+                  setXiRating('');
                   return;
                 }
                 const num = parseInt(val, 10);
-                if (!isNaN(num)) {
-                  setXiRating(num);
-                }
+                setXiRating(isNaN(num) ? val : num);
               }}
               onBlur={(e) => {
                 const num = parseInt(e.target.value, 10);
@@ -471,17 +469,15 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
               type="number"
               min="60"
               max="110"
-              value={subRating}
+              value={subRating === '' ? '' : subRating}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === '') {
-                  setSubRating(60);
+                  setSubRating('');
                   return;
                 }
                 const num = parseInt(val, 10);
-                if (!isNaN(num)) {
-                  setSubRating(num);
-                }
+                setSubRating(isNaN(num) ? val : num);
               }}
               onBlur={(e) => {
                 const num = parseInt(e.target.value, 10);
@@ -647,17 +643,15 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                               type="number"
                               min="60"
                               max="110"
-                              value={player.rating}
+                              value={player.rating === '' ? '' : player.rating}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 if (val === '') {
-                                  updatePlayerRating(player.id, 60);
+                                  updatePlayerRating(player.id, '');
                                   return;
                                 }
                                 const num = parseInt(val, 10);
-                                if (!isNaN(num)) {
-                                  updatePlayerRating(player.id, num);
-                                }
+                                updatePlayerRating(player.id, isNaN(num) ? val : num);
                               }}
                               onBlur={(e) => {
                                 const num = parseInt(e.target.value, 10);
@@ -764,17 +758,15 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                               type="number"
                               min="60"
                               max="110"
-                              value={player.rating}
+                              value={player.rating === '' ? '' : player.rating}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 if (val === '') {
-                                  updatePlayerRating(player.id, 60);
+                                  updatePlayerRating(player.id, '');
                                   return;
                                 }
                                 const num = parseInt(val, 10);
-                                if (!isNaN(num)) {
-                                  updatePlayerRating(player.id, num);
-                                }
+                                updatePlayerRating(player.id, isNaN(num) ? val : num);
                               }}
                               onBlur={(e) => {
                                 const num = parseInt(e.target.value, 10);

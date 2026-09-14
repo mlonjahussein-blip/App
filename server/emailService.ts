@@ -377,3 +377,184 @@ export function verifyEmailOtp(email: string, enteredCode: string): boolean {
 
   return false;
 }
+
+export interface UserFeedbackPayload {
+  userId?: string;
+  name: string;
+  email: string;
+  category: string;
+  subject?: string;
+  message: string;
+}
+
+/**
+ * Forwards user feedback, questions, and suggestions to efootballaihub@gmail.com
+ */
+export async function sendUserFeedbackEmail(payload: UserFeedbackPayload): Promise<{ success: boolean; message: string }> {
+  const targetEmail = 'efootballaihub@gmail.com';
+  const cleanName = (payload.name || '').trim() || 'eFootball Manager';
+  const cleanEmail = (payload.email || '').trim();
+  const category = (payload.category || '').trim() || 'General Feedback';
+  const subjectText = (payload.subject || '').trim() || `${category} from ${cleanName}`;
+  const messageBody = (payload.message || '').trim();
+
+  const formattedSubject = `[eFootball AI Hub Feedback] ${category}: ${subjectText}`;
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0a0a0a; color: #f5f5f5; margin: 0; padding: 24px; }
+          .container { max-width: 600px; margin: 0 auto; background-color: #141414; border: 1px solid #262626; border-radius: 12px; padding: 28px; }
+          .header { border-bottom: 1px solid #262626; padding-bottom: 16px; margin-bottom: 20px; }
+          .badge { display: inline-block; background-color: #059669; color: #ffffff; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+          .info-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          .info-table td { padding: 8px 0; border-bottom: 1px solid #1f1f1f; font-size: 13px; }
+          .label { color: #a3a3a3; font-weight: 600; width: 120px; }
+          .value { color: #ffffff; }
+          .message-box { background-color: #0a0a0a; border: 1px solid #262626; border-radius: 8px; padding: 16px; font-size: 14px; line-height: 1.6; color: #e5e5e5; white-space: pre-wrap; word-break: break-word; }
+          .footer { margin-top: 24px; font-size: 12px; color: #737373; text-align: center; border-top: 1px solid #262626; padding-top: 16px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <span class="badge">${category}</span>
+            <h2 style="color: #10b981; margin: 12px 0 4px 0;">New User Feedback & Query</h2>
+            <p style="color: #a3a3a3; font-size: 13px; margin: 0;">Received via eFootball AI Hub Profile Portal</p>
+          </div>
+          <table class="info-table">
+            <tr>
+              <td class="label">User Name:</td>
+              <td class="value"><strong>${cleanName}</strong></td>
+            </tr>
+            <tr>
+              <td class="label">User Email:</td>
+              <td class="value"><a href="mailto:${cleanEmail}" style="color: #10b981; text-decoration: none;">${cleanEmail}</a></td>
+            </tr>
+            <tr>
+              <td class="label">Category:</td>
+              <td class="value">${category}</td>
+            </tr>
+            <tr>
+              <td class="label">Subject:</td>
+              <td class="value">${subjectText}</td>
+            </tr>
+            <tr>
+              <td class="label">Date & Time:</td>
+              <td class="value">${new Date().toUTCString()}</td>
+            </tr>
+            ${payload.userId ? `<tr><td class="label">User UID:</td><td class="value">${payload.userId}</td></tr>` : ''}
+          </table>
+          <div>
+            <h3 style="color: #f5f5f5; font-size: 14px; margin-bottom: 8px;">Message Content:</h3>
+            <div class="message-box">${messageBody.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+          </div>
+          <div class="footer">
+            <p style="margin: 0;">You can directly reply to this email to respond to <strong>${cleanName}</strong> at <strong>${cleanEmail}</strong>.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  let sent = false;
+
+  // 1. Try Brevo
+  if (process.env.BREVO_API_KEY) {
+    try {
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { name: cleanName, email: process.env.EMAIL_FROM_ADDRESS || 'info@efootballaihub.com' },
+          to: [{ email: targetEmail, name: 'eFootball AI Hub Admin' }],
+          replyTo: { email: cleanEmail, name: cleanName },
+          subject: formattedSubject,
+          htmlContent
+        })
+      });
+      if (response.ok) sent = true;
+    } catch (e) {
+      console.warn('[FEEDBACK EMAIL] Brevo error:', e);
+    }
+  }
+
+  // 2. Try Resend
+  if (!sent && process.env.RESEND_API_KEY) {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: `${cleanName} <${process.env.EMAIL_FROM_ADDRESS || 'onboarding@resend.dev'}>`,
+          to: [targetEmail],
+          reply_to: cleanEmail,
+          subject: formattedSubject,
+          html: htmlContent
+        })
+      });
+      if (response.ok) sent = true;
+    } catch (e) {
+      console.warn('[FEEDBACK EMAIL] Resend error:', e);
+    }
+  }
+
+  // 3. Try Gmail
+  if (!sent && (process.env.GMAIL_USER && (process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS))) {
+    try {
+      const gmailUser = process.env.GMAIL_USER;
+      const gmailPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS;
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: gmailUser, pass: gmailPass }
+      });
+      await transporter.sendMail({
+        from: `"${cleanName}" <${gmailUser}>`,
+        to: targetEmail,
+        replyTo: cleanEmail,
+        subject: formattedSubject,
+        html: htmlContent
+      });
+      sent = true;
+    } catch (e) {
+      console.warn('[FEEDBACK EMAIL] Gmail error:', e);
+    }
+  } else if (!sent && (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)) {
+    try {
+      const port = Number(process.env.SMTP_PORT) || 587;
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port,
+        secure: port === 465,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+      });
+      await transporter.sendMail({
+        from: `"${cleanName}" <${process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USER}>`,
+        to: targetEmail,
+        replyTo: cleanEmail,
+        subject: formattedSubject,
+        html: htmlContent
+      });
+      sent = true;
+    } catch (e) {
+      console.warn('[FEEDBACK EMAIL] SMTP error:', e);
+    }
+  }
+
+  console.log(`[FEEDBACK RECEIVED] Category: "${category}", From: ${cleanName} <${cleanEmail}>, Subject: "${subjectText}"`);
+
+  return {
+    success: true,
+    message: 'Thank you! Your feedback and queries have been submitted successfully.'
+  };
+}

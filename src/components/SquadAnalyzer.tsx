@@ -54,7 +54,7 @@ interface AnalyzerProps {
 }
 
 export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, onNavigateToPayments }) => {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [typedPlayers, setTypedPlayers] = useState<TypedPlayerInput[]>([]);
   const [managerDetails, setManagerDetails] = useState<ManagerInputDetails>({
     name: '',
@@ -162,14 +162,24 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
           id: p.id,
           name: p.name,
           position: p.position,
-          rating: p.rating,
+          rating: Math.min(110, Math.max(60, Number(p.rating) || 90)),
           cardType: p.cardType,
           playstyle: p.playstyle,
           club: p.club,
           nationality: p.nationality,
           skills: p.skills
         })),
-        managerDetails: managerDetails.name.trim() ? managerDetails : undefined,
+        managerDetails: managerDetails.name.trim() ? {
+          ...managerDetails,
+          playstyleProficiencies: managerDetails.playstyleProficiencies ? {
+            possessionGame: Math.min(90, Math.max(50, Number(managerDetails.playstyleProficiencies.possessionGame) || 85)),
+            quickCounter: Math.min(90, Math.max(50, Number(managerDetails.playstyleProficiencies.quickCounter) || 87)),
+            longBallCounter: Math.min(90, Math.max(50, Number(managerDetails.playstyleProficiencies.longBallCounter) || 85)),
+            outWide: Math.min(90, Math.max(50, Number(managerDetails.playstyleProficiencies.outWide) || 80)),
+            longBall: Math.min(90, Math.max(50, Number(managerDetails.playstyleProficiencies.longBall) || 75)),
+            overload: Math.min(90, Math.max(50, Number(managerDetails.playstyleProficiencies.overload) || 86))
+          } : undefined
+        } : undefined,
         preferredPlaystyle,
         preferredFormation: finalFormation,
         fluidFormations: fluidFormations.enabled ? fluidFormations : undefined,
@@ -189,6 +199,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
       if (resp.status === 402) {
         setIsAnalyzing(false);
         await fetchEntitlements();
+        await refreshProfile?.();
         if (onNavigateToPayments) {
           onNavigateToPayments();
         }
@@ -202,6 +213,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
           if (errJson.paymentRequired) {
             setIsAnalyzing(false);
             await fetchEntitlements();
+            await refreshProfile?.();
             if (onNavigateToPayments) {
               onNavigateToPayments();
             }
@@ -216,8 +228,9 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
 
       const result: AnalysisResult = await resp.json();
       setIsAnalyzing(false);
-      // Refresh entitlement state so counter updates in real time
+      // Refresh entitlement state and user profile so counter updates in real time
       fetchEntitlements();
+      refreshProfile?.();
       onAnalysisCompleted(result);
     } catch (err: any) {
       clearInterval(interval);

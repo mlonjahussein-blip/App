@@ -237,6 +237,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const restDoc = await readDocREST('users', uid);
       if (restDoc && (restDoc.email || restDoc.uid)) {
+        let freeAnalysesRemaining = typeof restDoc.freeAnalysesRemaining === 'number' ? restDoc.freeAnalysesRemaining : 1;
+        let lastFreeResetAt = restDoc.lastFreeResetAt || new Date().toISOString();
+        const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+        const lastResetTime = new Date(lastFreeResetAt).getTime();
+        if (Date.now() - lastResetTime >= sevenDaysMs && freeAnalysesRemaining < 1) {
+          freeAnalysesRemaining = 1;
+          lastFreeResetAt = new Date().toISOString();
+          writeDocREST('users', uid, { freeAnalysesRemaining: 1, lastFreeResetAt }).catch(() => {});
+        }
+
         const fullProf: UserProfile = {
           uid: restDoc.uid || uid,
           email: restDoc.email || defaultEmail,
@@ -244,9 +254,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           whatsappNumber: restDoc.whatsappNumber || whatsappNumber || undefined,
           photoURL: restDoc.photoURL || photoURL || undefined,
           createdAt: restDoc.createdAt || new Date().toISOString(),
-          freeAnalysesRemaining: typeof restDoc.freeAnalysesRemaining === 'number' ? restDoc.freeAnalysesRemaining : 1,
+          freeAnalysesRemaining,
           paidCredits: typeof restDoc.paidCredits === 'number' ? restDoc.paidCredits : 0,
-          lastFreeResetAt: restDoc.lastFreeResetAt || new Date().toISOString(),
+          lastFreeResetAt,
           role: restDoc.role || 'user'
         };
         setProfile(fullProf);

@@ -197,8 +197,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                     <p className="text-xs font-semibold text-white leading-tight">
                       {profile?.displayName || user.email?.split('@')[0]}
                     </p>
-                    <p className="text-[10px] text-emerald-400 font-medium">
-                      {profile?.freeAnalysesRemaining || 1} Free Analysis Left
+                    <p className={`text-[10px] font-medium ${(profile?.freeAnalysesRemaining ?? 1) > 0 ? 'text-emerald-400' : 'text-neutral-400'}`}>
+                      {(profile?.freeAnalysesRemaining ?? 1) > 0 ? '1 Free Analysis Left' : '0 Free Analysis Left'}
                     </p>
                   </div>
                   <button
@@ -263,7 +263,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
             <>
               <div className="p-3 bg-neutral-900 rounded-lg mb-2">
                 <p className="text-sm font-bold text-white">{profile?.displayName || user.email}</p>
-                <p className="text-xs text-emerald-400">{profile?.freeAnalysesRemaining || 1} Free Analysis Available</p>
+                <p className={`text-xs ${(profile?.freeAnalysesRemaining ?? 1) > 0 ? 'text-emerald-400' : 'text-neutral-400'}`}>
+                  {(profile?.freeAnalysesRemaining ?? 1) > 0 ? '1 Free Analysis Available' : '0 Free Analysis Available'}
+                </p>
               </div>
               <button
                 onClick={() => handleNav('home')}

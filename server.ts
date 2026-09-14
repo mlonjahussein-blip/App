@@ -3,7 +3,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { performSquadAnalysis, createEvidenceBasedFallback, AnalyzeSquadPayload } from './server/accuracyPipeline.ts';
-import { sendVerificationEmail, verifyEmailOtp } from './server/emailService.ts';
+import { sendVerificationEmail, verifyEmailOtp, sendUserFeedbackEmail } from './server/emailService.ts';
 import {
   getUserEntitlements,
   consumeEntitlementForAnalysis,
@@ -228,6 +228,66 @@ app.post('/api/auth/verify-email-otp', (req, res) => {
     }
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Failed to verify email code.' });
+  }
+});
+
+// User Feedback, Suggestions, and Queries endpoint
+app.post('/api/feedback', async (req, res) => {
+  try {
+    const { name, email, category, subject, message, userId } = req.body || {};
+
+    if (!email || !message) {
+      return res.status(400).json({ error: 'Email and feedback message are required.' });
+    }
+
+    const cleanEmail = String(email).trim();
+    const cleanName = String(name || cleanEmail.split('@')[0] || 'Tactician').trim();
+    const cleanMessage = String(message).trim();
+    const cleanCategory = String(category || 'Feedback').trim();
+    const cleanSubject = String(subject || `${cleanCategory} from ${cleanName}`).trim();
+
+    // 1. Dispatch email directly to support mailbox
+    const dispatchResult = await sendUserFeedbackEmail({
+      userId,
+      name: cleanName,
+      email: cleanEmail,
+      category: cleanCategory,
+      subject: cleanSubject,
+      message: cleanMessage
+    });
+
+    // 2. Also persist to Firestore for record-keeping
+    try {
+      const PROJECT_ID = 'emergent-fastness-8lcf1';
+      const DB_ID = 'ai-studio-efootballaihub-2a95eb9f-c78b-4ee5-ae97-a914c4288cba';
+      const API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyAUe9kMRkqAG_VshpucovSWslYeBcofqZY';
+      const BASE_REST_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DB_ID}/documents`;
+      const feedbackId = `fb_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+      await fetch(`${BASE_REST_URL}/feedbacks/${feedbackId}?key=${API_KEY}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            id: { stringValue: feedbackId },
+            userId: { stringValue: userId || 'anonymous' },
+            name: { stringValue: cleanName },
+            email: { stringValue: cleanEmail },
+            category: { stringValue: cleanCategory },
+            subject: { stringValue: cleanSubject },
+            message: { stringValue: cleanMessage },
+            createdAt: { stringValue: new Date().toISOString() }
+          }
+        })
+      });
+    } catch (dbErr) {
+      console.warn('[FEEDBACK STORE] Could not save feedback to Firestore:', dbErr);
+    }
+
+    res.json(dispatchResult);
+  } catch (error: any) {
+    console.error('Error handling /api/feedback:', error);
+    res.status(500).json({ error: error?.message || 'Failed to submit feedback. Please try again.' });
   }
 });
 
