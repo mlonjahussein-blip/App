@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   AnalysisResult, 
   PlayerData, 
@@ -9,6 +9,7 @@ import { BestXIView } from './BestXIView.tsx';
 import { TacticalSimulation } from './TacticalSimulation.tsx';
 import { PlayerCorrectionModal } from './PlayerCorrectionModal.tsx';
 import { DeveloperInspectionPanel } from './DeveloperInspectionPanel.tsx';
+import { detectAllSquadComparisons } from '../lib/playerComparison.ts';
 import { 
   Award, 
   Sparkles, 
@@ -84,6 +85,14 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
     if (p.matchedDatabaseName) return true;
     return searchMasterPlayers(p.name, 1).length > 0;
   }).length;
+
+  // Automated squad player comparisons (Starting XI vs Substitutes, same positions, tactical alternatives)
+  const detectedComparisonBattles = useMemo(() => {
+    return detectAllSquadComparisons(
+      squadAnalysis.identifiedPlayers,
+      squadAnalysis.coachRecommendation?.tacticalStyle || 'Quick Counter'
+    );
+  }, [squadAnalysis.identifiedPlayers, squadAnalysis.coachRecommendation?.tacticalStyle]);
 
   const showToast = (msg: string) => {
     setFeedbackToast(msg);
@@ -1663,29 +1672,37 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
       {squadAnalysis.identifiedPlayers.length >= 2 && (
         <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <h3 className="text-base font-bold text-white">Compare Squad Players Head-to-Head</h3>
-            <p className="text-xs text-neutral-400">
-              Select two players to find out which card is objectively superior for your recommended tactic.
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h3 className="text-base font-bold text-white">Compare Squad Players Head-to-Head</h3>
+              {detectedComparisonBattles.length > 0 && (
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                  {detectedComparisonBattles.length} {detectedComparisonBattles.length === 1 ? 'Comparison Available' : 'Battles Identified'}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-neutral-400 mt-1">
+              {detectedComparisonBattles.length > 1
+                ? `Automated tactical comparisons between all players needing comparison (${detectedComparisonBattles.length} battles: Starting XI vs Substitutes and same-position rivals).`
+                : `Evaluate starting suitability and tactical synergy for your recommended tactic.`}
             </p>
           </div>
           <button
             onClick={() => {
               const players = squadAnalysis.identifiedPlayers;
-              let p1 = players[0];
-              let p2 = players[1];
-              for (let i = 0; i < players.length; i++) {
-                const match = players.find((other, idx) => idx !== i && other.position.toUpperCase() === players[i].position.toUpperCase());
-                if (match) {
-                  p1 = players[i];
-                  p2 = match;
-                  break;
-                }
-              }
+              const firstBattle = detectedComparisonBattles[0];
+              const p1 = firstBattle?.playerA || players[0];
+              const p2 = firstBattle?.playerB || players[1];
               onComparePlayersSelect(p1, p2);
             }}
-            className="px-5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-emerald-400 font-bold text-xs border border-neutral-700 transition-colors whitespace-nowrap cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-emerald-400 font-bold text-xs border border-neutral-700 transition-colors whitespace-nowrap cursor-pointer flex items-center gap-2"
           >
-            Launch Player Comparison →
+            <span>Launch Player Comparison</span>
+            {detectedComparisonBattles.length > 1 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black">
+                {detectedComparisonBattles.length}
+              </span>
+            )}
+            <span>→</span>
           </button>
         </div>
       )}

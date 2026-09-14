@@ -326,8 +326,10 @@ function AppContent() {
         <PlayerComparisonModal
           playerA={comparisonPair.p1}
           playerB={comparisonPair.p2}
+          allPlayers={activeAnalysis?.identifiedPlayers || []}
           onClose={() => setComparisonPair(null)}
           tacticalPlaystyle={activeAnalysis?.coachRecommendation?.tacticalStyle || 'Quick Counter'}
+          formation={activeAnalysis?.recommendedFormation || '4-3-3'}
         />
       )}
 
