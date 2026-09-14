@@ -510,22 +510,27 @@ export async function sendUserFeedbackEmail(payload: UserFeedbackPayload): Promi
   }
 
   // 3. Try Gmail
-  if (!sent && (process.env.GMAIL_USER && (process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS))) {
+  const gmailUser = process.env.GMAIL_USER || 'efootballaihub@gmail.com';
+  const gmailPass = (process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || 'otblyzhyhemwaxws').replace(/\s+/g, '');
+
+  if (!sent && gmailPass) {
     try {
-      const gmailUser = process.env.GMAIL_USER;
-      const gmailPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS;
       const transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
         auth: { user: gmailUser, pass: gmailPass }
       });
       await transporter.sendMail({
-        from: `"${cleanName}" <${gmailUser}>`,
-        to: targetEmail,
+        from: `"${cleanName} via eFootball AI Hub" <${gmailUser}>`,
+        to: `${targetEmail}, mlonjahussein@gmail.com`,
         replyTo: cleanEmail,
         subject: formattedSubject,
+        text: `New Feedback from ${cleanName} (${cleanEmail})\nCategory: ${category}\nSubject: ${subjectText}\n\nMessage:\n${messageBody}`,
         html: htmlContent
       });
       sent = true;
+      console.log('[FEEDBACK EMAIL] Dispatched to efootballaihub@gmail.com and mlonjahussein@gmail.com via Gmail SMTP');
     } catch (e) {
       console.warn('[FEEDBACK EMAIL] Gmail error:', e);
     }

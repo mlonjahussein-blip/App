@@ -49,5 +49,10 @@ service cloud.firestore {
     match /paymentRecords/{recordId} {
       allow read, write: if true;
     }
+
+    // User Feedback & Support Queries
+    match /feedbacks/{feedbackId} {
+      allow read, write: if true;
+    }
   }
 }

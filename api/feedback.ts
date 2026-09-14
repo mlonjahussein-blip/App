@@ -202,28 +202,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // D. SMTP / Gmail
-    if (!emailSent && (process.env.SMTP_HOST || process.env.GMAIL_APP_PASSWORD)) {
+    const gmailUser = process.env.GMAIL_USER || process.env.SMTP_USER || 'efootballaihub@gmail.com';
+    const gmailPass = (process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || 'otblyzhyhemwaxws').replace(/\s+/g, '');
+
+    if (!emailSent && gmailPass) {
       try {
         const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST || 'smtp.gmail.com',
-          port: parseInt(process.env.SMTP_PORT || '587', 10),
-          secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465',
+          host: 'smtp.gmail.com',
+          port: 465,
+          secure: true,
           auth: {
-            user: process.env.SMTP_USER || process.env.GMAIL_USER || 'efootballaihub@gmail.com',
-            pass: process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD
+            user: gmailUser,
+            pass: gmailPass
           }
         });
 
-        await transporter.sendMail({
-          from: `"${cleanName}" <${process.env.SMTP_USER || process.env.GMAIL_USER || 'efootballaihub@gmail.com'}>`,
-          to: targetEmail,
+        const info = await transporter.sendMail({
+          from: `"${cleanName} via eFootball AI Hub" <${gmailUser}>`,
+          to: `${targetEmail}, mlonjahussein@gmail.com`,
           replyTo: cleanEmail,
           subject: formattedSubject,
+          text: `New Feedback from ${cleanName} (${cleanEmail})\nCategory: ${cleanCategory}\nSubject: ${cleanSubject}\n\nMessage:\n${cleanMessage}`,
           html: htmlContent
         });
+        console.log('[FEEDBACK EMAIL] Gmail dispatch success:', info.messageId);
         emailSent = true;
       } catch (e) {
-        console.warn('[FEEDBACK EMAIL] SMTP error:', e);
+        console.warn('[FEEDBACK EMAIL] Gmail error:', e);
       }
     }
 
