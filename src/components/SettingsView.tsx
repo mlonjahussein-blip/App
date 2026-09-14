@@ -217,26 +217,83 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
     setIsSubmittingFeedback(true);
     try {
-      const res = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user?.uid,
-          name: feedbackName.trim() || 'Manager',
-          email: feedbackEmail.trim(),
-          category: feedbackCategory,
-          subject: feedbackSubject.trim(),
-          message: feedbackMessage.trim()
-        })
-      });
+      let submissionSuccess = false;
+      let submissionMessage = '';
 
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setFeedbackSuccessMessage('Thank you for reaching out! Your feedback and queries have been submitted successfully. If follow-up is needed, we will get back to you directly at your provided email.');
+      try {
+        const res = await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user?.uid,
+            name: feedbackName.trim() || 'Manager',
+            email: feedbackEmail.trim(),
+            category: feedbackCategory,
+            subject: feedbackSubject.trim(),
+            message: feedbackMessage.trim()
+          })
+        });
+
+        // Safely parse text response to prevent JSON.parse crashes on non-JSON payloads
+        const text = await res.text();
+        let data: any = null;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = null;
+        }
+
+        if (res.ok && data?.success) {
+          submissionSuccess = true;
+          submissionMessage = data.message || 'Thank you for reaching out! Your feedback and queries have been submitted successfully.';
+        } else if (data?.error) {
+          throw new Error(data.error);
+        }
+      } catch (networkOrApiErr: any) {
+        console.warn('Backend /api/feedback encountered an issue, proceeding to database fallback:', networkOrApiErr);
+      }
+
+      // If backend API succeeded, we're done. Otherwise fallback to direct Firestore REST storage
+      if (!submissionSuccess) {
+        try {
+          const PROJECT_ID = 'emergent-fastness-8lcf1';
+          const DB_ID = 'ai-studio-efootballaihub-2a95eb9f-c78b-4ee5-ae97-a914c4288cba';
+          const API_KEY = 'AIzaSyAUe9kMRkqAG_VshpucovSWslYeBcofqZY';
+          const BASE_REST_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DB_ID}/documents`;
+          const feedbackId = `fb_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+          const firestoreRes = await fetch(`${BASE_REST_URL}/feedbacks/${feedbackId}?key=${API_KEY}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fields: {
+                id: { stringValue: feedbackId },
+                userId: { stringValue: user?.uid || 'anonymous' },
+                name: { stringValue: feedbackName.trim() || 'Manager' },
+                email: { stringValue: feedbackEmail.trim() },
+                category: { stringValue: feedbackCategory },
+                subject: { stringValue: feedbackSubject.trim() },
+                message: { stringValue: feedbackMessage.trim() },
+                createdAt: { stringValue: new Date().toISOString() }
+              }
+            })
+          });
+
+          if (firestoreRes.ok) {
+            submissionSuccess = true;
+            submissionMessage = 'Thank you for reaching out! Your feedback and queries have been recorded successfully. Our team will review them promptly.';
+          }
+        } catch (dbErr) {
+          console.error('Direct Firestore fallback error:', dbErr);
+        }
+      }
+
+      if (submissionSuccess) {
+        setFeedbackSuccessMessage(submissionMessage || 'Thank you for reaching out! Your feedback and queries have been submitted successfully. If follow-up is needed, we will get back to you directly at your provided email.');
         setFeedbackSubject('');
         setFeedbackMessage('');
       } else {
-        throw new Error(data.error || 'Failed to submit feedback.');
+        throw new Error('Failed to submit feedback. Please check your network connection and try again.');
       }
     } catch (err: any) {
       console.error('Feedback submit error:', err);
