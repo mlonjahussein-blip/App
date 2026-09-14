@@ -3261,6 +3261,10 @@ var PesapalPaymentProvider = class {
         const nameParts = (params.displayName || "Manager User").split(" ");
         const firstName = nameParts[0] || "Manager";
         const lastName = nameParts.slice(1).join(" ") || "User";
+        let cleanCountryCode = (params.countryCode || "").trim().toUpperCase();
+        if (!cleanCountryCode || cleanCountryCode.length < 2 || cleanCountryCode.length > 3 || cleanCountryCode === "OTHER") {
+          cleanCountryCode = "US";
+        }
         const submitOrderUrl = `${this.getBaseUrl()}/Transactions/SubmitOrderRequest`;
         const orderPayload = {
           id: paymentId,
@@ -3270,8 +3274,8 @@ var PesapalPaymentProvider = class {
           callback_url: returnUrl,
           billing_address: {
             email_address: params.userEmail || "manager@efootballaihub.com",
-            phone_number: params.phoneNumber || "",
-            country_code: params.countryCode || "KE",
+            phone_number: params.phoneNumber || "000000000",
+            country_code: cleanCountryCode,
             first_name: firstName,
             last_name: lastName
           }

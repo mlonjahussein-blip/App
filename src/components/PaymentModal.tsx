@@ -13,7 +13,8 @@ import {
   Smartphone,
   Check,
   ArrowRight,
-  ChevronRight,
+  Globe,
+  Search,
   Info
 } from 'lucide-react';
 import { UserEntitlements, PaymentRecord } from '../types.ts';
@@ -30,6 +31,149 @@ interface PaymentModalProps {
 }
 
 type PaymentOption = 'card' | 'mobile_money';
+
+interface CountryItem {
+  code: string; // 2-letter ISO
+  name: string;
+  dial: string;
+  flag: string;
+  region: string;
+}
+
+const WORLD_COUNTRIES: CountryItem[] = [
+  // Frequently used
+  { code: 'US', name: 'United States', dial: '+1', flag: '🇺🇸', region: 'Popular' },
+  { code: 'GB', name: 'United Kingdom', dial: '+44', flag: '🇬🇧', region: 'Popular' },
+  { code: 'CA', name: 'Canada', dial: '+1', flag: '🇨🇦', region: 'Popular' },
+  { code: 'KE', name: 'Kenya', dial: '+254', flag: '🇰🇪', region: 'Popular' },
+  { code: 'TZ', name: 'Tanzania', dial: '+255', flag: '🇹🇿', region: 'Popular' },
+  { code: 'UG', name: 'Uganda', dial: '+256', flag: '🇺🇬', region: 'Popular' },
+  { code: 'RW', name: 'Rwanda', dial: '+250', flag: '🇷🇼', region: 'Popular' },
+  { code: 'NG', name: 'Nigeria', dial: '+234', flag: '🇳🇬', region: 'Popular' },
+  { code: 'GH', name: 'Ghana', dial: '+233', flag: '🇬🇭', region: 'Popular' },
+  { code: 'ZA', name: 'South Africa', dial: '+27', flag: '🇿🇦', region: 'Popular' },
+  { code: 'AE', name: 'United Arab Emirates', dial: '+971', flag: '🇦🇪', region: 'Popular' },
+  { code: 'SA', name: 'Saudi Arabia', dial: '+966', flag: '🇸🇦', region: 'Popular' },
+  { code: 'IN', name: 'India', dial: '+91', flag: '🇮🇳', region: 'Popular' },
+  { code: 'AU', name: 'Australia', dial: '+61', flag: '🇦🇺', region: 'Popular' },
+  { code: 'DE', name: 'Germany', dial: '+49', flag: '🇩🇪', region: 'Popular' },
+  { code: 'FR', name: 'France', dial: '+33', flag: '🇫🇷', region: 'Popular' },
+  { code: 'BR', name: 'Brazil', dial: '+55', flag: '🇧🇷', region: 'Popular' },
+
+  // Europe
+  { code: 'AT', name: 'Austria', dial: '+43', flag: '🇦🇹', region: 'Europe' },
+  { code: 'BE', name: 'Belgium', dial: '+32', flag: '🇧🇪', region: 'Europe' },
+  { code: 'BG', name: 'Bulgaria', dial: '+359', flag: '🇧🇬', region: 'Europe' },
+  { code: 'HR', name: 'Croatia', dial: '+385', flag: '🇭🇷', region: 'Europe' },
+  { code: 'CY', name: 'Cyprus', dial: '+357', flag: '🇨🇾', region: 'Europe' },
+  { code: 'CZ', name: 'Czech Republic', dial: '+420', flag: '🇨🇿', region: 'Europe' },
+  { code: 'DK', name: 'Denmark', dial: '+45', flag: '🇩🇰', region: 'Europe' },
+  { code: 'FI', name: 'Finland', dial: '+358', flag: '🇫🇮', region: 'Europe' },
+  { code: 'GR', name: 'Greece', dial: '+30', flag: '🇬🇷', region: 'Europe' },
+  { code: 'HU', name: 'Hungary', dial: '+36', flag: '🇭🇺', region: 'Europe' },
+  { code: 'IS', name: 'Iceland', dial: '+354', flag: '🇮🇸', region: 'Europe' },
+  { code: 'IE', name: 'Ireland', dial: '+353', flag: '🇮🇪', region: 'Europe' },
+  { code: 'IT', name: 'Italy', dial: '+39', flag: '🇮🇹', region: 'Europe' },
+  { code: 'LU', name: 'Luxembourg', dial: '+352', flag: '🇱🇺', region: 'Europe' },
+  { code: 'NL', name: 'Netherlands', dial: '+31', flag: '🇳🇱', region: 'Europe' },
+  { code: 'NO', name: 'Norway', dial: '+47', flag: '🇳🇴', region: 'Europe' },
+  { code: 'PL', name: 'Poland', dial: '+48', flag: '🇵🇱', region: 'Europe' },
+  { code: 'PT', name: 'Portugal', dial: '+351', flag: '🇵🇹', region: 'Europe' },
+  { code: 'RO', name: 'Romania', dial: '+40', flag: '🇷🇴', region: 'Europe' },
+  { code: 'RS', name: 'Serbia', dial: '+381', flag: '🇷🇸', region: 'Europe' },
+  { code: 'SK', name: 'Slovakia', dial: '+421', flag: '🇸🇰', region: 'Europe' },
+  { code: 'ES', name: 'Spain', dial: '+34', flag: '🇪🇸', region: 'Europe' },
+  { code: 'SE', name: 'Sweden', dial: '+46', flag: '🇸🇪', region: 'Europe' },
+  { code: 'CH', name: 'Switzerland', dial: '+41', flag: '🇨🇭', region: 'Europe' },
+  { code: 'TR', name: 'Turkey', dial: '+90', flag: '🇹🇷', region: 'Europe' },
+  { code: 'UA', name: 'Ukraine', dial: '+380', flag: '🇺🇦', region: 'Europe' },
+
+  // Americas
+  { code: 'AR', name: 'Argentina', dial: '+54', flag: '🇦🇷', region: 'Americas' },
+  { code: 'BO', name: 'Bolivia', dial: '+591', flag: '🇧🇴', region: 'Americas' },
+  { code: 'CL', name: 'Chile', dial: '+56', flag: '🇨🇱', region: 'Americas' },
+  { code: 'CO', name: 'Colombia', dial: '+57', flag: '🇨🇴', region: 'Americas' },
+  { code: 'CR', name: 'Costa Rica', dial: '+506', flag: '🇨🇷', region: 'Americas' },
+  { code: 'DO', name: 'Dominican Republic', dial: '+1', flag: '🇩🇴', region: 'Americas' },
+  { code: 'EC', name: 'Ecuador', dial: '+593', flag: '🇪🇨', region: 'Americas' },
+  { code: 'GT', name: 'Guatemala', dial: '+502', flag: '🇬🇹', region: 'Americas' },
+  { code: 'HN', name: 'Honduras', dial: '+504', flag: '🇭🇳', region: 'Americas' },
+  { code: 'JM', name: 'Jamaica', dial: '+1', flag: '🇯🇲', region: 'Americas' },
+  { code: 'MX', name: 'Mexico', dial: '+52', flag: '🇲🇽', region: 'Americas' },
+  { code: 'PA', name: 'Panama', dial: '+507', flag: '🇵🇦', region: 'Americas' },
+  { code: 'PE', name: 'Peru', dial: '+51', flag: '🇵🇪', region: 'Americas' },
+  { code: 'PR', name: 'Puerto Rico', dial: '+1', flag: '🇵🇷', region: 'Americas' },
+  { code: 'TT', name: 'Trinidad & Tobago', dial: '+1', flag: '🇹🇹', region: 'Americas' },
+  { code: 'UY', name: 'Uruguay', dial: '+598', flag: '🇺🇾', region: 'Americas' },
+  { code: 'VE', name: 'Venezuela', dial: '+58', flag: '🇻🇪', region: 'Americas' },
+
+  // Africa
+  { code: 'DZ', name: 'Algeria', dial: '+213', flag: '🇩🇿', region: 'Africa' },
+  { code: 'AO', name: 'Angola', dial: '+244', flag: '🇦🇴', region: 'Africa' },
+  { code: 'BJ', name: 'Benin', dial: '+229', flag: '🇧🇯', region: 'Africa' },
+  { code: 'BW', name: 'Botswana', dial: '+267', flag: '🇧🇼', region: 'Africa' },
+  { code: 'BF', name: 'Burkina Faso', dial: '+226', flag: '🇧🇫', region: 'Africa' },
+  { code: 'BI', name: 'Burundi', dial: '+257', flag: '🇧🇮', region: 'Africa' },
+  { code: 'CM', name: 'Cameroon', dial: '+237', flag: '🇨🇲', region: 'Africa' },
+  { code: 'CD', name: 'DR Congo', dial: '+243', flag: '🇨🇩', region: 'Africa' },
+  { code: 'CG', name: 'Congo', dial: '+242', flag: '🇨🇬', region: 'Africa' },
+  { code: 'CI', name: 'Ivory Coast', dial: '+225', flag: '🇨🇮', region: 'Africa' },
+  { code: 'EG', name: 'Egypt', dial: '+20', flag: '🇪🇬', region: 'Africa' },
+  { code: 'ET', name: 'Ethiopia', dial: '+251', flag: '🇪🇹', region: 'Africa' },
+  { code: 'GA', name: 'Gabon', dial: '+241', flag: '🇬🇦', region: 'Africa' },
+  { code: 'GM', name: 'Gambia', dial: '+220', flag: '🇬🇲', region: 'Africa' },
+  { code: 'GN', name: 'Guinea', dial: '+224', flag: '🇬🇳', region: 'Africa' },
+  { code: 'LR', name: 'Liberia', dial: '+231', flag: '🇱🇷', region: 'Africa' },
+  { code: 'MG', name: 'Madagascar', dial: '+261', flag: '🇲🇬', region: 'Africa' },
+  { code: 'MW', name: 'Malawi', dial: '+265', flag: '🇲🇼', region: 'Africa' },
+  { code: 'ML', name: 'Mali', dial: '+223', flag: '🇲🇱', region: 'Africa' },
+  { code: 'MU', name: 'Mauritius', dial: '+230', flag: '🇲🇺', region: 'Africa' },
+  { code: 'MA', name: 'Morocco', dial: '+212', flag: '🇲🇦', region: 'Africa' },
+  { code: 'MZ', name: 'Mozambique', dial: '+258', flag: '🇲🇿', region: 'Africa' },
+  { code: 'NA', name: 'Namibia', dial: '+264', flag: '🇳🇦', region: 'Africa' },
+  { code: 'NE', name: 'Niger', dial: '+227', flag: '🇳🇪', region: 'Africa' },
+  { code: 'SN', name: 'Senegal', dial: '+221', flag: '🇸🇳', region: 'Africa' },
+  { code: 'SL', name: 'Sierra Leone', dial: '+232', flag: '🇸🇱', region: 'Africa' },
+  { code: 'SO', name: 'Somalia', dial: '+252', flag: '🇸🇴', region: 'Africa' },
+  { code: 'SS', name: 'South Sudan', dial: '+211', flag: '🇸🇸', region: 'Africa' },
+  { code: 'SD', name: 'Sudan', dial: '+249', flag: '🇸🇩', region: 'Africa' },
+  { code: 'TG', name: 'Togo', dial: '+228', flag: '🇹🇬', region: 'Africa' },
+  { code: 'TN', name: 'Tunisia', dial: '+216', flag: '🇹🇳', region: 'Africa' },
+  { code: 'ZM', name: 'Zambia', dial: '+260', flag: '🇿🇲', region: 'Africa' },
+  { code: 'ZW', name: 'Zimbabwe', dial: '+263', flag: '🇿🇼', region: 'Africa' },
+
+  // Asia & Pacific
+  { code: 'BD', name: 'Bangladesh', dial: '+880', flag: '🇧🇩', region: 'Asia-Pacific' },
+  { code: 'KH', name: 'Cambodia', dial: '+855', flag: '🇰🇭', region: 'Asia-Pacific' },
+  { code: 'CN', name: 'China', dial: '+86', flag: '🇨🇳', region: 'Asia-Pacific' },
+  { code: 'HK', name: 'Hong Kong', dial: '+852', flag: '🇭🇰', region: 'Asia-Pacific' },
+  { code: 'ID', name: 'Indonesia', dial: '+62', flag: '🇮🇩', region: 'Asia-Pacific' },
+  { code: 'JP', name: 'Japan', dial: '+81', flag: '🇯🇵', region: 'Asia-Pacific' },
+  { code: 'KR', name: 'South Korea', dial: '+82', flag: '🇰🇷', region: 'Asia-Pacific' },
+  { code: 'MY', name: 'Malaysia', dial: '+60', flag: '🇲🇾', region: 'Asia-Pacific' },
+  { code: 'NP', name: 'Nepal', dial: '+977', flag: '🇳🇵', region: 'Asia-Pacific' },
+  { code: 'NZ', name: 'New Zealand', dial: '+64', flag: '🇳🇿', region: 'Asia-Pacific' },
+  { code: 'PK', name: 'Pakistan', dial: '+92', flag: '🇵🇰', region: 'Asia-Pacific' },
+  { code: 'PH', name: 'Philippines', dial: '+63', flag: '🇵🇭', region: 'Asia-Pacific' },
+  { code: 'SG', name: 'Singapore', dial: '+65', flag: '🇸🇬', region: 'Asia-Pacific' },
+  { code: 'LK', name: 'Sri Lanka', dial: '+94', flag: '🇱🇰', region: 'Asia-Pacific' },
+  { code: 'TW', name: 'Taiwan', dial: '+886', flag: '🇹🇼', region: 'Asia-Pacific' },
+  { code: 'TH', name: 'Thailand', dial: '+66', flag: '🇹🇭', region: 'Asia-Pacific' },
+  { code: 'VN', name: 'Vietnam', dial: '+84', flag: '🇻🇳', region: 'Asia-Pacific' },
+
+  // Middle East
+  { code: 'BH', name: 'Bahrain', dial: '+973', flag: '🇧🇭', region: 'Middle East' },
+  { code: 'IQ', name: 'Iraq', dial: '+964', flag: '🇮🇶', region: 'Middle East' },
+  { code: 'IL', name: 'Israel', dial: '+972', flag: '🇮🇱', region: 'Middle East' },
+  { code: 'JO', name: 'Jordan', dial: '+962', flag: '🇯🇴', region: 'Middle East' },
+  { code: 'KW', name: 'Kuwait', dial: '+965', flag: '🇰🇼', region: 'Middle East' },
+  { code: 'LB', name: 'Lebanon', dial: '+961', flag: '🇱🇧', region: 'Middle East' },
+  { code: 'OM', name: 'Oman', dial: '+968', flag: '🇴🇲', region: 'Middle East' },
+  { code: 'QA', name: 'Qatar', dial: '+974', flag: '🇶🇦', region: 'Middle East' },
+
+  // International Catch-All
+  { code: 'US', name: 'International / Other Country (Worldwide)', dial: '+1', flag: '🌍', region: 'Worldwide' }
+];
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
   isOpen,
@@ -48,7 +192,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [fullName, setFullName] = useState<string>(displayName || '');
   const [email, setEmail] = useState<string>(userEmail || '');
   const [phone, setPhone] = useState<string>('');
-  const [countryCode, setCountryCode] = useState<string>('KE');
+  const [selectedCountry, setSelectedCountry] = useState<CountryItem>(
+    WORLD_COUNTRIES.find(c => c.code === 'KE') || WORLD_COUNTRIES[0]
+  );
 
   // Card Inputs
   const [cardNumber, setCardNumber] = useState<string>('');
@@ -129,23 +275,24 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       return;
     }
 
-    if (!phone.trim() || phone.replace(/\D/g, '').length < 8) {
-      setErrorMessage('Please enter a valid phone number (at least 8 digits).');
+    const cleanDigits = phone.replace(/\D/g, '');
+    if (!cleanDigits || cleanDigits.length < 5) {
+      setErrorMessage('Please enter a valid phone number.');
       return;
     }
 
     if (selectedOption === 'card') {
       const cleanCard = cardNumber.replace(/\s/g, '');
-      if (cleanCard.length < 15) {
-        setErrorMessage('Please enter a valid 16-digit card number.');
+      if (cleanCard.length < 13) {
+        setErrorMessage('Please enter a valid card number (13 to 16 digits).');
         return;
       }
       if (cardExpiry.length < 5) {
-        setErrorMessage('Please enter a valid expiration date (MM/YY).');
+        setErrorMessage('Please enter a valid card expiration date (MM/YY).');
         return;
       }
       if (cardCvv.length < 3) {
-        setErrorMessage('Please enter a valid CVV/CVC code (3 or 4 digits).');
+        setErrorMessage('Please enter a valid 3 or 4 digit CVV/CVC code.');
         return;
       }
     }
@@ -153,6 +300,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setIsSubmitting(true);
 
     try {
+      // Ensure ISO 2-letter country code
+      const isoCountry = selectedCountry.code && selectedCountry.code.length === 2 ? selectedCountry.code : 'US';
+      const fullPhoneNumber = phone.startsWith('+') ? phone : `${selectedCountry.dial} ${phone}`.trim();
+
       const resp = await fetch('/api/payment/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -161,14 +312,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           provider: 'pesapal',
           userEmail: email.trim(),
           displayName: fullName.trim(),
-          phoneNumber: phone.trim(),
-          countryCode
+          phoneNumber: fullPhoneNumber,
+          countryCode: isoCountry
         })
       });
 
       if (!resp.ok) {
         const errJson = await resp.json().catch(() => ({}));
-        throw new Error(errJson.error || 'Failed to initialize Pesapal payment order.');
+        throw new Error(errJson.error || 'Failed to initialize payment gateway.');
       }
 
       const data = await resp.json();
@@ -184,15 +335,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       // Open Pesapal Checkout
       if (order.checkoutUrl) {
         setCheckoutUrl(order.checkoutUrl);
-        // Attempt to open in a secure new window as well
+        // Attempt to open in a secure new window
         window.open(order.checkoutUrl, '_blank', 'noopener,noreferrer');
       }
 
       setStep('awaiting_payment');
       startPollingPaymentStatus(order.paymentId, order.providerTransactionId);
     } catch (err: any) {
-      console.error('Pesapal order creation error:', err);
-      setErrorMessage(err.message || 'Could not connect to Pesapal gateway. Please try again.');
+      console.error('Payment order creation error:', err);
+      setErrorMessage(err.message || 'Could not connect to payment gateway. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -203,7 +354,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);
 
     let attempts = 0;
-    const maxAttempts = 45; // Poll for 3 minutes (every 4 seconds)
+    const maxAttempts = 50; // Poll for ~3.5 minutes (every 4 seconds)
 
     pollTimerRef.current = setInterval(async () => {
       attempts++;
@@ -231,7 +382,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             handleSuccess(paymentId, result, transactionId);
           } else if (result?.status === 'FAILED') {
             if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-            setErrorMessage(result?.failureReason || 'Transaction was declined on Pesapal.');
+            setErrorMessage(result?.failureReason || 'Transaction was declined on the payment gateway.');
             setStep('failed');
           }
         }
@@ -266,10 +417,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         handleSuccess(activePaymentId, result, providerTxId || undefined);
       } else if (result?.status === 'FAILED') {
         if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-        setErrorMessage(result?.failureReason || 'Pesapal transaction failed or was declined.');
+        setErrorMessage(result?.failureReason || 'Transaction failed or was declined.');
         setStep('failed');
       } else {
-        setStatusNotice('Payment is still pending on Pesapal. Please complete the card OTP or Mobile Money PIN on your phone, then click Check Verification Status again.');
+        setStatusNotice('Payment is still awaiting confirmation from your bank/card issuer. If you completed 3DS verification, please wait a moment and click Check Status again.');
       }
     } catch (err: any) {
       console.error('Payment verification error:', err);
@@ -333,8 +484,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold uppercase">
-              Pesapal Live
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold uppercase flex items-center gap-1">
+              <Globe className="w-3 h-3 text-emerald-400" />
+              Global Checkout
             </span>
           </div>
         </div>
@@ -353,7 +505,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 Buy Analysis Credit
               </h2>
               <p className="text-xs text-neutral-400">
-                Processed directly by Pesapal into your merchant account.
+                Secure international card payment available for users worldwide.
               </p>
             </div>
 
@@ -395,7 +547,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     {selectedOption === 'card' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                   </div>
                   <span className="text-xs font-bold block text-white">Debit & Credit Card</span>
-                  <span className="text-[10px] text-neutral-400">Visa, Mastercard, Amex</span>
+                  <span className="text-[10px] text-neutral-400">Visa, Mastercard, Amex (Worldwide)</span>
                 </button>
 
                 <button
@@ -417,16 +569,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
             </div>
 
-            {/* Customer Contact Details Required by Pesapal */}
+            {/* Customer Contact Details Required by Payment Gateway */}
             <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 space-y-3">
               <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-300 block">
-                Customer Information
+                Billing Information
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-neutral-400 block">
-                    Full Name *
+                    Full Name on Card / Account *
                   </label>
                   <input
                     type="text"
@@ -453,38 +605,90 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1 sm:col-span-1">
-                  <label className="text-[11px] font-semibold text-neutral-400 block">
-                    Country *
-                  </label>
-                  <select
-                    value={countryCode}
-                    onChange={(e) => setCountryCode(e.target.value)}
-                    className="w-full px-2.5 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs focus:border-emerald-500 focus:outline-none"
-                  >
-                    <option value="KE">🇰🇪 Kenya (+254)</option>
-                    <option value="TZ">🇹🇿 Tanzania (+255)</option>
-                    <option value="UG">🇺🇬 Uganda (+256)</option>
-                    <option value="RW">🇷🇼 Rwanda (+250)</option>
-                    <option value="US">🇺🇸 United States (+1)</option>
-                    <option value="GB">🇬🇧 United Kingdom (+44)</option>
-                    <option value="ZA">🇿🇦 South Africa (+27)</option>
-                    <option value="NG">🇳🇬 Nigeria (+234)</option>
-                    <option value="OTHER">🌍 Other Country</option>
-                  </select>
-                </div>
+              {/* Worldwide Country Selector */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-neutral-400 block flex items-center justify-between">
+                  <span>Country / Region *</span>
+                  <span className="text-[10px] text-emerald-400">Accepts all countries</span>
+                </label>
+                <select
+                  value={`${selectedCountry.code}_${selectedCountry.name}`}
+                  onChange={(e) => {
+                    const [code, ...nameParts] = e.target.value.split('_');
+                    const name = nameParts.join('_');
+                    const match = WORLD_COUNTRIES.find(c => c.code === code && c.name === name) || WORLD_COUNTRIES[0];
+                    setSelectedCountry(match);
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs focus:border-emerald-500 focus:outline-none font-medium cursor-pointer"
+                >
+                  <optgroup label="Popular Countries">
+                    {WORLD_COUNTRIES.filter(c => c.region === 'Popular').map((c, idx) => (
+                      <option key={`pop_${c.code}_${idx}`} value={`${c.code}_${c.name}`}>
+                        {c.flag} {c.name} ({c.dial})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Europe">
+                    {WORLD_COUNTRIES.filter(c => c.region === 'Europe').map((c, idx) => (
+                      <option key={`eu_${c.code}_${idx}`} value={`${c.code}_${c.name}`}>
+                        {c.flag} {c.name} ({c.dial})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Americas">
+                    {WORLD_COUNTRIES.filter(c => c.region === 'Americas').map((c, idx) => (
+                      <option key={`am_${c.code}_${idx}`} value={`${c.code}_${c.name}`}>
+                        {c.flag} {c.name} ({c.dial})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Africa">
+                    {WORLD_COUNTRIES.filter(c => c.region === 'Africa').map((c, idx) => (
+                      <option key={`af_${c.code}_${idx}`} value={`${c.code}_${c.name}`}>
+                        {c.flag} {c.name} ({c.dial})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Asia & Pacific">
+                    {WORLD_COUNTRIES.filter(c => c.region === 'Asia-Pacific').map((c, idx) => (
+                      <option key={`ap_${c.code}_${idx}`} value={`${c.code}_${c.name}`}>
+                        {c.flag} {c.name} ({c.dial})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Middle East">
+                    {WORLD_COUNTRIES.filter(c => c.region === 'Middle East').map((c, idx) => (
+                      <option key={`me_${c.code}_${idx}`} value={`${c.code}_${c.name}`}>
+                        {c.flag} {c.name} ({c.dial})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="International">
+                    {WORLD_COUNTRIES.filter(c => c.region === 'Worldwide').map((c, idx) => (
+                      <option key={`ww_${c.code}_${idx}`} value={`${c.code}_${c.name}`}>
+                        {c.flag} {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
 
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-[11px] font-semibold text-neutral-400 block">
-                    Phone Number (for SMS OTP / PIN prompt) *
-                  </label>
+              {/* Phone Number with selected dial code */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-neutral-400 block">
+                  Mobile Phone Number (for 3DS OTP verification) *
+                </label>
+                <div className="flex gap-2">
+                  <div className="px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-300 text-xs font-mono flex items-center gap-1.5 shrink-0">
+                    <span>{selectedCountry.flag}</span>
+                    <span>{selectedCountry.dial}</span>
+                  </div>
                   <input
                     type="tel"
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. 0712 345 678"
+                    placeholder="e.g. 712345678 or 5551234567"
                     className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs focus:border-emerald-500 focus:outline-none"
                   />
                 </div>
@@ -497,7 +701,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-300 block flex items-center gap-1.5">
                     <CreditCard className="w-3.5 h-3.5 text-blue-400" />
-                    Card Details
+                    Card Details (Any International Card)
                   </span>
                   <span className="text-[10px] text-neutral-500 flex items-center gap-1">
                     <Lock className="w-3 h-3 text-emerald-400" /> 256-Bit SSL
@@ -516,9 +720,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                       onChange={handleCardNumberChange}
                       placeholder="4000 1234 5678 9010"
                       maxLength={19}
-                      className="w-full pl-3 pr-10 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs font-mono focus:border-emerald-500 focus:outline-none tracking-wider"
+                      className="w-full pl-3 pr-16 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs font-mono focus:border-emerald-500 focus:outline-none tracking-wider"
                     />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-neutral-500 font-bold">
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-neutral-400 font-bold">
                       💳 VISA / MC
                     </div>
                   </div>
@@ -555,6 +759,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     />
                   </div>
                 </div>
+
+                <div className="p-2.5 rounded-xl bg-blue-950/20 border border-blue-900/40 text-[11px] text-blue-300 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0" />
+                  <span>Supports Visa, Mastercard, American Express & 3D Secure verification globally.</span>
+                </div>
               </div>
             )}
 
@@ -588,7 +797,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-800/40 text-[11px] text-emerald-300 flex items-start gap-2">
                   <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <span>
-                    When you click pay, an official instant STK push prompt will be sent by Pesapal to your phone (<strong>{phone || 'your phone number'}</strong>) to confirm with your PIN.
+                    An instant payment prompt will be sent to your phone (<strong>{phone ? `${selectedCountry.dial} ${phone}` : 'your phone number'}</strong>) to confirm with your PIN.
                   </span>
                 </div>
               </div>
@@ -612,11 +821,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 {isSubmitting ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Connecting to Pesapal...</span>
+                    <span>Connecting to Payment Gateway...</span>
                   </>
                 ) : (
                   <>
-                    <span>Pay {priceDisplay} with Pesapal</span>
+                    <span>Pay {priceDisplay} Securely</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -625,21 +834,21 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
             <div className="flex items-center justify-center gap-1.5 text-[10px] text-neutral-500 pt-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Official Pesapal v3 Secure Merchant Gateway</span>
+              <span>International 3D-Secure 256-Bit Encrypted Gateway</span>
             </div>
           </form>
         )}
 
-        {/* STEP 2: AWAITING PAYMENT (PESAPAL CHECKOUT & VERIFICATION) */}
+        {/* STEP 2: AWAITING PAYMENT (CHECKOUT & VERIFICATION) */}
         {step === 'awaiting_payment' && (
           <div className="py-2 space-y-4">
             <div className="text-center space-y-2">
               <div className="w-14 h-14 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-400 mx-auto flex items-center justify-center shadow-lg shadow-blue-500/20">
                 <RefreshCw className="w-7 h-7 animate-spin" />
               </div>
-              <h3 className="text-xl font-black text-white">Pesapal Processing Order</h3>
+              <h3 className="text-xl font-black text-white">Processing Transaction</h3>
               <p className="text-xs text-neutral-400 max-w-sm mx-auto">
-                Please complete your transaction on the Pesapal portal or on your mobile device.
+                Please complete your 3DS OTP confirmation or card validation below.
               </p>
             </div>
 
@@ -651,7 +860,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
               {providerTxId && (
                 <div className="flex justify-between text-neutral-400">
-                  <span>Pesapal Tracking Ref</span>
+                  <span>Tracking Ref</span>
                   <span className="font-mono text-neutral-300 text-[11px]">{providerTxId}</span>
                 </div>
               )}
@@ -664,13 +873,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
             </div>
 
-            {/* Embedded Pesapal Iframe if available */}
+            {/* Embedded Payment Iframe if available */}
             {checkoutUrl && (
               <div className="space-y-2">
                 <div className="w-full h-80 rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950 shadow-inner">
                   <iframe
                     src={checkoutUrl}
-                    title="Pesapal Checkout"
+                    title="Payment Checkout"
                     className="w-full h-full border-0"
                     allow="payment"
                   />
@@ -681,7 +890,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   rel="noopener noreferrer"
                   className="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer border border-neutral-700"
                 >
-                  <span>Open Pesapal in New Window</span>
+                  <span>Open Checkout in New Tab</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               </div>
@@ -713,7 +922,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 {isCheckingStatus ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Checking Status with Pesapal...</span>
+                    <span>Checking Status...</span>
                   </>
                 ) : (
                   <>
@@ -751,20 +960,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <span>+1 AI Squad Analysis Credit Assigned</span>
               </div>
               <p className="text-xs text-neutral-400 max-w-sm mx-auto pt-1">
-                Your transaction has been verified with Pesapal and your analysis credit has been added to your account.
+                Your transaction has been confirmed and your analysis credit has been added to your account.
               </p>
             </div>
 
             {/* Receipt Summary */}
             <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 text-xs space-y-2 text-left">
               <div className="flex justify-between text-neutral-400">
-                <span>Payment Gateway</span>
-                <span className="text-white font-semibold">Pesapal</span>
+                <span>Payment Method</span>
+                <span className="text-white font-semibold">Debit / Credit Card (International)</span>
               </div>
               <div className="flex justify-between text-neutral-400">
-                <span>Pesapal Tracking ID</span>
+                <span>Tracking Reference</span>
                 <span className="font-mono text-[11px] text-emerald-400">
-                  {lastPaymentRecord?.providerTransactionId || providerTxId || 'PESAPAL-CONFIRMED'}
+                  {lastPaymentRecord?.providerTransactionId || providerTxId || 'CONFIRMED'}
                 </span>
               </div>
               <div className="flex justify-between text-neutral-400">
@@ -802,7 +1011,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <div className="space-y-1">
               <h3 className="text-2xl font-black text-white">Payment Unsuccessful</h3>
               <p className="text-xs text-rose-300 max-w-sm mx-auto">
-                {errorMessage || 'The transaction could not be completed on Pesapal.'}
+                {errorMessage || 'The transaction could not be completed.'}
               </p>
               <p className="text-[11px] text-neutral-500">
                 No credit was deducted. You can try again at any time.
