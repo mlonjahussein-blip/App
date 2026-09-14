@@ -1126,7 +1126,25 @@ export function createEvidenceBasedFallback(payload: AnalyzeSquadPayload): Analy
     const formation = payload.preferredFormation && payload.preferredFormation !== 'Auto-Detect / Balanced'
       ? payload.preferredFormation
       : '4-2-1-3';
-    const playstyle = payload.preferredPlaystyle || 'Quick Counter';
+    const isAutoPlaystyle = !payload.preferredPlaystyle || payload.preferredPlaystyle.includes('Auto-Detect');
+    let playstyle = payload.preferredPlaystyle || 'Quick Counter';
+    if (isAutoPlaystyle) {
+      if (payload.managerDetails?.playstyleProficiencies) {
+        const profs = payload.managerDetails.playstyleProficiencies;
+        const entries = [
+          { style: 'Quick Counter', val: profs.quickCounter || 0 },
+          { style: 'Possession Game', val: profs.possessionGame || 0 },
+          { style: 'Long Ball Counter', val: profs.longBallCounter || 0 },
+          { style: 'Overload', val: profs.overload || 0 },
+          { style: 'Out Wide', val: profs.outWide || 0 },
+          { style: 'Long Ball', val: profs.longBall || 0 }
+        ];
+        entries.sort((a, b) => b.val - a.val);
+        playstyle = entries[0].val > 0 ? entries[0].style : 'Quick Counter';
+      } else {
+        playstyle = 'Quick Counter';
+      }
+    }
     const images = Array.isArray(payload.images) ? payload.images : [];
     const typedList = Array.isArray(payload.typedPlayers) ? payload.typedPlayers : [];
   

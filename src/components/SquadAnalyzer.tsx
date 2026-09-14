@@ -435,6 +435,11 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
                   <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">
                     Preferred Playstyle
                   </label>
+                  {preferredPlaystyle === 'Auto-Detect / AI Optimal Recommendation' && (
+                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold">
+                      AI Auto
+                    </span>
+                  )}
                   {preferredPlaystyle === 'Overload' && (
                     <span className="text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.2 rounded font-bold">
                       2027 New
@@ -446,6 +451,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
                   onChange={(e) => setPreferredPlaystyle(e.target.value)}
                   className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
                 >
+                  <option value="Auto-Detect / AI Optimal Recommendation">Auto-Detect / AI Optimal Recommendation</option>
                   <option value="Quick Counter">Quick Counter (Gegenpress & fast vertical breakout)</option>
                   <option value="Possession Game">Possession Game (Patient short passing build-up)</option>
                   <option value="Long Ball Counter">Long Ball Counter (Deep low block & direct outlet balls)</option>
