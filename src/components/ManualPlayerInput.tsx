@@ -87,6 +87,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   ];
   const playstyles = [
     'Goal Poacher',
+    'Adv. Striker',
     'Fox in the Box',
     'Target Man',
     'Deep-Lying Forward',

@@ -14,6 +14,7 @@ const POSITIONS = ['GK', 'CB', 'LB', 'RB', 'DMF', 'CMF', 'AMF', 'LWF', 'RWF', 'S
 
 const PLAYSTYLES = [
   'Goal Poacher',
+  'Adv. Striker',
   'Fox in the Box',
   'Target Man',
   'Deep-Lying Forward',
