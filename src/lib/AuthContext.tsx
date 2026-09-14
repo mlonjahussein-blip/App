@@ -324,65 +324,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('ef_pending_whatsapp_otps');
     } catch {}
 
-    // 2. Check local session and verify against Cloud Firestore authority
+    // 2. Check local session and instantly restore user state on page reload
     try {
       const rawSession = localStorage.getItem(STORAGE_SESSION_KEY);
       if (rawSession) {
         const savedSession = JSON.parse(rawSession) as AppAuthUser;
         if (savedSession && savedSession.uid) {
+          // Immediately set user and fetch cached profile synchronously to prevent sign-out on browser refresh
+          setUser(savedSession);
+          fetchProfile(
+            savedSession.uid,
+            savedSession.email || '',
+            savedSession.displayName || undefined,
+            savedSession.photoURL || undefined,
+            savedSession.whatsappNumber || undefined
+          );
+
+          // Verify/update session in background without forcefully logging user out on network delays or missing lookup fields
           const verifyIdentifier = savedSession.email || savedSession.whatsappNumber || savedSession.uid;
           findCloudAccount(verifyIdentifier)
             .then((cloudAcc) => {
-              if (!cloudAcc) {
-                // Account does not exist in Cloud database (e.g. was purged) -> immediately log out
-                console.log('Session user not found in cloud database; clearing local session.');
-                localStorage.removeItem(STORAGE_SESSION_KEY);
-                setUser(null);
-                setProfile(null);
-              } else {
-                setUser(savedSession);
-                fetchProfile(
-                  savedSession.uid,
-                  savedSession.email || '',
-                  savedSession.displayName || undefined,
-                  savedSession.photoURL || undefined,
-                  savedSession.whatsappNumber || undefined
-                );
+              if (cloudAcc) {
+                const refreshedUser: AppAuthUser = {
+                  uid: cloudAcc.uid || savedSession.uid,
+                  email: cloudAcc.email || savedSession.email,
+                  displayName: cloudAcc.displayName || savedSession.displayName,
+                  photoURL: savedSession.photoURL,
+                  whatsappNumber: cloudAcc.whatsappNumber || savedSession.whatsappNumber
+                };
+                setUser(refreshedUser);
+                localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(refreshedUser));
               }
             })
-            .catch(() => {
-              setUser(savedSession);
-            });
+            .catch(() => {});
         }
       }
     } catch (e) {
       console.warn('Session parse error:', e);
     }
 
-    // 3. Firebase Auth listener with strict Cloud DB verification
+    // 3. Firebase Auth listener with resilient persistence
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         const verifyId = u.email || u.uid;
         try {
           const cloudAcc = await findCloudAccount(verifyId);
-          if (!cloudAcc) {
-            // Account was deleted/purged from the cloud database -> destroy lingering Firebase user & session
-            console.log('Firebase user not found in cloud database; terminating session.');
-            await deleteUser(u).catch(() => {});
-            await fbSignOut(auth).catch(() => {});
-            localStorage.removeItem(STORAGE_SESSION_KEY);
-            setUser(null);
-            setProfile(null);
-            setLoading(false);
-            return;
-          }
           const authUser: AppAuthUser = {
-            uid: cloudAcc.uid || u.uid,
-            email: cloudAcc.email || u.email,
-            displayName: cloudAcc.displayName || u.displayName,
+            uid: cloudAcc?.uid || u.uid,
+            email: cloudAcc?.email || u.email,
+            displayName: cloudAcc?.displayName || u.displayName,
             photoURL: u.photoURL,
             emailVerified: u.emailVerified,
-            whatsappNumber: cloudAcc.whatsappNumber
+            whatsappNumber: cloudAcc?.whatsappNumber
           };
           setUser(authUser);
           localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));

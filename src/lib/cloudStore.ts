@@ -334,7 +334,49 @@ export async function findUniversalCloudAccount(identifier: string): Promise<Clo
     }
   }
 
-  // 4. Firestore SDK fallback
+  // 4. Direct UID lookup in users or authAccounts collection
+  if (cleanId) {
+    try {
+      const userDoc = await readDocREST('users', cleanId);
+      if (userDoc && (userDoc.email || userDoc.uid || userDoc.displayName)) {
+        return {
+          uid: userDoc.uid || cleanId,
+          email: userDoc.email || `${cleanId}@user.efootballaihub.com`,
+          displayName: userDoc.displayName || 'Tactician',
+          whatsappNumber: userDoc.whatsappNumber || undefined,
+          salt: userDoc.salt || '',
+          hash: userDoc.hash || '',
+          createdAt: userDoc.createdAt || new Date().toISOString(),
+          role: userDoc.role,
+          freeAnalysesRemaining: userDoc.freeAnalysesRemaining,
+          paidCredits: userDoc.paidCredits,
+          lastFreeResetAt: userDoc.lastFreeResetAt
+        };
+      }
+    } catch {}
+
+    try {
+      const userSnap = await getDoc(doc(db, 'users', cleanId));
+      if (userSnap.exists()) {
+        const data = userSnap.data() as any;
+        return {
+          uid: data.uid || cleanId,
+          email: data.email || `${cleanId}@user.efootballaihub.com`,
+          displayName: data.displayName || 'Tactician',
+          whatsappNumber: data.whatsappNumber || undefined,
+          salt: data.salt || '',
+          hash: data.hash || '',
+          createdAt: data.createdAt || new Date().toISOString(),
+          role: data.role,
+          freeAnalysesRemaining: data.freeAnalysesRemaining,
+          paidCredits: data.paidCredits,
+          lastFreeResetAt: data.lastFreeResetAt
+        };
+      }
+    } catch {}
+  }
+
+  // 5. Firestore SDK fallback by email
   try {
     if (isEmail && cleanEmail) {
       const emailSnap = await getDoc(doc(db, 'authAccounts', sanitizeKey(cleanEmail)));
