@@ -547,7 +547,7 @@ export async function sendUserFeedbackEmail(payload: UserFeedbackPayload): Promi
       });
       await transporter.sendMail({
         from: `"${cleanName} via eFootball AI Hub" <${gmailUser}>`,
-        to: `${targetEmail}, mlonjahussein@gmail.com`,
+        to: targetEmail,
         replyTo: cleanEmail,
         subject: formattedSubject,
         text: `New Feedback from ${cleanName} (${cleanEmail})\nCategory: ${category}\nSubject: ${subjectText}\n\nMessage:\n${messageBody}`,

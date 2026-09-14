@@ -219,7 +219,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const info = await transporter.sendMail({
           from: `"${cleanName} via eFootball AI Hub" <${gmailUser}>`,
-          to: `${targetEmail}, mlonjahussein@gmail.com`,
+          to: targetEmail,
           replyTo: cleanEmail,
           subject: formattedSubject,
           text: `New Feedback from ${cleanName} (${cleanEmail})\nCategory: ${cleanCategory}\nSubject: ${cleanSubject}\n\nMessage:\n${cleanMessage}`,

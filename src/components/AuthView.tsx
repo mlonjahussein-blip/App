@@ -555,7 +555,7 @@ export const AuthView: React.FC<AuthModalProps> = ({ initialMode, onSuccess, onS
                       required
                       value={resetIdentifier}
                       onChange={(e) => setResetIdentifier(e.target.value)}
-                      placeholder="e.g. mlonjahussein@gmail.com"
+                      placeholder="e.g. manager@gmail.com"
                       className="w-full pl-10 pr-4 py-3 bg-neutral-950 border border-neutral-800 rounded-xl text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-medium"
                     />
                   </div>
