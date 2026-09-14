@@ -76,7 +76,7 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
             Manager Playing Style Strengths (Proficiency):
           </label>
           <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
-            eFootball 2027 Ready (50 - 90)
+            eFootball 2027 Ready (0 - 90)
           </span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
@@ -104,7 +104,7 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
                 <div className="flex items-center justify-center gap-1.5">
                   <input
                     type="number"
-                    min="50"
+                    min="0"
                     max="90"
                     value={currentVal === '' ? '' : currentVal}
                     onChange={(e) => {
@@ -144,7 +144,7 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
                     }}
                     onBlur={(e) => {
                       const num = parseInt(e.target.value, 10);
-                      const clamped = isNaN(num) ? 50 : Math.min(90, Math.max(50, num));
+                      const clamped = isNaN(num) ? 0 : Math.min(90, Math.max(0, num));
                       onManagerChange({
                         ...managerDetails,
                         playstyleProficiencies: {

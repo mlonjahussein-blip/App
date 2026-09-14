@@ -162,7 +162,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
           id: p.id,
           name: p.name,
           position: p.position,
-          rating: Math.min(110, Math.max(60, Number(p.rating) || 90)),
+          rating: Math.min(110, Math.max(20, Number(p.rating) || 90)),
           cardType: p.cardType,
           playstyle: p.playstyle,
           club: p.club,
@@ -172,12 +172,12 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
         managerDetails: managerDetails.name.trim() ? {
           ...managerDetails,
           playstyleProficiencies: managerDetails.playstyleProficiencies ? {
-            possessionGame: Math.min(90, Math.max(50, Number(managerDetails.playstyleProficiencies.possessionGame) || 85)),
-            quickCounter: Math.min(90, Math.max(50, Number(managerDetails.playstyleProficiencies.quickCounter) || 87)),
-            longBallCounter: Math.min(90, Math.max(50, Number(managerDetails.playstyleProficiencies.longBallCounter) || 85)),
-            outWide: Math.min(90, Math.max(50, Number(managerDetails.playstyleProficiencies.outWide) || 80)),
-            longBall: Math.min(90, Math.max(50, Number(managerDetails.playstyleProficiencies.longBall) || 75)),
-            overload: Math.min(90, Math.max(50, Number(managerDetails.playstyleProficiencies.overload) || 86))
+            possessionGame: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.possessionGame) || 85)),
+            quickCounter: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.quickCounter) || 87)),
+            longBallCounter: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.longBallCounter) || 85)),
+            outWide: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.outWide) || 80)),
+            longBall: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.longBall) || 75)),
+            overload: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.overload) || 86))
           } : undefined
         } : undefined,
         preferredPlaystyle,

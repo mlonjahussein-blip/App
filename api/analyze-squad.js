@@ -1728,6 +1728,28 @@ function getGenAI() {
   }
   return aiClient;
 }
+function getRealisticSkills(position) {
+  const pos = (position || "CMF").toUpperCase();
+  if (pos.includes("CF") || pos.includes("SS")) {
+    return ["First-time Shot", "One-touch Pass", "Double Touch", "Aerial Superiority", "Sole Control", "Acrobatic Finishing", "Outside Curler"];
+  }
+  if (pos.includes("LW") || pos.includes("RW") || pos.includes("LM") || pos.includes("RM") || pos.includes("WF")) {
+    return ["Double Touch", "Cut Behind & Turn", "Pinpoint Crossing", "Outside Curler", "First-time Shot", "Long-Range Curler", "Sole Control"];
+  }
+  if (pos.includes("AM") || pos.includes("CM")) {
+    return ["Through Passing", "One-touch Pass", "Double Touch", "Long-Range Curler", "Weighted Pass", "Sole Control", "Pinpoint Crossing"];
+  }
+  if (pos.includes("DM") || pos.includes("ANCHOR")) {
+    return ["Interception", "Blocker", "One-touch Pass", "Weighted Pass", "Acrobatic Clearance", "Man Marking", "Fighting Spirit"];
+  }
+  if (pos.includes("CB") || pos.includes("LB") || pos.includes("RB") || pos.includes("B") || pos.includes("WB")) {
+    return ["Interception", "Blocker", "Aerial Superiority", "Man Marking", "Acrobatic Clearance", "Fighting Spirit", "Low Lofted Pass"];
+  }
+  if (pos.includes("GK")) {
+    return ["GK Low Punt", "GK High Punt", "Penalty Saver", "Low Profile", "Long Throw"];
+  }
+  return ["One-touch Pass", "Through Passing", "Interception", "Fighting Spirit"];
+}
 function buildEfootball2027IndividualInstructions(rawList, bestXIPlayers) {
   const dmf = bestXIPlayers.find((p) => p.position === "DMF") || bestXIPlayers.find((p) => p.position === "CMF") || bestXIPlayers[5];
   const cf = bestXIPlayers.find((p) => p.position === "CF") || bestXIPlayers.find((p) => p.position === "SS") || bestXIPlayers[0];
@@ -2627,7 +2649,7 @@ function createEvidenceBasedFallback(payload) {
           confidenceLevel: "VERIFIED",
           status: "verified",
           playerType: tp.cardType || masterMatch?.cardType || "Highlight",
-          skills: tp.skills || masterMatch?.skills || ["First-time Shot", "One-touch Pass"],
+          skills: tp.skills && tp.skills.length > 0 ? tp.skills : masterMatch?.skills && masterMatch.skills.length > 0 ? masterMatch.skills : getRealisticSkills(tp.position || masterMatch?.primaryPosition || "CMF"),
           sourceScreenshots: images.length > 0 ? [1] : [],
           evidence: [
             `Player selected: '${tp.name}'`,
@@ -2661,7 +2683,7 @@ function createEvidenceBasedFallback(payload) {
               confidenceLevel: "VERIFIED",
               status: "verified",
               playerType: m.cardType,
-              skills: m.skills,
+              skills: m.skills && m.skills.length > 0 ? m.skills : getRealisticSkills(m.primaryPosition),
               sourceScreenshots: [1],
               evidence: [
                 `Position confirmed: ${m.primaryPosition}`,
@@ -2941,68 +2963,94 @@ function generatePitchCoordinatesForFormation(formation, players) {
   const cleanForm = (formation || "4-2-1-3").replace(/custom\s+gameplan:?/i, "").trim();
   const coordsMap = {
     "4-2-1-3": [
-      { pos: "GK", x: 50, y: 90 },
-      { pos: "LB", x: 16, y: 74 },
-      { pos: "CB", x: 38, y: 77 },
-      { pos: "CB", x: 62, y: 77 },
-      { pos: "RB", x: 84, y: 74 },
+      { pos: "GK", x: 50, y: 91 },
+      { pos: "LB", x: 12, y: 73 },
+      { pos: "CB", x: 37, y: 76 },
+      { pos: "CB", x: 63, y: 76 },
+      { pos: "RB", x: 88, y: 73 },
       { pos: "DMF", x: 38, y: 58 },
-      { pos: "CMF", x: 62, y: 55 },
+      { pos: "CMF", x: 62, y: 58 },
       { pos: "AMF", x: 50, y: 38 },
+      { pos: "LWF", x: 16, y: 22 },
+      { pos: "CF", x: 50, y: 15 },
+      { pos: "RWF", x: 84, y: 22 }
+    ],
+    "4-3-3": [
+      { pos: "GK", x: 50, y: 91 },
+      { pos: "LB", x: 12, y: 73 },
+      { pos: "CB", x: 37, y: 76 },
+      { pos: "CB", x: 63, y: 76 },
+      { pos: "RB", x: 88, y: 73 },
+      { pos: "DMF", x: 50, y: 62 },
+      { pos: "CMF", x: 30, y: 48 },
+      { pos: "CMF", x: 70, y: 48 },
+      { pos: "LWF", x: 16, y: 22 },
+      { pos: "CF", x: 50, y: 15 },
+      { pos: "RWF", x: 84, y: 22 }
+    ],
+    "4-3-1-2": [
+      { pos: "GK", x: 50, y: 91 },
+      { pos: "LB", x: 12, y: 73 },
+      { pos: "CB", x: 37, y: 76 },
+      { pos: "CB", x: 63, y: 76 },
+      { pos: "RB", x: 88, y: 73 },
+      { pos: "DMF", x: 50, y: 62 },
+      { pos: "CMF", x: 28, y: 50 },
+      { pos: "CMF", x: 72, y: 50 },
+      { pos: "AMF", x: 50, y: 35 },
+      { pos: "CF", x: 36, y: 17 },
+      { pos: "CF", x: 64, y: 17 }
+    ],
+    "3-4-3": [
+      { pos: "GK", x: 50, y: 91 },
+      { pos: "CB", x: 25, y: 76 },
+      { pos: "CB", x: 50, y: 78 },
+      { pos: "CB", x: 75, y: 76 },
+      { pos: "LMF", x: 14, y: 50 },
+      { pos: "CMF", x: 38, y: 54 },
+      { pos: "CMF", x: 62, y: 54 },
+      { pos: "RMF", x: 86, y: 50 },
       { pos: "LWF", x: 18, y: 22 },
-      { pos: "CF", x: 50, y: 16 },
+      { pos: "CF", x: 50, y: 15 },
       { pos: "RWF", x: 82, y: 22 }
     ],
-    "5-3-1-1": [
-      { pos: "GK", x: 50, y: 90 },
-      { pos: "LWB", x: 14, y: 72 },
-      { pos: "CB", x: 32, y: 77 },
+    "5-3-2": [
+      { pos: "GK", x: 50, y: 91 },
+      { pos: "LWB", x: 12, y: 70 },
+      { pos: "CB", x: 31, y: 76 },
       { pos: "CB", x: 50, y: 78 },
-      { pos: "CB", x: 68, y: 77 },
-      { pos: "RWB", x: 86, y: 72 },
-      { pos: "CMF", x: 32, y: 55 },
+      { pos: "CB", x: 69, y: 76 },
+      { pos: "RWB", x: 88, y: 70 },
+      { pos: "CMF", x: 32, y: 52 },
       { pos: "DMF", x: 50, y: 58 },
-      { pos: "CMF", x: 68, y: 55 },
-      { pos: "AMF", x: 50, y: 36 },
-      { pos: "CF", x: 50, y: 16 }
+      { pos: "CMF", x: 68, y: 52 },
+      { pos: "CF", x: 38, y: 17 },
+      { pos: "CF", x: 62, y: 17 }
+    ],
+    "5-3-1-1": [
+      { pos: "GK", x: 50, y: 91 },
+      { pos: "LWB", x: 12, y: 70 },
+      { pos: "CB", x: 31, y: 76 },
+      { pos: "CB", x: 50, y: 78 },
+      { pos: "CB", x: 69, y: 76 },
+      { pos: "RWB", x: 88, y: 70 },
+      { pos: "CMF", x: 32, y: 52 },
+      { pos: "DMF", x: 50, y: 58 },
+      { pos: "CMF", x: 68, y: 52 },
+      { pos: "AMF", x: 50, y: 35 },
+      { pos: "CF", x: 50, y: 15 }
     ],
     "4-2-1-1": [
-      { pos: "GK", x: 50, y: 90 },
-      { pos: "LB", x: 16, y: 74 },
-      { pos: "CB", x: 38, y: 77 },
-      { pos: "CB", x: 62, y: 77 },
-      { pos: "RB", x: 84, y: 74 },
+      { pos: "GK", x: 50, y: 91 },
+      { pos: "LB", x: 12, y: 73 },
+      { pos: "CB", x: 37, y: 76 },
+      { pos: "CB", x: 63, y: 76 },
+      { pos: "RB", x: 88, y: 73 },
       { pos: "DMF", x: 38, y: 60 },
       { pos: "CMF", x: 62, y: 60 },
       { pos: "AMF", x: 50, y: 40 },
       { pos: "SS", x: 50, y: 26 },
-      { pos: "CF", x: 50, y: 16 }
-    ],
-    "4-3-1-2": [
-      { pos: "GK", x: 50, y: 90 },
-      { pos: "LB", x: 16, y: 74 },
-      { pos: "CB", x: 38, y: 77 },
-      { pos: "CB", x: 62, y: 77 },
-      { pos: "RB", x: 84, y: 74 },
-      { pos: "DMF", x: 50, y: 60 },
-      { pos: "CMF", x: 30, y: 52 },
-      { pos: "CMF", x: 70, y: 52 },
-      { pos: "AMF", x: 50, y: 36 },
-      { pos: "CF", x: 36, y: 18 },
-      { pos: "CF", x: 64, y: 18 }
-    ],
-    "4-3-3": [
-      { pos: "GK", x: 50, y: 90 },
-      { pos: "LB", x: 16, y: 74 },
-      { pos: "CB", x: 38, y: 77 },
-      { pos: "CB", x: 62, y: 77 },
-      { pos: "RB", x: 84, y: 74 },
-      { pos: "DMF", x: 50, y: 60 },
-      { pos: "CMF", x: 32, y: 48 },
-      { pos: "CMF", x: 68, y: 48 },
-      { pos: "LWF", x: 18, y: 22 },
-      { pos: "CF", x: 50, y: 16 },
-      { pos: "RWF", x: 82, y: 22 }
+      { pos: "CF", x: 50, y: 15 }
     ]
   };
   let layout = coordsMap[cleanForm];

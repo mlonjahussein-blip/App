@@ -79,6 +79,10 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     'Booster-POTW',
     'POTD',
     'Booster-POTD',
+    'POTS',
+    'Trending',
+    'Epic-Bigtime',
+    'Booster-POTS',
     'Booster',
     'Big Time',
     'Legendary',
@@ -136,7 +140,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       position: xiPos,
       cardType: xiCardType,
       playstyle: xiPlaystyle,
-      rating: Math.min(110, Math.max(60, Number(xiRating) || 90)),
+      rating: Math.min(110, Math.max(20, Number(xiRating) || 90)),
       club: xiTeam.trim() || undefined,
       role: 'starting_xi'
     };
@@ -156,7 +160,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       position: subPos,
       cardType: subCardType,
       playstyle: subPlaystyle,
-      rating: Math.min(110, Math.max(60, Number(subRating) || 90)),
+      rating: Math.min(110, Math.max(20, Number(subRating) || 90)),
       club: subTeam.trim() || undefined,
       role: 'substitute'
     };
@@ -334,7 +338,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR</label>
             <input
               type="number"
-              min="60"
+              min="20"
               max="110"
               value={xiRating === '' ? '' : xiRating}
               onChange={(e) => {
@@ -348,7 +352,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
               }}
               onBlur={(e) => {
                 const num = parseInt(e.target.value, 10);
-                setXiRating(isNaN(num) ? 90 : Math.min(110, Math.max(60, num)));
+                setXiRating(isNaN(num) ? 90 : Math.min(110, Math.max(20, num)));
               }}
               onKeyDown={(e) => { if (e.key === 'Enter') addStartingXIPlayer(); }}
               className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-1.5 py-2 text-xs font-black text-amber-300 placeholder-neutral-500 focus:outline-none focus:border-emerald-500 text-center"
@@ -467,7 +471,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR</label>
             <input
               type="number"
-              min="60"
+              min="20"
               max="110"
               value={subRating === '' ? '' : subRating}
               onChange={(e) => {
@@ -481,7 +485,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
               }}
               onBlur={(e) => {
                 const num = parseInt(e.target.value, 10);
-                setSubRating(isNaN(num) ? 90 : Math.min(110, Math.max(60, num)));
+                setSubRating(isNaN(num) ? 90 : Math.min(110, Math.max(20, num)));
               }}
               onKeyDown={(e) => { if (e.key === 'Enter') addSubstitutePlayer(); }}
               className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-1.5 py-2 text-xs font-black text-amber-300 placeholder-neutral-500 focus:outline-none focus:border-cyan-500 text-center"
@@ -641,7 +645,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                           <div className="flex items-center gap-1 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
                             <input
                               type="number"
-                              min="60"
+                              min="20"
                               max="110"
                               value={player.rating === '' ? '' : player.rating}
                               onChange={(e) => {
@@ -655,7 +659,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                               }}
                               onBlur={(e) => {
                                 const num = parseInt(e.target.value, 10);
-                                updatePlayerRating(player.id, isNaN(num) ? 90 : Math.min(110, Math.max(60, num)));
+                                updatePlayerRating(player.id, isNaN(num) ? 90 : Math.min(110, Math.max(20, num)));
                               }}
                               className="w-12 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
                             />
@@ -756,7 +760,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                           <div className="flex items-center gap-1 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
                             <input
                               type="number"
-                              min="60"
+                              min="20"
                               max="110"
                               value={player.rating === '' ? '' : player.rating}
                               onChange={(e) => {
@@ -770,7 +774,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                               }}
                               onBlur={(e) => {
                                 const num = parseInt(e.target.value, 10);
-                                updatePlayerRating(player.id, isNaN(num) ? 90 : Math.min(110, Math.max(60, num)));
+                                updatePlayerRating(player.id, isNaN(num) ? 90 : Math.min(110, Math.max(20, num)));
                               }}
                               className="w-12 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
                             />
