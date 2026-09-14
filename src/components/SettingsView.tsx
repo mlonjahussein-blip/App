@@ -885,18 +885,11 @@ export const SettingsView: React.FC<SettingsProps> = ({
               />
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-              <a
-                href={`mailto:efootballaihub@gmail.com?subject=${encodeURIComponent(feedbackSubject || 'User Feedback / Query')}&body=${encodeURIComponent(feedbackMessage)}`}
-                className="text-xs text-neutral-400 hover:text-emerald-400 underline transition-colors"
-              >
-                Or send direct email via your mail client (efootballaihub@gmail.com)
-              </a>
-
+            <div className="flex items-center justify-end pt-2">
               <button
                 type="submit"
                 disabled={isSubmittingFeedback || !feedbackMessage.trim() || !feedbackEmail.trim()}
-                className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-neutral-950 font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer w-full sm:w-auto"
+                className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-neutral-950 font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
               >
                 {isSubmittingFeedback ? (
                   <>

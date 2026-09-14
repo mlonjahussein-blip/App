@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import nodemailer from 'nodemailer';
-import { applySecurityHeaders, checkRateLimit, getClientIp, escapeHtml } from '../server/rateLimiter.ts';
 
 const PROJECT_ID = 'emergent-fastness-8lcf1';
 const DB_ID = 'ai-studio-efootballaihub-2a95eb9f-c78b-4ee5-ae97-a914c4288cba';
@@ -8,8 +7,10 @@ const API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyAUe9kMRkqAG_Vshpucov
 const BASE_REST_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DB_ID}/documents`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Always set hardened CORS & Content-Type to application/json
-  applySecurityHeaders(req, res);
+  // Always set CORS & Content-Type to application/json
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'OPTIONS') {
@@ -20,15 +21,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
-  // Rate Limiting: Max 100 feedback submissions per 10 minutes per IP
-  const clientIp = getClientIp(req);
-  const rateLimit = checkRateLimit(`feedback:${clientIp}`, 100, 10 * 60 * 1000);
-  if (!rateLimit.allowed) {
-    return res.status(429).json({
-      error: `Too many submissions. Please wait ${rateLimit.retryAfterSec} seconds before sending more feedback.`
-    });
-  }
-
   try {
     const { name, email, category, subject, message, userId } = req.body || {};
 
@@ -36,26 +28,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Email and feedback message are required.' });
     }
 
-    const rawEmail = String(email).trim().toLowerCase();
-    if (!rawEmail.includes('@') || rawEmail.length > 120 || rawEmail.length < 5) {
-      return res.status(400).json({ error: 'A valid email address is required.' });
-    }
-
-    // Unescaped header values for email API header parameters (sanitized against line breaks)
-    const headerEmail = rawEmail.replace(/[\r\n]/g, '');
-    const headerName = String(name || rawEmail.split('@')[0] || 'eFootball Manager').trim().replace(/[\r\n]/g, '').slice(0, 100);
-    const headerCategory = String(category || 'Feedback').trim().replace(/[\r\n]/g, '').slice(0, 50);
-    const headerSubject = String(subject || `${headerCategory} from ${headerName}`).trim().replace(/[\r\n]/g, '').slice(0, 200);
-    const rawMessage = String(message).trim().slice(0, 5000);
-
-    // Escaped values for safe HTML body rendering
-    const cleanEmail = escapeHtml(headerEmail);
-    const cleanName = escapeHtml(headerName);
-    const cleanCategory = escapeHtml(headerCategory);
-    const cleanSubject = escapeHtml(headerSubject);
-    const cleanMessage = escapeHtml(rawMessage);
-    const cleanUserId = userId ? escapeHtml(String(userId).trim().slice(0, 100)) : '';
-
+    const cleanEmail = String(email).trim();
+    const cleanName = String(name || cleanEmail.split('@')[0] || 'eFootball Manager').trim();
+    const cleanMessage = String(message).trim();
+    const cleanCategory = String(category || 'Feedback').trim();
+    const cleanSubject = String(subject || `${cleanCategory} from ${cleanName}`).trim();
     const feedbackId = `fb_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const nowIso = new Date().toISOString();
 
@@ -69,9 +46,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify({
           fields: {
             id: { stringValue: feedbackId },
-            userId: { stringValue: String(cleanUserId || 'anonymous') },
+            userId: { stringValue: String(userId || 'anonymous') },
             name: { stringValue: cleanName },
-            email: { stringValue: rawEmail },
+            email: { stringValue: cleanEmail },
             category: { stringValue: cleanCategory },
             subject: { stringValue: cleanSubject },
             message: { stringValue: cleanMessage },
@@ -138,11 +115,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 <td class="label">Date & Time:</td>
                 <td class="value">${new Date().toUTCString()}</td>
               </tr>
-              ${cleanUserId ? `<tr><td class="label">User UID:</td><td class="value">${cleanUserId}</td></tr>` : ''}
+              ${userId ? `<tr><td class="label">User UID:</td><td class="value">${userId}</td></tr>` : ''}
             </table>
             <div>
               <h3 style="color: #f5f5f5; font-size: 14px; margin-bottom: 8px;">Message Content:</h3>
-              <div class="message-box">${cleanMessage}</div>
+              <div class="message-box">${cleanMessage.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
             </div>
             <div class="footer">
               <p style="margin: 0;">You can directly reply to this email to respond to <strong>${cleanName}</strong> at <strong>${cleanEmail}</strong>.</p>
@@ -165,9 +142,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             'Accept': 'application/json'
           },
           body: JSON.stringify({
-            sender: { name: headerName, email: process.env.EMAIL_FROM_ADDRESS || 'info@efootballaihub.com' },
+            sender: { name: cleanName, email: process.env.EMAIL_FROM_ADDRESS || 'info@efootballaihub.com' },
             to: [{ email: targetEmail, name: 'eFootball AI Hub Admin' }],
-            replyTo: { email: headerEmail, name: headerName },
+            replyTo: { email: cleanEmail, name: cleanName },
             subject: formattedSubject,
             htmlContent
           })
@@ -190,7 +167,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           body: JSON.stringify({
             from: process.env.EMAIL_FROM_ADDRESS || 'eFootball AI Hub <onboarding@resend.dev>',
             to: [targetEmail],
-            reply_to: headerEmail,
+            reply_to: cleanEmail,
             subject: formattedSubject,
             html: htmlContent
           })
@@ -212,8 +189,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           },
           body: JSON.stringify({
             personalizations: [{ to: [{ email: targetEmail }] }],
-            from: { email: process.env.EMAIL_FROM_ADDRESS || 'notifications@efootballaihub.com', name: headerName },
-            reply_to: { email: headerEmail, name: headerName },
+            from: { email: process.env.EMAIL_FROM_ADDRESS || 'notifications@efootballaihub.com', name: cleanName },
+            reply_to: { email: cleanEmail, name: cleanName },
             subject: formattedSubject,
             content: [{ type: 'text/html', value: htmlContent }]
           })
@@ -224,31 +201,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // D. Web3Forms HTTPS Relay (bypasses Vercel outbound SMTP port blocks)
-    if (!emailSent) {
-      try {
-        const web3Res = await fetch('https://api.web3forms.com/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify({
-            access_key: process.env.WEB3FORMS_ACCESS_KEY || '2c6e64c2-984e-4f36-a191-44755a498bb9',
-            subject: formattedSubject,
-            name: headerName,
-            email: headerEmail,
-            message: `Category: ${headerCategory}\nSubject: ${headerSubject}\nUser Email: ${headerEmail}\n\n${rawMessage}`
-          })
-        });
-        const web3Data = await web3Res.json();
-        if (web3Res.ok && web3Data?.success) {
-          emailSent = true;
-          console.log('[FEEDBACK EMAIL] Dispatched via Web3Forms HTTPS relay');
-        }
-      } catch (e) {
-        console.warn('[FEEDBACK EMAIL] Web3Forms error:', e);
-      }
-    }
-
-    // E. SMTP / Gmail
+    // D. SMTP / Gmail
     const gmailUser = process.env.GMAIL_USER || process.env.SMTP_USER || 'efootballaihub@gmail.com';
     const gmailPass = (process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || 'otblyzhyhemwaxws').replace(/\s+/g, '');
 
@@ -265,11 +218,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         const info = await transporter.sendMail({
-          from: `"${headerName} via eFootball AI Hub" <${gmailUser}>`,
-          to: targetEmail,
-          replyTo: headerEmail,
+          from: `"${cleanName} via eFootball AI Hub" <${gmailUser}>`,
+          to: `${targetEmail}, mlonjahussein@gmail.com`,
+          replyTo: cleanEmail,
           subject: formattedSubject,
-          text: `New Feedback from ${headerName} (${headerEmail})\nCategory: ${headerCategory}\nSubject: ${headerSubject}\n\nMessage:\n${rawMessage}`,
+          text: `New Feedback from ${cleanName} (${cleanEmail})\nCategory: ${cleanCategory}\nSubject: ${cleanSubject}\n\nMessage:\n${cleanMessage}`,
           html: htmlContent
         });
         console.log('[FEEDBACK EMAIL] Gmail dispatch success:', info.messageId);
