@@ -217,9 +217,11 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
     setIsSubmittingFeedback(true);
     try {
+      let emailDispatched = false;
       let submissionSuccess = false;
       let submissionMessage = '';
 
+      // 1. Try Backend API (/api/feedback)
       try {
         const res = await fetch('/api/feedback', {
           method: 'POST',
@@ -245,15 +247,41 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
         if (res.ok && data?.success) {
           submissionSuccess = true;
+          if (data?.emailDispatched) {
+            emailDispatched = true;
+          }
           submissionMessage = data.message || 'Thank you for reaching out! Your feedback and queries have been submitted successfully.';
-        } else if (data?.error) {
-          throw new Error(data.error);
         }
       } catch (networkOrApiErr: any) {
-        console.warn('Backend /api/feedback encountered an issue, proceeding to database fallback:', networkOrApiErr);
+        console.warn('Backend /api/feedback encountered an issue:', networkOrApiErr);
       }
 
-      // If backend API succeeded, we're done. Otherwise fallback to direct Firestore REST storage
+      // 2. Guaranteed Client-Side Direct Email Dispatch via Web3Forms API to efootballaihub@gmail.com
+      if (!emailDispatched) {
+        try {
+          const web3Res = await fetch('https://api.web3forms.com/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+              access_key: '2c6e64c2-984e-4f36-a191-44755a498bb9',
+              subject: `[eFootball AI Hub Feedback] ${feedbackCategory}: ${feedbackSubject.trim() || 'User Query'}`,
+              name: feedbackName.trim() || 'Manager',
+              email: feedbackEmail.trim(),
+              message: `New User Feedback / Query\n\nName: ${feedbackName.trim() || 'Manager'}\nEmail: ${feedbackEmail.trim()}\nCategory: ${feedbackCategory}\nSubject: ${feedbackSubject.trim()}\nUser UID: ${user?.uid || 'anonymous'}\nDate: ${new Date().toUTCString()}\n\nMessage:\n${feedbackMessage.trim()}`
+            })
+          });
+          const web3Data = await web3Res.json();
+          if (web3Res.ok && web3Data?.success) {
+            emailDispatched = true;
+            submissionSuccess = true;
+            submissionMessage = 'Thank you for reaching out! Your feedback and queries have been delivered directly to efootballaihub@gmail.com.';
+          }
+        } catch (web3Err) {
+          console.warn('Client-side Web3Forms direct email error:', web3Err);
+        }
+      }
+
+      // 3. Fallback to direct Firestore REST storage if still not recorded
       if (!submissionSuccess) {
         try {
           const PROJECT_ID = 'emergent-fastness-8lcf1';
@@ -281,7 +309,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
           if (firestoreRes.ok) {
             submissionSuccess = true;
-            submissionMessage = 'Thank you for reaching out! Your feedback and queries have been recorded successfully. Our team will review them promptly.';
+            submissionMessage = 'Thank you for reaching out! Your feedback and queries have been recorded successfully in our database.';
           }
         } catch (dbErr) {
           console.error('Direct Firestore fallback error:', dbErr);

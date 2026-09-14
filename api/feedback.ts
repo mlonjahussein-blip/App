@@ -20,9 +20,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
-  // Rate Limiting: Max 5 feedback submissions per 10 minutes per IP
+  // Rate Limiting: Max 100 feedback submissions per 10 minutes per IP
   const clientIp = getClientIp(req);
-  const rateLimit = checkRateLimit(`feedback:${clientIp}`, 5, 10 * 60 * 1000);
+  const rateLimit = checkRateLimit(`feedback:${clientIp}`, 100, 10 * 60 * 1000);
   if (!rateLimit.allowed) {
     return res.status(429).json({
       error: `Too many submissions. Please wait ${rateLimit.retryAfterSec} seconds before sending more feedback.`
@@ -41,12 +41,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'A valid email address is required.' });
     }
 
-    const cleanEmail = escapeHtml(rawEmail);
-    const cleanName = escapeHtml(String(name || rawEmail.split('@')[0] || 'eFootball Manager').trim().slice(0, 100));
-    const cleanMessage = escapeHtml(String(message).trim().slice(0, 5000));
-    const cleanCategory = escapeHtml(String(category || 'Feedback').trim().slice(0, 50));
-    const cleanSubject = escapeHtml(String(subject || `${cleanCategory} from ${cleanName}`).trim().slice(0, 200));
+    // Unescaped header values for email API header parameters (sanitized against line breaks)
+    const headerEmail = rawEmail.replace(/[\r\n]/g, '');
+    const headerName = String(name || rawEmail.split('@')[0] || 'eFootball Manager').trim().replace(/[\r\n]/g, '').slice(0, 100);
+    const headerCategory = String(category || 'Feedback').trim().replace(/[\r\n]/g, '').slice(0, 50);
+    const headerSubject = String(subject || `${headerCategory} from ${headerName}`).trim().replace(/[\r\n]/g, '').slice(0, 200);
+    const rawMessage = String(message).trim().slice(0, 5000);
+
+    // Escaped values for safe HTML body rendering
+    const cleanEmail = escapeHtml(headerEmail);
+    const cleanName = escapeHtml(headerName);
+    const cleanCategory = escapeHtml(headerCategory);
+    const cleanSubject = escapeHtml(headerSubject);
+    const cleanMessage = escapeHtml(rawMessage);
     const cleanUserId = userId ? escapeHtml(String(userId).trim().slice(0, 100)) : '';
+
     const feedbackId = `fb_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const nowIso = new Date().toISOString();
 
@@ -156,9 +165,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             'Accept': 'application/json'
           },
           body: JSON.stringify({
-            sender: { name: cleanName, email: process.env.EMAIL_FROM_ADDRESS || 'info@efootballaihub.com' },
+            sender: { name: headerName, email: process.env.EMAIL_FROM_ADDRESS || 'info@efootballaihub.com' },
             to: [{ email: targetEmail, name: 'eFootball AI Hub Admin' }],
-            replyTo: { email: cleanEmail, name: cleanName },
+            replyTo: { email: headerEmail, name: headerName },
             subject: formattedSubject,
             htmlContent
           })
@@ -181,7 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           body: JSON.stringify({
             from: process.env.EMAIL_FROM_ADDRESS || 'eFootball AI Hub <onboarding@resend.dev>',
             to: [targetEmail],
-            reply_to: cleanEmail,
+            reply_to: headerEmail,
             subject: formattedSubject,
             html: htmlContent
           })
@@ -203,8 +212,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           },
           body: JSON.stringify({
             personalizations: [{ to: [{ email: targetEmail }] }],
-            from: { email: process.env.EMAIL_FROM_ADDRESS || 'notifications@efootballaihub.com', name: cleanName },
-            reply_to: { email: cleanEmail, name: cleanName },
+            from: { email: process.env.EMAIL_FROM_ADDRESS || 'notifications@efootballaihub.com', name: headerName },
+            reply_to: { email: headerEmail, name: headerName },
             subject: formattedSubject,
             content: [{ type: 'text/html', value: htmlContent }]
           })
@@ -224,9 +233,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           body: JSON.stringify({
             access_key: process.env.WEB3FORMS_ACCESS_KEY || '2c6e64c2-984e-4f36-a191-44755a498bb9',
             subject: formattedSubject,
-            name: cleanName,
-            email: cleanEmail,
-            message: `Category: ${cleanCategory}\nSubject: ${cleanSubject}\n\n${cleanMessage}`
+            name: headerName,
+            email: headerEmail,
+            message: `Category: ${headerCategory}\nSubject: ${headerSubject}\nUser Email: ${headerEmail}\n\n${rawMessage}`
           })
         });
         const web3Data = await web3Res.json();
@@ -256,11 +265,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         const info = await transporter.sendMail({
-          from: `"${cleanName} via eFootball AI Hub" <${gmailUser}>`,
+          from: `"${headerName} via eFootball AI Hub" <${gmailUser}>`,
           to: targetEmail,
-          replyTo: cleanEmail,
+          replyTo: headerEmail,
           subject: formattedSubject,
-          text: `New Feedback from ${cleanName} (${cleanEmail})\nCategory: ${cleanCategory}\nSubject: ${cleanSubject}\n\nMessage:\n${cleanMessage}`,
+          text: `New Feedback from ${headerName} (${headerEmail})\nCategory: ${headerCategory}\nSubject: ${headerSubject}\n\nMessage:\n${rawMessage}`,
           html: htmlContent
         });
         console.log('[FEEDBACK EMAIL] Gmail dispatch success:', info.messageId);
