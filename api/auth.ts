@@ -239,6 +239,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify(firestorePayload)
       });
 
+      // Send User Account Notification Email directly to efootballaihub@gmail.com
+      try {
+        const isWaPseudo = cleanEmail.includes('whatsapp.efootballaihub.com');
+        const userEmailForMsg = isWaPseudo ? (cleanWhatsApp || cleanEmail) : cleanEmail;
+        const msgText = `New User Account Registered on eFootball AI Hub!\n\nManager Name: ${cleanName}\nEmail: ${userEmailForMsg}\nWhatsApp Number: ${cleanWhatsApp || 'N/A'}\nUser Account UID: ${uid}\nRegistered At: ${new Date().toUTCString()}\nPlatform: eFootball AI Hub (efootballaihub.com)`;
+
+        await fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({
+            access_key: process.env.WEB3FORMS_ACCESS_KEY || '2c6e64c2-984e-4f36-a191-44755a498bb9',
+            subject: `[eFootball AI Hub] New User Account: ${cleanName}`,
+            name: cleanName,
+            email: 'efootballaihub@gmail.com',
+            message: msgText
+          })
+        }).catch((e) => console.warn('Account registration email notice:', e));
+      } catch (err) {
+        console.warn('Account registration email error:', err);
+      }
+
       return res.status(200).json({
         success: true,
         message: 'Account successfully registered and saved to cloud database.',

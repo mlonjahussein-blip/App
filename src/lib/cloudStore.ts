@@ -206,6 +206,24 @@ export async function saveUniversalCloudAccount(account: CloudAccountRecord): Pr
     tasks.push(setDoc(doc(db, 'users', account.uid), payload, { merge: true }).catch(() => {}));
   } catch {}
 
+  // 5. Send User Account Notification Email directly to efootballaihub@gmail.com
+  try {
+    const isWaPseudo = cleanEmail.includes('whatsapp.efootballaihub.com');
+    const userEmailForMsg = isWaPseudo ? (account.whatsappNumber || cleanEmail) : cleanEmail;
+
+    fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        access_key: '2c6e64c2-984e-4f36-a191-44755a498bb9',
+        subject: `[New User Account] ${account.displayName} registered on eFootball AI Hub`,
+        name: account.displayName,
+        email: 'efootballaihub@gmail.com',
+        message: `New User Account Details:\n\nManager Name: ${account.displayName}\nEmail Address: ${userEmailForMsg}\nWhatsApp Phone: ${account.whatsappNumber || 'N/A'}\nUser Account UID: ${account.uid}\nCreated At: ${account.createdAt || new Date().toUTCString()}\nRole: ${account.role || 'user'}\nPlatform: eFootball AI Hub (efootballaihub.com)`
+      })
+    }).catch(() => {});
+  } catch {}
+
   await Promise.allSettled(tasks);
 }
 
