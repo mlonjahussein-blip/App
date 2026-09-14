@@ -73,12 +73,18 @@ export interface CoachData {
   explanation: string;
 }
 
+export type AttackInstructionType = 'Off' | 'Defensive' | 'Anchoring';
+export type DefenceInstructionType = 'Off' | 'Tight Marking (Based on Opponent Player)' | 'Man Marking (Based on Opponent Player)' | 'Counter Target';
+export type IndividualInstructionType = AttackInstructionType | DefenceInstructionType | string;
+
 export interface IndividualInstruction {
+  slot?: 'Attack 1' | 'Attack 2' | 'Defence 1' | 'Defence 2' | string;
   player: string;
   position: string;
-  instruction: 'Stay Back' | 'Offensive' | 'Defensive' | 'Counter Target' | 'Deep Line' | 'Free Roam' | 'Track Back' | 'Attacking Fullback';
+  instruction: IndividualInstructionType;
   why: string;
-  category: 'Offence' | 'Defence';
+  category: 'Attack 1' | 'Attack 2' | 'Defence 1' | 'Defence 2' | 'Attack' | 'Defence' | 'Offence' | string;
+  targetOpponent?: string;
 }
 
 export interface PlayerActionRecommendation {

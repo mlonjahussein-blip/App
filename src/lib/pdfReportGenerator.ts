@@ -231,33 +231,36 @@ export function exportSquadAnalysisToPdf(analysis: AnalysisResult) {
 
   y += 6;
 
-  // Individual Instructions
-  checkPageBreak(30);
+  // Individual Instructions (eFootball 2027 Attack 1/2 & Defence 1/2)
+  checkPageBreak(35);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(255, 255, 255);
-  doc.text('INDIVIDUAL INSTRUCTIONS', margin, y);
+  doc.text('INDIVIDUAL PLAYER INSTRUCTIONS (eFootball 2027)', margin, y);
   y += 4;
 
-  (analysis.individualInstructions || []).slice(0, 4).forEach((inst) => {
-    checkPageBreak(9);
+  (analysis.individualInstructions || []).slice(0, 4).forEach((inst, idx) => {
+    checkPageBreak(11);
     doc.setFillColor(24, 24, 27);
-    doc.rect(margin, y, contentWidth, 8, 'F');
+    doc.rect(margin, y, contentWidth, 9.5, 'F');
     doc.setDrawColor(40, 40, 45);
-    doc.rect(margin, y, contentWidth, 8, 'S');
+    doc.rect(margin, y, contentWidth, 9.5, 'S');
+
+    const slotLabel = inst.slot || (idx === 0 ? 'Attack 1' : idx === 1 ? 'Attack 2' : idx === 2 ? 'Defence 1' : 'Defence 2');
+    const isAttack = slotLabel.includes('Attack');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
-    doc.setTextColor(52, 211, 153);
-    doc.text(`[${inst.category || 'Tactic'}] ${inst.player} (${inst.position}) → ${inst.instruction}`, margin + 3, y + 3.5);
+    doc.setTextColor(isAttack ? 251 : 52, isAttack ? 146 : 211, isAttack ? 60 : 153);
+    doc.text(`[${slotLabel}] ${inst.player} (${inst.position}) → ${inst.instruction}`, margin + 3, y + 3.8);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
+    doc.setFontSize(6.8);
     doc.setTextColor(180, 180, 180);
-    const whyLines = doc.splitTextToSize(inst.why, contentWidth - 6);
-    doc.text(whyLines[0] || '', margin + 3, y + 6.5);
+    const whyLines = doc.splitTextToSize(inst.why || '', contentWidth - 6);
+    doc.text(whyLines[0] || '', margin + 3, y + 7.2);
 
-    y += 9.5;
+    y += 11;
   });
 
   // --- NEW SECTION A: PLAYER TRAINING REPORT ---

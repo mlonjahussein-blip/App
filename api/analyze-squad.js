@@ -1728,6 +1728,89 @@ function getGenAI() {
   }
   return aiClient;
 }
+function buildEfootball2027IndividualInstructions(rawList, bestXIPlayers) {
+  const dmf = bestXIPlayers.find((p) => p.position === "DMF") || bestXIPlayers.find((p) => p.position === "CMF") || bestXIPlayers[5];
+  const cf = bestXIPlayers.find((p) => p.position === "CF") || bestXIPlayers.find((p) => p.position === "SS") || bestXIPlayers[0];
+  const wingerOrForward = bestXIPlayers.find((p) => (p.position === "LWF" || p.position === "RWF" || p.position === "SS" || p.position === "AMF") && p.name !== cf?.name) || cf;
+  const defenderOrDmf = bestXIPlayers.find((p) => (p.position === "CB" || p.position === "RB" || p.position === "LB" || p.position === "DMF") && p.name !== dmf?.name) || dmf;
+  const rawArray = Array.isArray(rawList) ? rawList : [];
+  const findRaw = (slotKey, catKey) => {
+    return rawArray.find(
+      (item) => item && (String(item.slot || "").toLowerCase() === slotKey.toLowerCase() || String(item.category || "").toLowerCase() === slotKey.toLowerCase() || String(item.category || "").toLowerCase() === catKey.toLowerCase())
+    );
+  };
+  const rawAttack1 = findRaw("Attack 1", "offence") || rawArray[0];
+  const rawAttack2 = findRaw("Attack 2", "offence_2") || (rawArray.length > 1 && String(rawArray[1]?.category || "").toLowerCase().includes("attack") ? rawArray[1] : null);
+  const rawDefence1 = findRaw("Defence 1", "defence") || rawArray.find((item) => String(item?.category || "").toLowerCase().includes("def") || String(item?.instruction || "").toLowerCase().includes("counter") || String(item?.instruction || "").toLowerCase().includes("marking"));
+  const rawDefence2 = findRaw("Defence 2", "defence_2") || rawArray.filter((item) => String(item?.category || "").toLowerCase().includes("def") || String(item?.instruction || "").toLowerCase().includes("marking")).slice(1)[0];
+  const sanitizeAttackInst = (inst, defaultInst) => {
+    if (!inst) return defaultInst;
+    const str = String(inst).trim();
+    if (str.toLowerCase() === "off") return "Off";
+    if (str.toLowerCase().includes("anchor")) return "Anchoring";
+    if (str.toLowerCase().includes("defens") || str.toLowerCase().includes("deep") || str.toLowerCase().includes("stay")) return "Defensive";
+    return defaultInst;
+  };
+  const sanitizeDefenceInst = (inst, defaultInst) => {
+    if (!inst) return defaultInst;
+    const str = String(inst).trim();
+    if (str.toLowerCase() === "off") return "Off";
+    if (str.toLowerCase().includes("counter")) return "Counter Target";
+    if (str.toLowerCase().includes("man")) return "Man Marking (Based on Opponent Player)";
+    if (str.toLowerCase().includes("tight") || str.toLowerCase().includes("mark")) return "Tight Marking (Based on Opponent Player)";
+    return defaultInst;
+  };
+  const attack1Player = rawAttack1?.player && rawAttack1.player !== "Player Name" ? rawAttack1.player : dmf?.name || "Rodri";
+  const attack1Pos = rawAttack1?.position || dmf?.position || "DMF";
+  const attack1Inst = sanitizeAttackInst(rawAttack1?.instruction, "Defensive");
+  const attack1Why = rawAttack1?.why || "Restricts forward runs during build-up and attacking phases to preserve midfield defensive coverage and prevent counter-attack vulnerability.";
+  const attack2Player = rawAttack2?.player && rawAttack2.player !== "Player Name" ? rawAttack2.player : cf?.name || "K. Mbapp\xE9";
+  const attack2Pos = rawAttack2?.position || cf?.position || "CF";
+  const attack2Inst = sanitizeAttackInst(rawAttack2?.instruction, "Anchoring");
+  const attack2Why = rawAttack2?.why || "Restricts the player from drifting out wide, keeping them centrally anchored in dangerous scoring areas to convert crosses and through balls.";
+  const defence1Player = rawDefence1?.player && rawDefence1.player !== "Player Name" ? rawDefence1.player : wingerOrForward?.name || cf?.name || "K. Mbapp\xE9";
+  const defence1Pos = rawDefence1?.position || wingerOrForward?.position || "CF";
+  const defence1Inst = sanitizeDefenceInst(rawDefence1?.instruction, "Counter Target");
+  const defence1Why = rawDefence1?.why || "Player stays forward without dropping back to defend during opponent possession, conserving stamina and remaining primed for rapid counter-attacks.";
+  const defence2Player = rawDefence2?.player && rawDefence2.player !== "Player Name" ? rawDefence2.player : defenderOrDmf?.name || dmf?.name || "Rodri";
+  const defence2Pos = rawDefence2?.position || defenderOrDmf?.position || "DMF";
+  const defence2Inst = sanitizeDefenceInst(rawDefence2?.instruction, "Tight Marking (Based on Opponent Player)");
+  const defence2Why = rawDefence2?.why || "Tightly marks the opponent's key playmaker, limiting their time and turning space on the ball while blocking dangerous passing avenues.";
+  return [
+    {
+      slot: "Attack 1",
+      player: attack1Player,
+      position: attack1Pos,
+      instruction: attack1Inst,
+      why: attack1Why,
+      category: "Attack 1"
+    },
+    {
+      slot: "Attack 2",
+      player: attack2Player,
+      position: attack2Pos,
+      instruction: attack2Inst,
+      why: attack2Why,
+      category: "Attack 2"
+    },
+    {
+      slot: "Defence 1",
+      player: defence1Player,
+      position: defence1Pos,
+      instruction: defence1Inst,
+      why: defence1Why,
+      category: "Defence 1"
+    },
+    {
+      slot: "Defence 2",
+      player: defence2Player,
+      position: defence2Pos,
+      instruction: defence2Inst,
+      why: defence2Why,
+      category: "Defence 2"
+    }
+  ];
+}
 async function cropCardImage(imageBuffer, box) {
   try {
     const sharpInstance = await getSharpInstance();
@@ -1824,7 +1907,12 @@ CRITICAL EXTRACTION DIRECTIVES:
 3. COACH / MANAGER IDENTIFICATION:
    - Identify the Manager/Coach name (e.g. "G. Zeitzler / J\xFCrgen Klopp", "L. Roman / Pep Guardiola", "M. Caputto / Mikel Arteta", "C. Ancelotti", "E. Ten Hag", "D. Deschamps", "L. Scaloni", etc.) and playstyle proficiency (Quick Counter, Possession Game, Long Ball Counter, Out Wide, Long Ball).
 
-4. PRECISION & COMPLETENESS:
+4. eFOOTBALL 2027 INDIVIDUAL PLAYER INSTRUCTIONS:
+   Provide individual instructions structured into the 4 in-game match plan slots:
+   - "Attack 1" & "Attack 2": Instructions MUST strictly be one of: "Off", "Defensive", "Anchoring".
+   - "Defence 1" & "Defence 2": Instructions MUST strictly be one of: "Off", "Tight Marking (Based on Opponent Player)", "Man Marking (Based on Opponent Player)", "Counter Target".
+
+5. PRECISION & COMPLETENESS:
    - Do not hallucinate or randomly invent players not shown in the image.
    - Accurately report what is present on the screen.
    - Assign confidenceScore (0-100) based on clarity of text, face, position, and rating.
@@ -1912,11 +2000,36 @@ OUTPUT FORMAT: Return STRICT JSON matching this schema:
   ],
   "individualInstructions": [
     {
+      "slot": "Attack 1",
       "player": "Player Name",
       "position": "DMF",
-      "instruction": "Deep Line",
-      "why": "Protects space between center backs during counter-attacks",
-      "category": "Defence"
+      "instruction": "Defensive",
+      "why": "Restricts forward runs during possession phases to maintain defensive balance.",
+      "category": "Attack 1"
+    },
+    {
+      "slot": "Attack 2",
+      "player": "Player Name",
+      "position": "CF",
+      "instruction": "Anchoring",
+      "why": "Prevents striker from drifting out wide, keeping them central in the penalty area.",
+      "category": "Attack 2"
+    },
+    {
+      "slot": "Defence 1",
+      "player": "Player Name",
+      "position": "CF",
+      "instruction": "Counter Target",
+      "why": "Conserves stamina and stays poised on the shoulder of the last defender for fast counter attacks.",
+      "category": "Defence 1"
+    },
+    {
+      "slot": "Defence 2",
+      "player": "Player Name",
+      "position": "DMF",
+      "instruction": "Tight Marking (Based on Opponent Player)",
+      "why": "Closes down and limits space for the opponent's primary playmaker.",
+      "category": "Defence 2"
     }
   ],
   "playerActionPlan": [
@@ -2392,22 +2505,7 @@ async function postProcessAndVerifySquad(parsed, payload, imageBuffers) {
       players: bestXIPlayers
     },
     coachRecommendation: verifiedCoach,
-    individualInstructions: Array.isArray(parsed.individualInstructions) && parsed.individualInstructions.length > 0 ? parsed.individualInstructions : [
-      {
-        player: bestXIPlayers.find((p) => p.position === "DMF")?.name || "Anchor Man",
-        position: "DMF",
-        instruction: "Deep Line",
-        why: "Drops between central defenders during defensive transition to prevent central penetrations.",
-        category: "Defence"
-      },
-      {
-        player: bestXIPlayers.find((p) => p.position === "CF")?.name || "Starting CF",
-        position: "CF",
-        instruction: "Counter Target",
-        why: "Preserves stamina and stays primed on the last defender shoulder for direct through balls.",
-        category: "Offence"
-      }
-    ],
+    individualInstructions: buildEfootball2027IndividualInstructions(parsed.individualInstructions, bestXIPlayers),
     playerActionPlan: playerActionPlan.length > 0 ? playerActionPlan : [
       {
         player: bestXIPlayers[0]?.name || "Key Player",
@@ -2691,22 +2789,7 @@ function createEvidenceBasedFallback(payload) {
         players: bestXI
       },
       coachRecommendation: coachRecommendationObj,
-      individualInstructions: [
-        {
-          player: bestXI.find((p) => p.position === "DMF")?.name || bestXI.find((p) => p.position === "CMF")?.name || "Rodri",
-          position: bestXI.find((p) => p.position === "DMF")?.position || "DMF",
-          instruction: "Deep Line",
-          why: "Drops between central defenders during opponent transitions to shut down central through balls.",
-          category: "Defence"
-        },
-        {
-          player: bestXI.find((p) => p.position === "CF")?.name || "K. Mbapp\xE9",
-          position: "CF",
-          instruction: "Counter Target",
-          why: "Conserves stamina and stays poised on the shoulder of the last defender for fast counter attacks.",
-          category: "Offence"
-        }
-      ],
+      individualInstructions: buildEfootball2027IndividualInstructions([], bestXI),
       playerActionPlan: [
         {
           player: bestXI.find((p) => p.position === "DMF")?.name || "Rodri",

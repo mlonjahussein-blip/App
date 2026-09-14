@@ -936,46 +936,275 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
         </section>
       )}
 
-      {/* 8. Individual Player Instructions */}
-      {(activeTab === 'all' || activeTab === 'tactics') && (
-        <section className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8 space-y-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
-                <SlidersHorizontal className="w-5 h-5" />
-              </span>
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                Individual Player Instructions
-              </h2>
-            </div>
-            <p className="text-xs sm:text-sm text-neutral-400 mt-1">
-              Apply these specific individual instructions in your in-game Match Plan settings to lock down transitions and maximize your attacking shape.
-            </p>
-          </div>
+      {/* 8. Individual Player Instructions (eFootball 2027) */}
+      {(activeTab === 'all' || activeTab === 'tactics') && (() => {
+        const attackOptions: Array<{ id: 'Off' | 'Defensive' | 'Anchoring'; label: string; desc: string }> = [
+          { id: 'Off', label: '(a) Off', desc: 'No individual restriction. Player acts according to base playstyle.' },
+          { id: 'Defensive', label: '(b) Defensive', desc: 'Restricts forward runs, keeping player back to shield defense.' },
+          { id: 'Anchoring', label: '(c) Anchoring', desc: 'Prevents lateral drift, locking player to their central corridor.' }
+        ];
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {squadAnalysis.individualInstructions.map((ins, idx) => (
-              <div key={idx} className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-neutral-800 text-neutral-200">
-                      {ins.position}
-                    </span>
-                    <span className="font-bold text-white text-sm">{ins.player}</span>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    {ins.instruction}
+        const defenceOptions: Array<{ id: 'Off' | 'Tight Marking (Based on Opponent Player)' | 'Man Marking (Based on Opponent Player)' | 'Counter Target'; label: string; desc: string }> = [
+          { id: 'Off', label: '(a) Off', desc: 'No individual restriction. Player acts according to base playstyle.' },
+          { id: 'Tight Marking (Based on Opponent Player)', label: '(b) Tight Marking', desc: 'Closes down targeted opponent tightly upon receiving the ball.' },
+          { id: 'Man Marking (Based on Opponent Player)', label: '(c) Man Marking', desc: 'Follows and shadows targeted opponent closely across the pitch.' },
+          { id: 'Counter Target', label: '(d) Counter Target', desc: 'Stays forward in the opposition half to conserve stamina for counters.' }
+        ];
+
+        // Ensure 4 normalized slots
+        const dmf = squadAnalysis.bestXI.players.find(p => p.position === 'DMF') || squadAnalysis.bestXI.players.find(p => p.position === 'CMF') || squadAnalysis.bestXI.players[5] || { name: 'DMF Holding Midfielder', position: 'DMF' };
+        const cf = squadAnalysis.bestXI.players.find(p => p.position === 'CF') || squadAnalysis.bestXI.players.find(p => p.position === 'SS') || squadAnalysis.bestXI.players[0] || { name: 'Starting CF', position: 'CF' };
+        const wingerOrForward = squadAnalysis.bestXI.players.find(p => (p.position === 'LWF' || p.position === 'RWF' || p.position === 'SS' || p.position === 'AMF') && p.name !== cf.name) || cf;
+        const defenderOrDmf = squadAnalysis.bestXI.players.find(p => (p.position === 'CB' || p.position === 'RB' || p.position === 'LB' || p.position === 'DMF') && p.name !== dmf.name) || dmf;
+
+        const rawList = squadAnalysis.individualInstructions || [];
+        const getSlotData = (slotName: 'Attack 1' | 'Attack 2' | 'Defence 1' | 'Defence 2', fallbackPlayer: { name: string; position: string }, fallbackInst: string, fallbackWhy: string, fallbackIndex: number): IndividualInstruction => {
+          const found = rawList.find(i => i.slot === slotName || i.category === slotName) || rawList[fallbackIndex];
+          if (found) {
+            return {
+              ...found,
+              slot: slotName,
+              player: found.player || fallbackPlayer.name,
+              position: found.position || fallbackPlayer.position,
+              instruction: found.instruction || fallbackInst,
+              why: found.why || fallbackWhy,
+              category: slotName
+            };
+          }
+          return {
+            slot: slotName,
+            player: fallbackPlayer.name,
+            position: fallbackPlayer.position,
+            instruction: fallbackInst,
+            why: fallbackWhy,
+            category: slotName
+          };
+        };
+
+        const attack1 = getSlotData('Attack 1', dmf, 'Defensive', 'Restricts forward runs during build-up and attacking phases to preserve midfield defensive coverage and prevent counter-attack vulnerability.', 0);
+        const attack2 = getSlotData('Attack 2', cf, 'Anchoring', 'Restricts the player from drifting out wide, keeping them centrally anchored in dangerous scoring areas to convert crosses and through balls.', 1);
+        const defence1 = getSlotData('Defence 1', wingerOrForward, 'Counter Target', 'Player stays forward without dropping back to defend during opponent possession, conserving stamina and remaining primed for rapid counter-attacks.', 2);
+        const defence2 = getSlotData('Defence 2', defenderOrDmf, 'Tight Marking (Based on Opponent Player)', 'Tightly marks the opponent\'s key playmaker, limiting their time and turning space on the ball while blocking dangerous passing avenues.', 3);
+
+        const handleSelectInstruction = (slotKey: 'Attack 1' | 'Attack 2' | 'Defence 1' | 'Defence 2', newInst: string) => {
+          const currentSlots = [attack1, attack2, defence1, defence2];
+          const updated = currentSlots.map((slot) => {
+            if (slot.slot === slotKey) {
+              let newWhy = slot.why;
+              if (newInst === 'Off') {
+                newWhy = 'Instruction disabled. Player operates purely according to natural playing style and base positioning.';
+              } else if (newInst === 'Defensive') {
+                newWhy = 'Restricts the player from advancing into the attacking third, keeping midfield stability and defensive cover against counter-attacks.';
+              } else if (newInst === 'Anchoring') {
+                newWhy = 'Prevents lateral drift, locking the player strictly within their central channel to maintain offensive focal point.';
+              } else if (newInst === 'Tight Marking (Based on Opponent Player)') {
+                newWhy = 'Aggressively denies space and time on the ball to the opponent\'s designated player whenever they receive possession.';
+              } else if (newInst === 'Man Marking (Based on Opponent Player)') {
+                newWhy = 'Assigns this defender to shadow and track the designated opponent attacker across transitions.';
+              } else if (newInst === 'Counter Target') {
+                newWhy = 'Instructs the player to stay upfield without dropping deep, conserving stamina and providing an immediate transition outlet.';
+              }
+              return {
+                ...slot,
+                instruction: newInst,
+                why: newWhy
+              };
+            }
+            return slot;
+          });
+
+          setSquadAnalysis({
+            ...squadAnalysis,
+            individualInstructions: updated
+          });
+        };
+
+        return (
+          <section className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                    <SlidersHorizontal className="w-5 h-5" />
+                  </span>
+                  <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                    Individual Player Instructions
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    eFootball 2027
                   </span>
                 </div>
-                <div className="text-xs text-neutral-300 pt-1">
-                  <span className="text-neutral-500 font-bold block mb-0.5">Why this instruction?</span>
-                  <p className="leading-relaxed">{ins.why}</p>
-                </div>
+                <p className="text-xs sm:text-sm text-neutral-400 mt-1">
+                  Apply these exact Match Plan individual instructions in eFootball 2027 across Attack 1 & 2 and Defence 1 & 2 to lock down transitions and structure your tactical supremacy.
+                </p>
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* --- ATTACK INSTRUCTIONS COLUMN --- */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-amber-950/30 border border-amber-500/30 rounded-2xl px-4 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+                    <span className="text-xs font-black uppercase tracking-wider text-amber-300">
+                      Attack Instructions (Attack 1 & Attack 2)
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-amber-200/70 hidden sm:inline">
+                    Off · Defensive · Anchoring
+                  </span>
+                </div>
+
+                {/* Attack 1 & Attack 2 Cards */}
+                {[attack1, attack2].map((slotData, idx) => {
+                  const slotLabel = idx === 0 ? 'Attack 1' : 'Attack 2';
+                  return (
+                    <div key={slotLabel} className="bg-neutral-950 border border-neutral-800 hover:border-neutral-700 transition-colors rounded-2xl p-4 sm:p-5 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800/80 pb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                            {slotLabel}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-neutral-800 text-neutral-200">
+                            {slotData.position}
+                          </span>
+                          <span className="font-bold text-white text-sm sm:text-base">
+                            {slotData.player}
+                          </span>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-black ${
+                          slotData.instruction === 'Off'
+                            ? 'bg-neutral-800 text-neutral-400 border border-neutral-700'
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        }`}>
+                          {slotData.instruction}
+                        </span>
+                      </div>
+
+                      {/* eFootball 2027 Instruction Selector Pills */}
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block">
+                          Available eFootball 2027 Instructions:
+                        </span>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {attackOptions.map((opt) => {
+                            const isSelected = slotData.instruction === opt.id || (opt.id === 'Defensive' && String(slotData.instruction).toLowerCase().includes('defens')) || (opt.id === 'Anchoring' && String(slotData.instruction).toLowerCase().includes('anchor'));
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => handleSelectInstruction(slotLabel as 'Attack 1' | 'Attack 2', opt.id)}
+                                className={`px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all text-center flex flex-col items-center justify-center gap-0.5 ${
+                                  isSelected
+                                    ? 'bg-amber-500 text-neutral-950 shadow-md font-black'
+                                    : 'bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-white border border-neutral-800'
+                                }`}
+                                title={opt.desc}
+                              >
+                                <span>{opt.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Why tactical reason */}
+                      <div className="text-xs text-neutral-300 bg-neutral-900/60 border border-neutral-800/60 rounded-xl p-3">
+                        <span className="text-neutral-400 font-bold block mb-1">
+                          Tactical Rationale:
+                        </span>
+                        <p className="leading-relaxed text-neutral-200">{slotData.why}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* --- DEFENCE INSTRUCTIONS COLUMN --- */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-sky-950/30 border border-sky-500/30 rounded-2xl px-4 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse" />
+                    <span className="text-xs font-black uppercase tracking-wider text-sky-300">
+                      Defence Instructions (Defence 1 & Defence 2)
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-sky-200/70 hidden sm:inline">
+                    Off · Tight Marking · Man Marking · Counter Target
+                  </span>
+                </div>
+
+                {/* Defence 1 & Defence 2 Cards */}
+                {[defence1, defence2].map((slotData, idx) => {
+                  const slotLabel = idx === 0 ? 'Defence 1' : 'Defence 2';
+                  return (
+                    <div key={slotLabel} className="bg-neutral-950 border border-neutral-800 hover:border-neutral-700 transition-colors rounded-2xl p-4 sm:p-5 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800/80 pb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                            {slotLabel}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-neutral-800 text-neutral-200">
+                            {slotData.position}
+                          </span>
+                          <span className="font-bold text-white text-sm sm:text-base">
+                            {slotData.player}
+                          </span>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-black ${
+                          slotData.instruction === 'Off'
+                            ? 'bg-neutral-800 text-neutral-400 border border-neutral-700'
+                            : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                        }`}>
+                          {slotData.instruction}
+                        </span>
+                      </div>
+
+                      {/* eFootball 2027 Instruction Selector Pills */}
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block">
+                          Available eFootball 2027 Instructions:
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                          {defenceOptions.map((opt) => {
+                            const isSelected = slotData.instruction === opt.id || 
+                              (opt.id === 'Counter Target' && String(slotData.instruction).toLowerCase().includes('counter')) ||
+                              (opt.id === 'Tight Marking (Based on Opponent Player)' && String(slotData.instruction).toLowerCase().includes('tight')) ||
+                              (opt.id === 'Man Marking (Based on Opponent Player)' && String(slotData.instruction).toLowerCase().includes('man'));
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => handleSelectInstruction(slotLabel as 'Defence 1' | 'Defence 2', opt.id)}
+                                className={`px-2 py-1.5 rounded-lg text-[10.5px] font-bold transition-all text-center flex flex-col items-center justify-center leading-tight ${
+                                  isSelected
+                                    ? 'bg-sky-500 text-neutral-950 shadow-md font-black'
+                                    : 'bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-white border border-neutral-800'
+                                }`}
+                                title={opt.desc}
+                              >
+                                <span>{opt.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Why tactical reason */}
+                      <div className="text-xs text-neutral-300 bg-neutral-900/60 border border-neutral-800/60 rounded-xl p-3">
+                        <span className="text-neutral-400 font-bold block mb-1">
+                          Tactical Rationale:
+                        </span>
+                        <p className="leading-relaxed text-neutral-200">{slotData.why}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* 9. Player Action Plan */}
       {(activeTab === 'all' || activeTab === 'players') && (
