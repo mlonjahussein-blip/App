@@ -11,6 +11,7 @@ export interface PaymentConfiguration {
     consumerKey: string;
     consumerSecret: string;
     ipnUrl: string;
+    ipnId?: string;
     environment: 'sandbox' | 'production';
   };
   paypal: {
@@ -45,10 +46,11 @@ export function getPaymentConfig(): PaymentConfiguration {
     currency: 'USD',
     freeAnalysisIntervalDays: 7,
     pesapal: {
-      consumerKey: process.env.PESAPAL_CONSUMER_KEY || '',
-      consumerSecret: process.env.PESAPAL_CONSUMER_SECRET || '',
+      consumerKey: process.env.PESAPAL_CONSUMER_KEY || 'TH507JLWbPOMGhF4b/gsm7XmX11MxcjQ',
+      consumerSecret: process.env.PESAPAL_CONSUMER_SECRET || 'zsjjV2+8++YrS5tm5uqmuiUMx2g=',
       ipnUrl: process.env.PESAPAL_IPN_URL || '',
-      environment: isTestMode ? 'sandbox' : 'production'
+      ipnId: process.env.PESAPAL_IPN_ID || '',
+      environment: (process.env.PESAPAL_ENVIRONMENT === 'sandbox' ? 'sandbox' : 'production') as 'sandbox' | 'production'
     },
     paypal: {
       clientId: process.env.PAYPAL_CLIENT_ID || '',
