@@ -442,40 +442,26 @@ async function getUserEntitlements(userId) {
       userDoc = cached;
     } else {
       userDoc = {
-        freeAnalysesRemaining: 5,
-        v5GrantVersion: 1,
+        freeAnalysesRemaining: 1,
         paidCredits: 0,
         lastFreeResetAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1e3).toISOString()
       };
       fallbackUserStore.set(cleanUid, userDoc);
     }
   }
-  let freeAnalysesRemaining = typeof userDoc.freeAnalysesRemaining === "number" ? userDoc.freeAnalysesRemaining : 5;
+  let freeAnalysesRemaining = typeof userDoc.freeAnalysesRemaining === "number" ? userDoc.freeAnalysesRemaining : 1;
   let paidCredits = typeof userDoc.paidCredits === "number" ? userDoc.paidCredits : 0;
   let lastFreeResetAt = userDoc.lastFreeResetAt || new Date(Date.now() - 8 * 24 * 60 * 60 * 1e3).toISOString();
   const now = Date.now();
   const nowIso = (/* @__PURE__ */ new Date()).toISOString();
-  if (userDoc.v5GrantVersion !== 1) {
-    freeAnalysesRemaining = 5;
-    userDoc.v5GrantVersion = 1;
-    lastFreeResetAt = nowIso;
-    writeFirestoreDoc("users", cleanUid, {
-      freeAnalysesRemaining: 5,
-      v5GrantVersion: 1,
-      lastFreeResetAt: nowIso,
-      updatedAt: nowIso
-    }).catch(() => {
-    });
-    fallbackUserStore.set(cleanUid, { ...userDoc, freeAnalysesRemaining: 5, v5GrantVersion: 1, lastFreeResetAt: nowIso });
-  }
   let effectiveResetTime = new Date(lastFreeResetAt).getTime();
   const sevenDaysMs = config.freeAnalysisIntervalDays * 24 * 60 * 60 * 1e3;
   if (isNaN(effectiveResetTime) || now - effectiveResetTime >= sevenDaysMs) {
     effectiveResetTime = now;
     lastFreeResetAt = nowIso;
-    freeAnalysesRemaining = 5;
+    freeAnalysesRemaining = 1;
     await writeFirestoreDoc("users", cleanUid, {
-      freeAnalysesRemaining: 5,
+      freeAnalysesRemaining: 1,
       lastFreeResetAt: nowIso,
       updatedAt: nowIso
     });

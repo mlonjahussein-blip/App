@@ -172,7 +172,7 @@ export async function saveUniversalCloudAccount(account: CloudAccountRecord): Pr
     salt: account.salt,
     hash: account.hash,
     createdAt: account.createdAt,
-    freeAnalysesRemaining: account.freeAnalysesRemaining ?? 5,
+    freeAnalysesRemaining: account.freeAnalysesRemaining ?? 1,
     paidCredits: account.paidCredits ?? 0,
     lastFreeResetAt: account.lastFreeResetAt || new Date().toISOString(),
     role: account.role || 'user',

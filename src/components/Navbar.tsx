@@ -197,8 +197,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                     <p className="text-xs font-semibold text-white leading-tight">
                       {profile?.displayName || user.email?.split('@')[0]}
                     </p>
-                    <p className={`text-[10px] font-medium ${(profile?.freeAnalysesRemaining ?? 5) > 0 ? 'text-emerald-400' : 'text-neutral-400'}`}>
-                      {(profile?.freeAnalysesRemaining ?? 5) > 0 ? `${profile?.freeAnalysesRemaining ?? 5} Free ${(profile?.freeAnalysesRemaining ?? 5) === 1 ? 'Analysis' : 'Analyses'} Left` : '0 Free Analyses Left'}
+                    <p className={`text-[10px] font-medium ${(profile?.freeAnalysesRemaining ?? 1) > 0 ? 'text-emerald-400' : 'text-neutral-400'}`}>
+                      {(profile?.freeAnalysesRemaining ?? 1) > 0 ? `${profile?.freeAnalysesRemaining ?? 1} Free ${(profile?.freeAnalysesRemaining ?? 1) === 1 ? 'Analysis' : 'Analyses'} Left` : '0 Free Analysis Left'}
                     </p>
                   </div>
                   <button
@@ -263,8 +263,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
             <>
               <div className="p-3 bg-neutral-900 rounded-lg mb-2">
                 <p className="text-sm font-bold text-white">{profile?.displayName || user.email}</p>
-                <p className={`text-xs ${(profile?.freeAnalysesRemaining ?? 5) > 0 ? 'text-emerald-400' : 'text-neutral-400'}`}>
-                  {(profile?.freeAnalysesRemaining ?? 5) > 0 ? `${profile?.freeAnalysesRemaining ?? 5} Free ${(profile?.freeAnalysesRemaining ?? 5) === 1 ? 'Analysis' : 'Analyses'} Available` : '0 Free Analyses Available'}
+                <p className={`text-xs ${(profile?.freeAnalysesRemaining ?? 1) > 0 ? 'text-emerald-400' : 'text-neutral-400'}`}>
+                  {(profile?.freeAnalysesRemaining ?? 1) > 0 ? `${profile?.freeAnalysesRemaining ?? 1} Free ${(profile?.freeAnalysesRemaining ?? 1) === 1 ? 'Analysis' : 'Analyses'} Available` : '0 Free Analysis Available'}
                 </p>
               </div>
               <button

@@ -536,7 +536,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               Weekly Analysis Allocation & Credits
             </h2>
             <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
-              5 Free / Week
+              1 Free / Week
             </span>
           </div>
 
@@ -544,7 +544,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
             <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-5 space-y-2">
               <span className="text-xs uppercase font-bold text-neutral-400">Free Analyses Remaining</span>
               <div className="text-3xl font-black text-emerald-400">
-                {entitlements ? entitlements.freeAnalysesRemaining : (profile?.freeAnalysesRemaining ?? 5)}
+                {entitlements ? entitlements.freeAnalysesRemaining : (profile?.freeAnalysesRemaining ?? 1)}
               </div>
               <p className="text-xs text-neutral-500">
                 Resets every 7 days automatically for your account.

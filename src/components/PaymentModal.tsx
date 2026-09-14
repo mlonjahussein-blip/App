@@ -476,7 +476,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-bold text-neutral-300">
-              Free: <span className="text-emerald-400">{entitlements?.freeAnalysesRemaining ?? 5}</span>
+              Free: <span className="text-emerald-400">{entitlements?.freeAnalysesRemaining ?? 1}</span>
             </span>
             <span className="text-neutral-600">•</span>
             <span className="font-bold text-neutral-300">

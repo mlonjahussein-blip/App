@@ -133,7 +133,7 @@ async function saveCloudAccount(account: StoredAccountV2, profileData?: Partial<
       salt: account.salt,
       hash: account.hash,
       createdAt: account.createdAt,
-      freeAnalysesRemaining: profileData?.freeAnalysesRemaining ?? 5,
+      freeAnalysesRemaining: profileData?.freeAnalysesRemaining ?? 1,
       paidCredits: profileData?.paidCredits ?? 0,
       lastFreeResetAt: profileData?.lastFreeResetAt || new Date().toISOString(),
       role: profileData?.role || 'user'
@@ -237,22 +237,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const restDoc = await readDocREST('users', uid);
       if (restDoc && (restDoc.email || restDoc.uid)) {
-        let freeAnalysesRemaining = typeof restDoc.freeAnalysesRemaining === 'number' ? restDoc.freeAnalysesRemaining : 5;
+        let freeAnalysesRemaining = typeof restDoc.freeAnalysesRemaining === 'number' ? restDoc.freeAnalysesRemaining : 1;
         let lastFreeResetAt = restDoc.lastFreeResetAt || new Date().toISOString();
-
-        // One-time upgrade check: Grant 5 free analyses to all existing user accounts
-        if (restDoc.v5GrantVersion !== 1) {
-          freeAnalysesRemaining = 5;
-          lastFreeResetAt = new Date().toISOString();
-          writeDocREST('users', uid, { freeAnalysesRemaining: 5, v5GrantVersion: 1, lastFreeResetAt }).catch(() => {});
-        }
 
         const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
         let lastResetTime = new Date(lastFreeResetAt).getTime();
         if (isNaN(lastResetTime) || Date.now() - lastResetTime >= sevenDaysMs) {
-          freeAnalysesRemaining = 5;
+          freeAnalysesRemaining = 1;
           lastFreeResetAt = new Date().toISOString();
-          writeDocREST('users', uid, { freeAnalysesRemaining: 5, lastFreeResetAt, v5GrantVersion: 1 }).catch(() => {});
+          writeDocREST('users', uid, { freeAnalysesRemaining: 1, lastFreeResetAt }).catch(() => {});
         }
 
         const fullProf: UserProfile = {
@@ -293,7 +286,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           whatsappNumber: whatsappNumber || undefined,
           photoURL: photoURL || undefined,
           createdAt: new Date().toISOString(),
-          freeAnalysesRemaining: 5,
+          freeAnalysesRemaining: 1,
           paidCredits: 0,
           lastFreeResetAt: new Date().toISOString(),
           role: 'user'
@@ -462,7 +455,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       whatsappNumber: cleanPhone,
       photoURL: avatarUrl,
       createdAt: new Date().toISOString(),
-      freeAnalysesRemaining: 5,
+      freeAnalysesRemaining: 1,
       paidCredits: 0,
       lastFreeResetAt: new Date().toISOString(),
       role: 'user'
@@ -872,7 +865,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       displayName: cleanName,
       whatsappNumber: cleanWhatsApp || undefined,
       createdAt: new Date().toISOString(),
-      freeAnalysesRemaining: 5,
+      freeAnalysesRemaining: 1,
       paidCredits: 0,
       lastFreeResetAt: new Date().toISOString(),
       role: 'user'

@@ -105,8 +105,7 @@ export async function getUserEntitlements(userId: string): Promise<UserEntitleme
       userDoc = cached;
     } else {
       userDoc = {
-        freeAnalysesRemaining: 5,
-        v5GrantVersion: 1,
+        freeAnalysesRemaining: 1,
         paidCredits: 0,
         lastFreeResetAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
       };
@@ -114,38 +113,24 @@ export async function getUserEntitlements(userId: string): Promise<UserEntitleme
     }
   }
 
-  let freeAnalysesRemaining = typeof userDoc.freeAnalysesRemaining === 'number' ? userDoc.freeAnalysesRemaining : 5;
+  let freeAnalysesRemaining = typeof userDoc.freeAnalysesRemaining === 'number' ? userDoc.freeAnalysesRemaining : 1;
   let paidCredits = typeof userDoc.paidCredits === 'number' ? userDoc.paidCredits : 0;
   let lastFreeResetAt = userDoc.lastFreeResetAt || new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
 
-  // One-time upgrade check to ensure every existing account gets 5 free analyses
   const now = Date.now();
   const nowIso = new Date().toISOString();
 
-  if (userDoc.v5GrantVersion !== 1) {
-    freeAnalysesRemaining = 5;
-    userDoc.v5GrantVersion = 1;
-    lastFreeResetAt = nowIso;
-    writeFirestoreDoc('users', cleanUid, {
-      freeAnalysesRemaining: 5,
-      v5GrantVersion: 1,
-      lastFreeResetAt: nowIso,
-      updatedAt: nowIso
-    }).catch(() => {});
-    fallbackUserStore.set(cleanUid, { ...userDoc, freeAnalysesRemaining: 5, v5GrantVersion: 1, lastFreeResetAt: nowIso });
-  }
-
-  // Weekly Free Analysis Reset Check (Every 7 days reset to 5)
+  // Weekly Free Analysis Reset Check (Every 7 days reset to 1)
   let effectiveResetTime = new Date(lastFreeResetAt).getTime();
   const sevenDaysMs = config.freeAnalysisIntervalDays * 24 * 60 * 60 * 1000;
 
   if (isNaN(effectiveResetTime) || now - effectiveResetTime >= sevenDaysMs) {
     effectiveResetTime = now;
     lastFreeResetAt = nowIso;
-    freeAnalysesRemaining = 5;
+    freeAnalysesRemaining = 1;
     // Persist reset to Firestore
     await writeFirestoreDoc('users', cleanUid, {
-      freeAnalysesRemaining: 5,
+      freeAnalysesRemaining: 1,
       lastFreeResetAt: nowIso,
       updatedAt: nowIso
     });
