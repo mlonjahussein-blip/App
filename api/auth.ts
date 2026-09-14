@@ -205,7 +205,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         hash,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        freeAnalysesRemaining: 1,
+        freeAnalysesRemaining: 5,
+        v5GrantVersion: 1,
         paidCredits: 0,
         lastFreeResetAt: new Date().toISOString(),
         role: 'user'

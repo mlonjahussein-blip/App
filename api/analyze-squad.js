@@ -3691,25 +3691,37 @@ async function getUserEntitlements(userId) {
       userDoc = cached;
     } else {
       userDoc = {
-        freeAnalysesRemaining: 1,
+        freeAnalysesRemaining: 5,
+        v5GrantVersion: 1,
         paidCredits: 0,
         lastFreeResetAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1e3).toISOString()
       };
       fallbackUserStore.set(cleanUid, userDoc);
     }
   }
-  let freeAnalysesRemaining = typeof userDoc.freeAnalysesRemaining === "number" ? userDoc.freeAnalysesRemaining : 1;
+  let freeAnalysesRemaining = typeof userDoc.freeAnalysesRemaining === "number" ? userDoc.freeAnalysesRemaining : 5;
   let paidCredits = typeof userDoc.paidCredits === "number" ? userDoc.paidCredits : 0;
   let lastFreeResetAt = userDoc.lastFreeResetAt || new Date(Date.now() - 8 * 24 * 60 * 60 * 1e3).toISOString();
+  if (userDoc.v5GrantVersion !== 1) {
+    freeAnalysesRemaining = 5;
+    userDoc.v5GrantVersion = 1;
+    writeFirestoreDoc("users", cleanUid, {
+      freeAnalysesRemaining: 5,
+      v5GrantVersion: 1,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    }).catch(() => {
+    });
+    fallbackUserStore.set(cleanUid, { ...userDoc, freeAnalysesRemaining: 5, v5GrantVersion: 1 });
+  }
   const lastResetTime = new Date(lastFreeResetAt).getTime();
   const now = Date.now();
   const sevenDaysMs = config2.freeAnalysisIntervalDays * 24 * 60 * 60 * 1e3;
   if (now - lastResetTime >= sevenDaysMs) {
-    if (freeAnalysesRemaining < 1) {
-      freeAnalysesRemaining = 1;
+    if (freeAnalysesRemaining < 5) {
+      freeAnalysesRemaining = 5;
       lastFreeResetAt = (/* @__PURE__ */ new Date()).toISOString();
       await writeFirestoreDoc("users", cleanUid, {
-        freeAnalysesRemaining: 1,
+        freeAnalysesRemaining: 5,
         lastFreeResetAt,
         updatedAt: (/* @__PURE__ */ new Date()).toISOString()
       });
@@ -3742,14 +3754,15 @@ async function consumeEntitlementForAnalysis(userId) {
     };
   }
   if (entitlements.weeklyFreeAnalysisAvailable) {
+    const newFreeCount = Math.max(0, entitlements.freeAnalysesRemaining - 1);
     const updated = {
-      freeAnalysesRemaining: 0,
+      freeAnalysesRemaining: newFreeCount,
       lastFreeResetAt: (/* @__PURE__ */ new Date()).toISOString(),
       updatedAt: (/* @__PURE__ */ new Date()).toISOString()
     };
     await writeFirestoreDoc("users", cleanUid, updated);
     fallbackUserStore.set(cleanUid, {
-      freeAnalysesRemaining: 0,
+      freeAnalysesRemaining: newFreeCount,
       paidCredits: entitlements.paidAnalysisCredits,
       lastFreeResetAt: updated.lastFreeResetAt
     });

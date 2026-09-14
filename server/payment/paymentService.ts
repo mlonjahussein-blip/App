@@ -105,7 +105,8 @@ export async function getUserEntitlements(userId: string): Promise<UserEntitleme
       userDoc = cached;
     } else {
       userDoc = {
-        freeAnalysesRemaining: 1,
+        freeAnalysesRemaining: 5,
+        v5GrantVersion: 1,
         paidCredits: 0,
         lastFreeResetAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
       };
@@ -113,22 +114,34 @@ export async function getUserEntitlements(userId: string): Promise<UserEntitleme
     }
   }
 
-  let freeAnalysesRemaining = typeof userDoc.freeAnalysesRemaining === 'number' ? userDoc.freeAnalysesRemaining : 1;
+  let freeAnalysesRemaining = typeof userDoc.freeAnalysesRemaining === 'number' ? userDoc.freeAnalysesRemaining : 5;
   let paidCredits = typeof userDoc.paidCredits === 'number' ? userDoc.paidCredits : 0;
   let lastFreeResetAt = userDoc.lastFreeResetAt || new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Weekly Free Analysis Reset Check (Every 7 days)
+  // One-time upgrade check to ensure every existing account gets 5 free analyses
+  if (userDoc.v5GrantVersion !== 1) {
+    freeAnalysesRemaining = 5;
+    userDoc.v5GrantVersion = 1;
+    writeFirestoreDoc('users', cleanUid, {
+      freeAnalysesRemaining: 5,
+      v5GrantVersion: 1,
+      updatedAt: new Date().toISOString()
+    }).catch(() => {});
+    fallbackUserStore.set(cleanUid, { ...userDoc, freeAnalysesRemaining: 5, v5GrantVersion: 1 });
+  }
+
+  // Weekly Free Analysis Reset Check (Every 7 days reset to 5)
   const lastResetTime = new Date(lastFreeResetAt).getTime();
   const now = Date.now();
   const sevenDaysMs = config.freeAnalysisIntervalDays * 24 * 60 * 60 * 1000;
 
   if (now - lastResetTime >= sevenDaysMs) {
-    if (freeAnalysesRemaining < 1) {
-      freeAnalysesRemaining = 1;
+    if (freeAnalysesRemaining < 5) {
+      freeAnalysesRemaining = 5;
       lastFreeResetAt = new Date().toISOString();
       // Persist reset to Firestore
       await writeFirestoreDoc('users', cleanUid, {
-        freeAnalysesRemaining: 1,
+        freeAnalysesRemaining: 5,
         lastFreeResetAt,
         updatedAt: new Date().toISOString()
       });
@@ -172,14 +185,15 @@ export async function consumeEntitlementForAnalysis(
 
   // Priority 1: Free weekly analysis
   if (entitlements.weeklyFreeAnalysisAvailable) {
+    const newFreeCount = Math.max(0, entitlements.freeAnalysesRemaining - 1);
     const updated = {
-      freeAnalysesRemaining: 0,
+      freeAnalysesRemaining: newFreeCount,
       lastFreeResetAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     await writeFirestoreDoc('users', cleanUid, updated);
     fallbackUserStore.set(cleanUid, {
-      freeAnalysesRemaining: 0,
+      freeAnalysesRemaining: newFreeCount,
       paidCredits: entitlements.paidAnalysisCredits,
       lastFreeResetAt: updated.lastFreeResetAt
     });
