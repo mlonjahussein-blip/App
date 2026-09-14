@@ -509,7 +509,31 @@ export async function sendUserFeedbackEmail(payload: UserFeedbackPayload): Promi
     }
   }
 
-  // 3. Try Gmail
+  // 3. Try Web3Forms HTTPS Relay (bypasses Vercel outbound SMTP port blocks)
+  if (!sent) {
+    try {
+      const response = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          access_key: process.env.WEB3FORMS_ACCESS_KEY || '2c6e64c2-984e-4f36-a191-44755a498bb9',
+          subject: formattedSubject,
+          name: cleanName,
+          email: cleanEmail,
+          message: `Category: ${category}\nSubject: ${subjectText}\n\n${messageBody}`
+        })
+      });
+      const data = await response.json();
+      if (response.ok && data?.success) {
+        sent = true;
+        console.log('[FEEDBACK EMAIL] Dispatched via Web3Forms HTTPS relay');
+      }
+    } catch (e) {
+      console.warn('[FEEDBACK EMAIL] Web3Forms error:', e);
+    }
+  }
+
+  // 4. Try Gmail
   const gmailUser = process.env.GMAIL_USER || 'efootballaihub@gmail.com';
   const gmailPass = (process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || 'otblyzhyhemwaxws').replace(/\s+/g, '');
 
