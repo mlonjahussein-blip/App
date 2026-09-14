@@ -549,21 +549,13 @@ export const SettingsView: React.FC<SettingsProps> = ({
                 <CreditCard className="w-5 h-5 text-cyan-400" />
                 Payment Architecture & History
               </h2>
-              <p className="text-xs text-neutral-400 mt-0.5">
-                Backend-verified records for single analysis unlock transactions ($2.00 USD standard / $0.00 USD test mode).
-              </p>
             </div>
 
             <div className="flex items-center gap-2 self-start sm:self-auto">
-              {entitlements?.testMode ? (
+              {entitlements?.testMode && (
                 <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   Test Mode Active ($0.00 USD)
-                </span>
-              ) : (
-                <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Production Gateways Active
                 </span>
               )}
 
@@ -588,7 +580,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               </span>
             </div>
             <p className="text-neutral-400 leading-relaxed">
-              Every registered user receives <strong>1 free analysis per week</strong>. Additional analyses require 1 paid credit ($2.00 USD). Payments are securely processed via <strong>Pesapal</strong>, supporting <strong>Debit & Credit Cards (Visa, Mastercard, American Express with 3D Secure)</strong> and <strong>Mobile Money (M-Pesa, Airtel Money, MTN MoMo)</strong>. All funds are deposited directly into your Pesapal merchant account.
+              Every registered user receives <strong>1 free analysis per week</strong>. Additional analyses require 1 paid credit ($2.00 USD). Payments are securely processed via <strong>Pesapal</strong>, supporting <strong>Debit & Credit Cards (Visa, Mastercard, American Express with 3D Secure)</strong> and <strong>Mobile Money (M-Pesa, Airtel Money, MTN MoMo)</strong>.
             </p>
           </div>
 
