@@ -38,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed. Use POST.' });
       }
-      const { userId, provider, userEmail, displayName } = req.body || {};
+      const { userId, provider, userEmail, displayName, phoneNumber, countryCode } = req.body || {};
       if (!userId || !provider) {
         return res.status(400).json({ error: 'userId and provider are required.' });
       }
@@ -46,7 +46,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         userId,
         provider,
         userEmail,
-        displayName
+        displayName,
+        phoneNumber,
+        countryCode
       });
       return res.status(200).json({ success: true, order });
     }

@@ -215,6 +215,8 @@ export async function createPaymentOrder(params: {
   provider: PaymentProviderType;
   userEmail?: string;
   displayName?: string;
+  phoneNumber?: string;
+  countryCode?: string;
   callbackUrl?: string;
 }): Promise<CreatePaymentResult> {
   const config = getPaymentConfig();
@@ -225,6 +227,8 @@ export async function createPaymentOrder(params: {
     userId: cleanUid,
     userEmail: params.userEmail,
     displayName: params.displayName,
+    phoneNumber: params.phoneNumber,
+    countryCode: params.countryCode,
     amount: config.priceUsd,
     currency: config.currency,
     productType: 'single_analysis',

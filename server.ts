@@ -464,7 +464,7 @@ app.get('/api/user/usage-status', async (req, res) => {
 // Create Payment Order Intent endpoint
 app.post('/api/payment/create', async (req, res) => {
   try {
-    const { userId, provider, userEmail, displayName } = req.body || {};
+    const { userId, provider, userEmail, displayName, phoneNumber, countryCode } = req.body || {};
     if (!userId || !provider) {
       return res.status(400).json({ error: 'userId and provider are required.' });
     }
@@ -473,7 +473,9 @@ app.post('/api/payment/create', async (req, res) => {
       userId,
       provider,
       userEmail,
-      displayName
+      displayName,
+      phoneNumber,
+      countryCode
     });
 
     res.json({ success: true, order });

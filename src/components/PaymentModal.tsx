@@ -12,7 +12,9 @@ import {
   Lock,
   Smartphone,
   Check,
-  ArrowRight
+  ArrowRight,
+  ChevronRight,
+  Info
 } from 'lucide-react';
 import { UserEntitlements, PaymentRecord } from '../types.ts';
 
@@ -27,27 +29,54 @@ interface PaymentModalProps {
   onRefreshEntitlements?: () => void;
 }
 
+type PaymentOption = 'card' | 'mobile_money';
+
 export const PaymentModal: React.FC<PaymentModalProps> = ({
   isOpen,
   onClose,
   userId,
-  userEmail,
-  displayName,
+  userEmail = '',
+  displayName = '',
   entitlements,
   onPaymentSuccess,
   onRefreshEntitlements
 }) => {
-  const [step, setStep] = useState<'initial' | 'awaiting_payment' | 'verifying' | 'success' | 'failed'>('initial');
+  const [step, setStep] = useState<'form' | 'awaiting_payment' | 'success' | 'failed'>('form');
+  const [selectedOption, setSelectedOption] = useState<PaymentOption>('card');
+
+  // Form State
+  const [fullName, setFullName] = useState<string>(displayName || '');
+  const [email, setEmail] = useState<string>(userEmail || '');
+  const [phone, setPhone] = useState<string>('');
+  const [countryCode, setCountryCode] = useState<string>('KE');
+
+  // Card Inputs
+  const [cardNumber, setCardNumber] = useState<string>('');
+  const [cardExpiry, setCardExpiry] = useState<string>('');
+  const [cardCvv, setCardCvv] = useState<string>('');
+
+  // Mobile Money Inputs
+  const [mobileProvider, setMobileProvider] = useState<string>('mpesa_ke');
+
+  // Processing & Polling State
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState<boolean>(false);
   const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
   const [providerTxId, setProviderTxId] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
-  const [isCreatingOrder, setIsCreatingOrder] = useState<boolean>(false);
-  const [isCheckingStatus, setIsCheckingStatus] = useState<boolean>(false);
   const [lastPaymentRecord, setLastPaymentRecord] = useState<PaymentRecord | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [statusNotice, setStatusNotice] = useState<string | null>(null);
+
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Clean up polling interval on unmount
+  // Sync initial props
+  useEffect(() => {
+    if (displayName && !fullName) setFullName(displayName);
+    if (userEmail && !email) setEmail(userEmail);
+  }, [displayName, userEmail]);
+
+  // Clean up polling interval on unmount or reset
   useEffect(() => {
     return () => {
       if (pollTimerRef.current) {
@@ -60,10 +89,68 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const priceDisplay = entitlements?.priceDisplay || '$2.00 USD';
 
-  // 1. Create Pesapal Payment Order & Open Secure Checkout
-  const handleInitiatePesapalPayment = async () => {
+  // Format Card Number (adds space every 4 digits)
+  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
+    const formatted = raw.match(/.{1,4}/g)?.join(' ') || raw;
+    setCardNumber(formatted);
+  };
+
+  // Format Card Expiry (MM/YY)
+  const handleCardExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 4);
+    if (raw.length >= 3) {
+      setCardExpiry(`${raw.slice(0, 2)}/${raw.slice(2, 4)}`);
+    } else {
+      setCardExpiry(raw);
+    }
+  };
+
+  // Format CVV (3 or 4 digits)
+  const handleCardCvvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 4);
+    setCardCvv(raw);
+  };
+
+  // Submit Order to Pesapal
+  const handleSubmitPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
     setErrorMessage(null);
-    setIsCreatingOrder(true);
+    setStatusNotice(null);
+
+    // Form Validations
+    if (!fullName.trim()) {
+      setErrorMessage('Please enter your full name.');
+      return;
+    }
+
+    if (!email.trim() || !email.includes('@')) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+
+    if (!phone.trim() || phone.replace(/\D/g, '').length < 8) {
+      setErrorMessage('Please enter a valid phone number (at least 8 digits).');
+      return;
+    }
+
+    if (selectedOption === 'card') {
+      const cleanCard = cardNumber.replace(/\s/g, '');
+      if (cleanCard.length < 15) {
+        setErrorMessage('Please enter a valid 16-digit card number.');
+        return;
+      }
+      if (cardExpiry.length < 5) {
+        setErrorMessage('Please enter a valid expiration date (MM/YY).');
+        return;
+      }
+      if (cardCvv.length < 3) {
+        setErrorMessage('Please enter a valid CVV/CVC code (3 or 4 digits).');
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
 
     try {
       const resp = await fetch('/api/payment/create', {
@@ -72,8 +159,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         body: JSON.stringify({
           userId,
           provider: 'pesapal',
-          userEmail: userEmail || 'manager@efootballaihub.com',
-          displayName: displayName || 'eFootball Tactician'
+          userEmail: email.trim(),
+          displayName: fullName.trim(),
+          phoneNumber: phone.trim(),
+          countryCode
         })
       });
 
@@ -92,42 +181,29 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setActivePaymentId(order.paymentId);
       setProviderTxId(order.providerTransactionId);
 
-      // If in sandbox test mode with $0.00 price
-      if (order.isTestMode) {
-        await verifyOrder(order.paymentId, order.providerTransactionId);
-        return;
-      }
-
-      // Live Pesapal Flow: Open Pesapal's official secure checkout URL
+      // Open Pesapal Checkout
       if (order.checkoutUrl) {
         setCheckoutUrl(order.checkoutUrl);
-        // Open Pesapal in a new secure window
-        const win = window.open(order.checkoutUrl, '_blank', 'noopener,noreferrer');
-        if (!win) {
-          // If popup blocker triggered, we display the link prominently in the modal
-          console.warn('Popup blocked, display fallback checkout button.');
-        }
+        // Attempt to open in a secure new window as well
+        window.open(order.checkoutUrl, '_blank', 'noopener,noreferrer');
       }
 
       setStep('awaiting_payment');
-
-      // Start automatic polling to detect when customer completes payment on Pesapal
       startPollingPaymentStatus(order.paymentId, order.providerTransactionId);
     } catch (err: any) {
       console.error('Pesapal order creation error:', err);
       setErrorMessage(err.message || 'Could not connect to Pesapal gateway. Please try again.');
-      setStep('failed');
     } finally {
-      setIsCreatingOrder(false);
+      setIsSubmitting(false);
     }
   };
 
-  // 2. Poll Pesapal Transaction Status
+  // Poll Pesapal Transaction Status
   const startPollingPaymentStatus = (paymentId: string, transactionId?: string) => {
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);
 
     let attempts = 0;
-    const maxAttempts = 30; // Poll for 2 minutes (every 4 seconds)
+    const maxAttempts = 45; // Poll for 3 minutes (every 4 seconds)
 
     pollTimerRef.current = setInterval(async () => {
       attempts++;
@@ -165,18 +241,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }, 4000);
   };
 
-  // 3. Manual Verification Trigger
-  const verifyOrder = async (paymentId: string, transactionId?: string) => {
+  // Manual Check Verification Button
+  const handleVerifyNow = async () => {
+    if (!activePaymentId) return;
     setIsCheckingStatus(true);
     setErrorMessage(null);
+    setStatusNotice(null);
 
     try {
       const verifyResp = await fetch('/api/payment/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          paymentId,
-          providerTransactionId: transactionId
+          paymentId: activePaymentId,
+          providerTransactionId: providerTxId || undefined
         })
       });
 
@@ -185,13 +263,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
       if (result?.status === 'SUCCESS' && result?.creditGranted) {
         if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-        handleSuccess(paymentId, result, transactionId);
+        handleSuccess(activePaymentId, result, providerTxId || undefined);
       } else if (result?.status === 'FAILED') {
         if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-        setErrorMessage(result?.failureReason || 'Pesapal transaction was not completed or failed.');
+        setErrorMessage(result?.failureReason || 'Pesapal transaction failed or was declined.');
         setStep('failed');
       } else {
-        setErrorMessage('Payment status is still pending on Pesapal. If you just paid, please allow a few seconds and click check status again.');
+        setStatusNotice('Payment is still pending on Pesapal. Please complete the card OTP or Mobile Money PIN on your phone, then click Check Verification Status again.');
       }
     } catch (err: any) {
       console.error('Payment verification error:', err);
@@ -261,19 +339,21 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
         </div>
 
-        {/* STEP 1: INITIAL CHECKOUT VIEW */}
-        {step === 'initial' && (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
+        {/* STEP 1: ENTER PAYMENT DETAILS FORM */}
+        {step === 'form' && (
+          <form onSubmit={handleSubmitPayment} className="space-y-4">
+            
+            {/* Header & Pricing */}
+            <div className="space-y-1">
               <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
                 <Sparkles className="w-3 h-3" />
                 <span>eFootball AI Hub Analysis Credit</span>
               </div>
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                Unlock 1 Squad Analysis
+                Buy Analysis Credit
               </h2>
-              <p className="text-xs text-neutral-400 leading-relaxed">
-                Pay securely via Pesapal. All funds are deposited directly into your merchant account.
+              <p className="text-xs text-neutral-400">
+                Processed directly by Pesapal into your merchant account.
               </p>
             </div>
 
@@ -283,11 +363,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block">
                   Amount Due
                 </span>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-black text-emerald-400">
-                    {priceDisplay}
-                  </span>
-                </div>
+                <span className="text-2xl font-black text-emerald-400">
+                  {priceDisplay}
+                </span>
                 <span className="text-[10px] text-neutral-400 block mt-0.5">
                   1 Permanent Squad Analysis Credit (Never expires)
                 </span>
@@ -297,52 +375,241 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
             </div>
 
-            {/* Supported Payment Methods on Pesapal */}
-            <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 space-y-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-300 block flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                Supported by Pesapal Gateway
-              </span>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1.5">
-                  <div className="flex items-center gap-2 text-white font-bold text-xs">
-                    <CreditCard className="w-4 h-4 text-blue-400" />
-                    <span>Debit & Credit Cards</span>
+            {/* Payment Method Selector */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-neutral-300 block">
+                Choose Payment Method
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedOption('card')}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1.5 ${
+                    selectedOption === 'card'
+                      ? 'bg-neutral-800/90 border-emerald-500 text-white shadow-md'
+                      : 'bg-neutral-950/60 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <CreditCard className={`w-4 h-4 ${selectedOption === 'card' ? 'text-emerald-400' : 'text-neutral-500'}`} />
+                    {selectedOption === 'card' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                   </div>
-                  <p className="text-[11px] text-neutral-400 leading-tight">
-                    Visa, Mastercard & American Express with 3D Secure bank OTP protection.
-                  </p>
-                </div>
+                  <span className="text-xs font-bold block text-white">Debit & Credit Card</span>
+                  <span className="text-[10px] text-neutral-400">Visa, Mastercard, Amex</span>
+                </button>
 
-                <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1.5">
-                  <div className="flex items-center gap-2 text-white font-bold text-xs">
-                    <Smartphone className="w-4 h-4 text-emerald-400" />
-                    <span>Mobile Money (STK Push)</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOption('mobile_money')}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1.5 ${
+                    selectedOption === 'mobile_money'
+                      ? 'bg-neutral-800/90 border-emerald-500 text-white shadow-md'
+                      : 'bg-neutral-950/60 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <Smartphone className={`w-4 h-4 ${selectedOption === 'mobile_money' ? 'text-emerald-400' : 'text-neutral-500'}`} />
+                    {selectedOption === 'mobile_money' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                   </div>
-                  <p className="text-[11px] text-neutral-400 leading-tight">
-                    M-Pesa (Kenya & Tanzania), Airtel Money, and MTN MoMo with instant PIN prompt.
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-1 flex items-center justify-between text-[10px] text-neutral-500 border-t border-neutral-900">
-                <span className="flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-emerald-400" /> 256-Bit Encrypted & PCI-DSS Compliant
-                </span>
-                <span className="font-mono text-neutral-400">Pesapal v3 API</span>
+                  <span className="text-xs font-bold block text-white">Mobile Money</span>
+                  <span className="text-[10px] text-neutral-400">M-Pesa, Airtel, MTN MoMo</span>
+                </button>
               </div>
             </div>
 
-            {/* Primary Action Button */}
+            {/* Customer Contact Details Required by Pesapal */}
+            <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 space-y-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-300 block">
+                Customer Information
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-neutral-400 block">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="e.g. Hussein Mlonja"
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-neutral-400 block">
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1 sm:col-span-1">
+                  <label className="text-[11px] font-semibold text-neutral-400 block">
+                    Country *
+                  </label>
+                  <select
+                    value={countryCode}
+                    onChange={(e) => setCountryCode(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs focus:border-emerald-500 focus:outline-none"
+                  >
+                    <option value="KE">🇰🇪 Kenya (+254)</option>
+                    <option value="TZ">🇹🇿 Tanzania (+255)</option>
+                    <option value="UG">🇺🇬 Uganda (+256)</option>
+                    <option value="RW">🇷🇼 Rwanda (+250)</option>
+                    <option value="US">🇺🇸 United States (+1)</option>
+                    <option value="GB">🇬🇧 United Kingdom (+44)</option>
+                    <option value="ZA">🇿🇦 South Africa (+27)</option>
+                    <option value="NG">🇳🇬 Nigeria (+234)</option>
+                    <option value="OTHER">🌍 Other Country</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[11px] font-semibold text-neutral-400 block">
+                    Phone Number (for SMS OTP / PIN prompt) *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="e.g. 0712 345 678"
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* OPTION A: CARD PAYMENT INPUTS */}
+            {selectedOption === 'card' && (
+              <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 space-y-3 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-300 block flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-blue-400" />
+                    Card Details
+                  </span>
+                  <span className="text-[10px] text-neutral-500 flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-emerald-400" /> 256-Bit SSL
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-neutral-400 block">
+                    Card Number *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={cardNumber}
+                      onChange={handleCardNumberChange}
+                      placeholder="4000 1234 5678 9010"
+                      maxLength={19}
+                      className="w-full pl-3 pr-10 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs font-mono focus:border-emerald-500 focus:outline-none tracking-wider"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-neutral-500 font-bold">
+                      💳 VISA / MC
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-neutral-400 block">
+                      Expiry Date *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={cardExpiry}
+                      onChange={handleCardExpiryChange}
+                      placeholder="MM/YY"
+                      maxLength={5}
+                      className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs font-mono focus:border-emerald-500 focus:outline-none tracking-wider text-center"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-neutral-400 block">
+                      CVV / CVC *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={cardCvv}
+                      onChange={handleCardCvvChange}
+                      placeholder="123"
+                      maxLength={4}
+                      className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs font-mono focus:border-emerald-500 focus:outline-none tracking-widest text-center"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* OPTION B: MOBILE MONEY INPUTS */}
+            {selectedOption === 'mobile_money' && (
+              <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 space-y-3 animate-fade-in">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-300 block flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                  Mobile Money Network
+                </span>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-neutral-400 block">
+                    Select Network Provider *
+                  </label>
+                  <select
+                    value={mobileProvider}
+                    onChange={(e) => setMobileProvider(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs focus:border-emerald-500 focus:outline-none"
+                  >
+                    <option value="mpesa_ke">Safaricom M-Pesa (Kenya 🇰🇪)</option>
+                    <option value="mpesa_tz">Vodacom M-Pesa (Tanzania 🇹🇿)</option>
+                    <option value="airtel_ke">Airtel Money (Kenya 🇰🇪)</option>
+                    <option value="airtel_tz">Airtel Money (Tanzania 🇹🇿)</option>
+                    <option value="tigo_tz">Tigo Pesa (Tanzania 🇹🇿)</option>
+                    <option value="mtn_ug">MTN MoMo (Uganda 🇺🇬)</option>
+                    <option value="mtn_rw">MTN MoMo (Rwanda 🇷🇼)</option>
+                  </select>
+                </div>
+
+                <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-800/40 text-[11px] text-emerald-300 flex items-start gap-2">
+                  <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span>
+                    When you click pay, an official instant STK push prompt will be sent by Pesapal to your phone (<strong>{phone || 'your phone number'}</strong>) to confirm with your PIN.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Error Banner */}
+            {errorMessage && (
+              <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800 text-xs text-rose-300 flex items-center gap-2 animate-fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {/* Submit Button */}
             <div className="pt-2">
               <button
-                type="button"
-                disabled={isCreatingOrder}
-                onClick={handleInitiatePesapalPayment}
+                type="submit"
+                disabled={isSubmitting}
                 className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-sm transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                {isCreatingOrder ? (
+                {isSubmitting ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
                     <span>Connecting to Pesapal...</span>
@@ -355,23 +622,28 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 )}
               </button>
             </div>
-          </div>
+
+            <div className="flex items-center justify-center gap-1.5 text-[10px] text-neutral-500 pt-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Official Pesapal v3 Secure Merchant Gateway</span>
+            </div>
+          </form>
         )}
 
-        {/* STEP 2: AWAITING PAYMENT (PESAPAL CHECKOUT OPEN) */}
+        {/* STEP 2: AWAITING PAYMENT (PESAPAL CHECKOUT & VERIFICATION) */}
         {step === 'awaiting_payment' && (
-          <div className="py-2 space-y-5">
+          <div className="py-2 space-y-4">
             <div className="text-center space-y-2">
               <div className="w-14 h-14 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-400 mx-auto flex items-center justify-center shadow-lg shadow-blue-500/20">
                 <RefreshCw className="w-7 h-7 animate-spin" />
               </div>
-              <h3 className="text-xl font-black text-white">Pesapal Checkout Open</h3>
+              <h3 className="text-xl font-black text-white">Pesapal Processing Order</h3>
               <p className="text-xs text-neutral-400 max-w-sm mx-auto">
-                Complete your transaction on Pesapal using your card or mobile money. This page will automatically update once payment is confirmed.
+                Please complete your transaction on the Pesapal portal or on your mobile device.
               </p>
             </div>
 
-            {/* Order Details */}
+            {/* Order Tracking Box */}
             <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 text-xs space-y-2">
               <div className="flex justify-between text-neutral-400">
                 <span>Amount Due</span>
@@ -379,43 +651,69 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
               {providerTxId && (
                 <div className="flex justify-between text-neutral-400">
-                  <span>Tracking Reference</span>
+                  <span>Pesapal Tracking Ref</span>
                   <span className="font-mono text-neutral-300 text-[11px]">{providerTxId}</span>
                 </div>
               )}
               <div className="flex justify-between text-neutral-400 border-t border-neutral-900 pt-2">
                 <span>Status</span>
-                <span className="text-amber-400 font-bold flex items-center gap-1">
+                <span className="text-amber-400 font-bold flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  Awaiting Confirmation
+                  Awaiting Payment Confirmation
                 </span>
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="space-y-2.5">
-              {checkoutUrl && (
+            {/* Embedded Pesapal Iframe if available */}
+            {checkoutUrl && (
+              <div className="space-y-2">
+                <div className="w-full h-80 rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950 shadow-inner">
+                  <iframe
+                    src={checkoutUrl}
+                    title="Pesapal Checkout"
+                    className="w-full h-full border-0"
+                    allow="payment"
+                  />
+                </div>
                 <a
                   href={checkoutUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                  className="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer border border-neutral-700"
                 >
-                  <span>Re-open Pesapal Payment Page</span>
-                  <ExternalLink className="w-4 h-4" />
+                  <span>Open Pesapal in New Window</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
                 </a>
-              )}
+              </div>
+            )}
 
+            {/* Notice / Messages */}
+            {statusNotice && (
+              <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-800 text-xs text-amber-300 flex items-start gap-2 animate-fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{statusNotice}</span>
+              </div>
+            )}
+
+            {errorMessage && (
+              <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800 text-xs text-rose-300 flex items-center gap-2 animate-fade-in">
+                <XCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {/* Verification Actions */}
+            <div className="space-y-2 pt-1">
               <button
                 type="button"
                 disabled={isCheckingStatus}
-                onClick={() => activePaymentId && verifyOrder(activePaymentId, providerTxId || undefined)}
+                onClick={handleVerifyNow}
                 className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isCheckingStatus ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Verifying with Pesapal...</span>
+                    <span>Checking Status with Pesapal...</span>
                   </>
                 ) : (
                   <>
@@ -429,20 +727,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 type="button"
                 onClick={() => {
                   if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-                  setStep('initial');
+                  setStep('form');
                 }}
                 className="w-full py-2 text-center text-xs text-neutral-500 hover:text-neutral-300 transition-colors cursor-pointer"
               >
-                Cancel & Return
+                Cancel & Edit Details
               </button>
             </div>
-
-            {errorMessage && (
-              <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-800 text-xs text-amber-300 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
           </div>
         )}
 
@@ -521,7 +812,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setStep('initial')}
+                onClick={() => setStep('form')}
                 className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs transition-colors cursor-pointer"
               >
                 Try Again

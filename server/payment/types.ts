@@ -41,6 +41,8 @@ export interface CreatePaymentParams {
   userId: string;
   userEmail?: string;
   displayName?: string;
+  phoneNumber?: string;
+  countryCode?: string;
   amount: number;
   currency: string;
   productType: PaymentProductType;

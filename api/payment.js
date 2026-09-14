@@ -161,15 +161,17 @@ var PesapalPaymentProvider = class {
         const nameParts = (params.displayName || "Manager User").split(" ");
         const firstName = nameParts[0] || "Manager";
         const lastName = nameParts.slice(1).join(" ") || "User";
-        const submitOrderUrl = `${this.getBaseUrl()}/Transactions/SubmitOrder`;
+        const submitOrderUrl = `${this.getBaseUrl()}/Transactions/SubmitOrderRequest`;
         const orderPayload = {
           id: paymentId,
           currency: params.currency || "USD",
           amount: params.amount || config.priceUsd,
-          description: "eFootball AI Hub Analysis Credit",
+          description: "1 eFootball AI Hub Squad Analysis Credit",
           callback_url: returnUrl,
           billing_address: {
             email_address: params.userEmail || "manager@efootballaihub.com",
+            phone_number: params.phoneNumber || "",
+            country_code: params.countryCode || "KE",
             first_name: firstName,
             last_name: lastName
           }
@@ -266,7 +268,7 @@ var PesapalPaymentProvider = class {
           });
           if (res.ok) {
             const data = await res.json();
-            const isCompleted = data.status_code === 1 || data.payment_status_description === "Completed" || data.status === "200";
+            const isCompleted = data.status_code === 1 || data.payment_status_description === "Completed";
             const isFailed = data.status_code === 2 || data.payment_status_description === "Failed";
             if (isCompleted) {
               return {
@@ -289,6 +291,15 @@ var PesapalPaymentProvider = class {
                 failureReason: data.description || "Pesapal transaction was declined or failed."
               };
             }
+            return {
+              paymentId,
+              providerTransactionId,
+              status: "PENDING",
+              creditGranted: false,
+              amount: data.amount || config.priceUsd,
+              currency: data.currency || config.currency,
+              failureReason: "Payment is pending. Please complete transaction on Pesapal."
+            };
           }
         } catch (verifyErr) {
           console.error("[Pesapal Verify Exception]", verifyErr);
@@ -298,10 +309,11 @@ var PesapalPaymentProvider = class {
     return {
       paymentId,
       providerTransactionId: providerTransactionId || "",
-      status: "SUCCESS",
-      creditGranted: true,
+      status: "PENDING",
+      creditGranted: false,
       amount: config.priceUsd,
-      currency: config.currency
+      currency: config.currency,
+      failureReason: "Payment has not yet been confirmed by Pesapal. Please complete the transaction."
     };
   }
   async handleWebhook(payload, headers) {
@@ -432,6 +444,8 @@ async function createPaymentOrder(params) {
     userId: cleanUid,
     userEmail: params.userEmail,
     displayName: params.displayName,
+    phoneNumber: params.phoneNumber,
+    countryCode: params.countryCode,
     amount: config.priceUsd,
     currency: config.currency,
     productType: "single_analysis",
@@ -630,7 +644,7 @@ async function handler(req, res) {
       if (req.method !== "POST") {
         return res.status(405).json({ error: "Method not allowed. Use POST." });
       }
-      const { userId, provider, userEmail, displayName } = req.body || {};
+      const { userId, provider, userEmail, displayName, phoneNumber, countryCode } = req.body || {};
       if (!userId || !provider) {
         return res.status(400).json({ error: "userId and provider are required." });
       }
@@ -638,7 +652,9 @@ async function handler(req, res) {
         userId,
         provider,
         userEmail,
-        displayName
+        displayName,
+        phoneNumber,
+        countryCode
       });
       return res.status(200).json({ success: true, order });
     }
