@@ -28,6 +28,8 @@ else
 fi
 
 git add -A
+git reset -- .env* 2>/dev/null || true
+git reset -- *.pem *.key *.cert credentials.json 2>/dev/null || true
 
 if git diff-index --quiet HEAD -- 2>/dev/null; then
   echo "No local changes to commit."
@@ -37,5 +39,7 @@ else
   echo "Committed changes: $COMMIT_MSG"
 fi
 
+# Push with authentication, then sanitize remote url
 git push origin main
+git remote set-url origin "https://github.com/mlonjahussein-blip/App.git"
 echo "=== Successfully pushed to https://github.com/mlonjahussein-blip/App ==="

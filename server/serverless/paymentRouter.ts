@@ -5,6 +5,8 @@ import {
   getPaymentHistory,
   resetUserFreeAnalysisForTesting
 } from '../payment/paymentService.ts';
+import { getPaymentConfig } from '../payment/config.ts';
+import { applySecurityHeaders, checkRateLimit, getClientIp } from '../rateLimiter.ts';
 
 function getAction(req: VercelRequest): string {
   if (req.query?.action) {
@@ -21,15 +23,13 @@ function getAction(req: VercelRequest): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecurityHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
+  const clientIp = getClientIp(req);
   const action = getAction(req);
 
   try {
@@ -38,6 +38,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed. Use POST.' });
       }
+
+      // Rate limit: max 15 payment creation attempts per 5 minutes per IP
+      const rateLimit = checkRateLimit(`pay_create:${clientIp}`, 15, 5 * 60 * 1000);
+      if (!rateLimit.allowed) {
+        return res.status(429).json({
+          error: `Too many payment requests. Please wait ${rateLimit.retryAfterSec} seconds before trying again.`
+        });
+      }
+
       const { userId, provider, userEmail, displayName, phoneNumber, countryCode } = req.body || {};
       if (!userId || !provider) {
         return res.status(400).json({ error: 'userId and provider are required.' });
@@ -58,13 +67,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed. Use POST.' });
       }
+
+      // Rate limit: max 30 verification checks per 5 minutes
+      const rateLimit = checkRateLimit(`pay_verify:${clientIp}`, 30, 5 * 60 * 1000);
+      if (!rateLimit.allowed) {
+        return res.status(429).json({
+          error: `Too many verification requests. Please wait ${rateLimit.retryAfterSec} seconds.`
+        });
+      }
+
       const { paymentId, providerTransactionId, simulateAction } = req.body || {};
       if (!paymentId) {
         return res.status(400).json({ error: 'paymentId is required.' });
       }
+
+      const config = getPaymentConfig();
+      // In production mode, ignore any client-requested simulateAction to prevent fraud!
+      const effectiveSimulate = config.isTestMode ? (simulateAction || 'success') : 'success';
+
       const result = await verifyAndCompletePayment(
         paymentId,
-        simulateAction || 'success',
+        effectiveSimulate,
         providerTransactionId
       );
       return res.status(200).json({ success: result.status === 'SUCCESS', result });
@@ -81,6 +104,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'test-reset-free') {
       if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed. Use POST.' });
+      }
+      const config = getPaymentConfig();
+      if (!config.isTestMode) {
+        return res.status(403).json({ error: 'Testing endpoints are strictly disabled in production mode.' });
       }
       const { userId } = req.body || {};
       if (!userId) {

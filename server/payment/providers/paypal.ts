@@ -87,9 +87,21 @@ export class PayPalPaymentProvider implements PaymentProvider {
     }
 
     // Production capture verification via PayPal REST API
+    if (!providerTransactionId || providerTransactionId.startsWith('TEST-')) {
+      return {
+        paymentId,
+        providerTransactionId: providerTransactionId || '',
+        status: 'PENDING',
+        creditGranted: false,
+        amount: config.priceUsd,
+        currency: config.currency,
+        failureReason: 'Valid PayPal order capture confirmation required before unlocking analysis credits.'
+      };
+    }
+
     return {
       paymentId,
-      providerTransactionId: providerTransactionId || '',
+      providerTransactionId: providerTransactionId,
       status: 'SUCCESS',
       creditGranted: true,
       amount: config.priceUsd,

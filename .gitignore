@@ -7,3 +7,10 @@ coverage/
 .env*
 !.env.example
 *.zip
+*.pem
+*.key
+*.cert
+*.p12
+id_rsa
+credentials.json
+.vercel

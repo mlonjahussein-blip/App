@@ -20,6 +20,17 @@ const app = express();
 const PORT = 3000;
 process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
+// Security: Disable X-Powered-By header and set secure HTTP headers
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+
 // Increase JSON limit for screenshots base64 payloads
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
@@ -553,9 +564,12 @@ app.post('/api/payment/verify', async (req, res) => {
       return res.status(400).json({ error: 'paymentId is required.' });
     }
 
+    const config = getPaymentConfig();
+    const effectiveSimulate = config.isTestMode ? (simulateAction || 'success') : 'success';
+
     const result = await verifyAndCompletePayment(
       paymentId,
-      simulateAction || 'success',
+      effectiveSimulate,
       providerTransactionId
     );
 
@@ -581,6 +595,11 @@ app.get('/api/payment/history', async (req, res) => {
 // Test Mode: Reset Free Analysis Quota (Only allowed when PAYMENT_TEST_MODE = true)
 app.post('/api/payment/test-reset-free', async (req, res) => {
   try {
+    const config = getPaymentConfig();
+    if (!config.isTestMode) {
+      return res.status(403).json({ error: 'Resetting test quotas is forbidden in production.' });
+    }
+
     const { userId } = req.body || {};
     if (!userId) {
       return res.status(400).json({ error: 'userId is required.' });

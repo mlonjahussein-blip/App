@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import nodemailer from 'nodemailer';
+import { applySecurityHeaders, checkRateLimit, getClientIp, escapeHtml } from '../server/rateLimiter.ts';
 
 const PROJECT_ID = 'emergent-fastness-8lcf1';
 const DB_ID = 'ai-studio-efootballaihub-2a95eb9f-c78b-4ee5-ae97-a914c4288cba';
@@ -7,10 +8,8 @@ const API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyAUe9kMRkqAG_Vshpucov
 const BASE_REST_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DB_ID}/documents`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Always set CORS & Content-Type to application/json
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  // Always set hardened CORS & Content-Type to application/json
+  applySecurityHeaders(req, res);
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'OPTIONS') {
@@ -21,6 +20,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
+  // Rate Limiting: Max 5 feedback submissions per 10 minutes per IP
+  const clientIp = getClientIp(req);
+  const rateLimit = checkRateLimit(`feedback:${clientIp}`, 5, 10 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return res.status(429).json({
+      error: `Too many submissions. Please wait ${rateLimit.retryAfterSec} seconds before sending more feedback.`
+    });
+  }
+
   try {
     const { name, email, category, subject, message, userId } = req.body || {};
 
@@ -28,11 +36,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Email and feedback message are required.' });
     }
 
-    const cleanEmail = String(email).trim();
-    const cleanName = String(name || cleanEmail.split('@')[0] || 'eFootball Manager').trim();
-    const cleanMessage = String(message).trim();
-    const cleanCategory = String(category || 'Feedback').trim();
-    const cleanSubject = String(subject || `${cleanCategory} from ${cleanName}`).trim();
+    const rawEmail = String(email).trim().toLowerCase();
+    if (!rawEmail.includes('@') || rawEmail.length > 120 || rawEmail.length < 5) {
+      return res.status(400).json({ error: 'A valid email address is required.' });
+    }
+
+    const cleanEmail = escapeHtml(rawEmail);
+    const cleanName = escapeHtml(String(name || rawEmail.split('@')[0] || 'eFootball Manager').trim().slice(0, 100));
+    const cleanMessage = escapeHtml(String(message).trim().slice(0, 5000));
+    const cleanCategory = escapeHtml(String(category || 'Feedback').trim().slice(0, 50));
+    const cleanSubject = escapeHtml(String(subject || `${cleanCategory} from ${cleanName}`).trim().slice(0, 200));
+    const cleanUserId = userId ? escapeHtml(String(userId).trim().slice(0, 100)) : '';
     const feedbackId = `fb_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const nowIso = new Date().toISOString();
 
@@ -46,9 +60,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify({
           fields: {
             id: { stringValue: feedbackId },
-            userId: { stringValue: String(userId || 'anonymous') },
+            userId: { stringValue: String(cleanUserId || 'anonymous') },
             name: { stringValue: cleanName },
-            email: { stringValue: cleanEmail },
+            email: { stringValue: rawEmail },
             category: { stringValue: cleanCategory },
             subject: { stringValue: cleanSubject },
             message: { stringValue: cleanMessage },
@@ -115,11 +129,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 <td class="label">Date & Time:</td>
                 <td class="value">${new Date().toUTCString()}</td>
               </tr>
-              ${userId ? `<tr><td class="label">User UID:</td><td class="value">${userId}</td></tr>` : ''}
+              ${cleanUserId ? `<tr><td class="label">User UID:</td><td class="value">${cleanUserId}</td></tr>` : ''}
             </table>
             <div>
               <h3 style="color: #f5f5f5; font-size: 14px; margin-bottom: 8px;">Message Content:</h3>
-              <div class="message-box">${cleanMessage.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+              <div class="message-box">${cleanMessage}</div>
             </div>
             <div class="footer">
               <p style="margin: 0;">You can directly reply to this email to respond to <strong>${cleanName}</strong> at <strong>${cleanEmail}</strong>.</p>

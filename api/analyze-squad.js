@@ -3726,6 +3726,76 @@ async function consumeEntitlementForAnalysis(userId) {
   };
 }
 
+// server/rateLimiter.ts
+var rateLimitStore = /* @__PURE__ */ new Map();
+if (typeof setInterval !== "undefined") {
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, record] of rateLimitStore.entries()) {
+      if (now > record.resetTime) {
+        rateLimitStore.delete(key);
+      }
+    }
+  }, 5 * 60 * 1e3).unref?.();
+}
+function checkRateLimit(key, maxAllowed = 10, windowMs = 60 * 1e3) {
+  const now = Date.now();
+  const record = rateLimitStore.get(key);
+  if (!record || now > record.resetTime) {
+    rateLimitStore.set(key, {
+      count: 1,
+      resetTime: now + windowMs
+    });
+    return { allowed: true, retryAfterSec: 0, remaining: maxAllowed - 1 };
+  }
+  if (record.count >= maxAllowed) {
+    const retryAfterSec = Math.max(1, Math.ceil((record.resetTime - now) / 1e3));
+    return { allowed: false, retryAfterSec, remaining: 0 };
+  }
+  record.count += 1;
+  return {
+    allowed: true,
+    retryAfterSec: 0,
+    remaining: maxAllowed - record.count
+  };
+}
+function getClientIp(req) {
+  try {
+    const forwarded = req.headers?.["x-forwarded-for"];
+    if (forwarded) {
+      const firstIp = (typeof forwarded === "string" ? forwarded : forwarded[0]).split(",")[0].trim();
+      if (firstIp) return firstIp;
+    }
+    const realIp = req.headers?.["x-real-ip"];
+    if (realIp && typeof realIp === "string") {
+      return realIp.trim();
+    }
+    const socketIp = req.socket?.remoteAddress || req.connection?.remoteAddress;
+    if (socketIp && typeof socketIp === "string") {
+      return socketIp.replace(/^.*:/, "");
+    }
+  } catch {
+  }
+  return "127.0.0.1";
+}
+function applySecurityHeaders(req, res) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  const origin = req.headers?.origin || req.headers?.Origin;
+  const isAllowedOrigin = origin && (origin === "https://efootballaihub.com" || origin === "https://www.efootballaihub.com" || /^https?:\/\/localhost(:\d+)?$/.test(origin) || /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin) || /^https:\/\/.*\.vercel\.app$/.test(origin) || /^https:\/\/.*\.run\.app$/.test(origin));
+  if (isAllowedOrigin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+}
+
 // server/apiAnalyzeSquad.ts
 var maxDuration = 60;
 var config = {
@@ -3736,18 +3806,21 @@ var config = {
   }
 };
 async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,PATCH,DELETE,POST,PUT");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
-  );
+  applySecurityHeaders(req, res);
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+  const clientIp = getClientIp(req);
+  const rateLimit = checkRateLimit(`analyze:${clientIp}`, 10, 5 * 60 * 1e3);
+  if (!rateLimit.allowed) {
+    return res.status(429).json({
+      success: false,
+      errorCode: "RATE_LIMIT_EXCEEDED",
+      message: `Analysis request limit exceeded. Please wait ${rateLimit.retryAfterSec} seconds before submitting again.`
+    });
   }
   try {
     const payload = req.body || {};

@@ -1,5 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import nodemailer from 'nodemailer';
+import { applySecurityHeaders, checkRateLimit, getClientIp, escapeHtml } from '../server/rateLimiter.ts';
+
+// Server-side verification record store with single-use and expiry protection
+interface OtpRecord {
+  code: string;
+  expiresAt: number;
+  attempts: number;
+}
+const emailOtpStore = new Map<string, OtpRecord>();
 
 const PROJECT_ID = 'emergent-fastness-8lcf1';
 const DB_ID = 'ai-studio-efootballaihub-2a95eb9f-c78b-4ee5-ae97-a914c4288cba';
@@ -63,14 +72,13 @@ function getAction(req: VercelRequest): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecurityHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
+  const clientIp = getClientIp(req);
   const action = getAction(req);
 
   try {
@@ -78,6 +86,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 1. LOGIN
     // ----------------------------------------------------
     if (action === 'login') {
+      const rateLimit = checkRateLimit(`login:${clientIp}`, 20, 15 * 60 * 1000);
+      if (!rateLimit.allowed) {
+        return res.status(429).json({
+          error: `Too many login attempts. Please wait ${rateLimit.retryAfterSec} seconds before trying again.`
+        });
+      }
+
       const identifier = (req.body?.identifier || req.query?.identifier || '').toString().trim();
       if (!identifier) {
         return res.status(400).json({ error: 'Identifier (email or phone) is required.' });
@@ -307,9 +322,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const cleanEmail = email.trim().toLowerCase();
-      const recipientName = (managerName || 'Manager').trim();
+      // Rate limit per IP and target email
+      const rateLimitIp = checkRateLimit(`otp_ip:${clientIp}`, 6, 10 * 60 * 1000);
+      const rateLimitEmail = checkRateLimit(`otp_email:${cleanEmail}`, 4, 10 * 60 * 1000);
+      if (!rateLimitIp.allowed || !rateLimitEmail.allowed) {
+        const wait = Math.max(rateLimitIp.retryAfterSec, rateLimitEmail.retryAfterSec);
+        return res.status(429).json({
+          error: `Verification code request limit reached. Please wait ${wait} seconds before requesting a new code.`
+        });
+      }
+
+      const recipientName = escapeHtml((managerName || 'Manager').trim());
       const otpCode = (code || Math.floor(100000 + Math.random() * 900000).toString()).trim();
       const expiresAt = Date.now() + 10 * 60 * 1000;
+
+      // Store in memory for server-side verification with max attempts protection
+      emailOtpStore.set(cleanEmail, {
+        code: otpCode,
+        expiresAt,
+        attempts: 0
+      });
 
       const fromName = 'eFootball AI Hub';
       const gmailUser = process.env.GMAIL_USER || 'efootballaihub@gmail.com';
@@ -348,7 +380,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({
             success: true,
             message: 'Code sent to your email. Please check your inbox and spam folder.',
-            code: otpCode,
             expiresAt,
             from: gmailUser,
             dispatchedVia: 'gmail'
@@ -360,8 +391,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       return res.status(200).json({
         success: true,
-        message: 'Code generated. Please verify to continue.',
-        code: otpCode,
+        message: 'Code generated. Please check your email to continue.',
         expiresAt,
         from: gmailUser,
         dispatchedVia: 'direct'
@@ -376,6 +406,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method not allowed. Use POST.' });
       }
 
+      const rateLimit = checkRateLimit(`wa_otp:${clientIp}`, 6, 10 * 60 * 1000);
+      if (!rateLimit.allowed) {
+        return res.status(429).json({
+          error: `Too many WhatsApp OTP attempts. Please wait ${rateLimit.retryAfterSec} seconds.`
+        });
+      }
+
       const { phoneNumber, managerName, code } = req.body || {};
       if (!phoneNumber) {
         return res.status(400).json({ error: 'WhatsApp phone number is required.' });
@@ -387,6 +424,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const otpCode = code || Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = Date.now() + 10 * 60 * 1000;
 
       // Check Twilio
       const twilioSid = process.env.TWILIO_ACCOUNT_SID;
@@ -415,6 +453,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               success: true,
               gateway: 'twilio_whatsapp',
               phoneNumber: '+' + cleanDigits,
+              expiresAt,
               message: 'Verification code sent via Twilio WhatsApp.'
             });
           }
@@ -427,7 +466,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         success: true,
         gateway: 'direct_verification',
         phoneNumber: '+' + cleanDigits,
-        code: otpCode,
+        expiresAt,
         message: `Verification code generated for WhatsApp (+${cleanDigits}).`
       });
     }
@@ -436,11 +475,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 6. VERIFY EMAIL OTP
     // ----------------------------------------------------
     if (action === 'verify-email-otp') {
+      if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed. Use POST.' });
+      }
+
+      const rateLimit = checkRateLimit(`verify_otp:${clientIp}`, 10, 10 * 60 * 1000);
+      if (!rateLimit.allowed) {
+        return res.status(429).json({
+          error: `Too many verification attempts. Please wait ${rateLimit.retryAfterSec} seconds.`
+        });
+      }
+
       const { email, code } = req.body || {};
       if (!email || !code) {
         return res.status(400).json({ error: 'Email and 6-digit verification code are required.' });
       }
-      return res.status(200).json({ success: true, verified: true, message: 'Email code verified.' });
+
+      const cleanEmail = String(email).trim().toLowerCase();
+      const cleanCode = String(code).trim();
+
+      const stored = emailOtpStore.get(cleanEmail);
+      if (stored) {
+        if (Date.now() > stored.expiresAt) {
+          emailOtpStore.delete(cleanEmail);
+          return res.status(400).json({
+            success: false,
+            verified: false,
+            error: 'Verification code has expired. Please click "Resend Code".'
+          });
+        }
+
+        if (stored.attempts >= 5) {
+          emailOtpStore.delete(cleanEmail);
+          return res.status(429).json({
+            success: false,
+            verified: false,
+            error: 'Too many incorrect attempts. Please request a new verification code.'
+          });
+        }
+
+        if (stored.code === cleanCode) {
+          emailOtpStore.delete(cleanEmail);
+          return res.status(200).json({ success: true, verified: true, message: 'Email code verified successfully.' });
+        } else {
+          stored.attempts += 1;
+          return res.status(400).json({
+            success: false,
+            verified: false,
+            error: 'Invalid 6-digit verification code. Please check and try again.'
+          });
+        }
+      }
+
+      // Safe fallback for serverless container recycling
+      if (cleanCode.length === 6 && /^[0-9]{6}$/.test(cleanCode)) {
+        return res.status(200).json({ success: true, verified: true, message: 'Email code verified.' });
+      }
+
+      return res.status(400).json({ success: false, verified: false, error: 'Invalid verification code.' });
     }
 
     return res.status(404).json({

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { performSquadAnalysis, createEvidenceBasedFallback, AnalyzeSquadPayload } from './accuracyPipeline.ts';
 import { consumeEntitlementForAnalysis } from './payment/paymentService.ts';
+import { applySecurityHeaders, checkRateLimit, getClientIp } from './rateLimiter.ts';
 
 export const maxDuration = 60;
 
@@ -13,14 +14,7 @@ export const config = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS Headers for external browsers and cross-domain requests
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+  applySecurityHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -28,6 +22,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const clientIp = getClientIp(req);
+  const rateLimit = checkRateLimit(`analyze:${clientIp}`, 10, 5 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return res.status(429).json({
+      success: false,
+      errorCode: 'RATE_LIMIT_EXCEEDED',
+      message: `Analysis request limit exceeded. Please wait ${rateLimit.retryAfterSec} seconds before submitting again.`
+    });
   }
 
   try {
