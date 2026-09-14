@@ -513,14 +513,14 @@ export const SettingsView: React.FC<SettingsProps> = ({
           <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 text-xs space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-bold text-white uppercase tracking-wider text-[11px]">
-                Supported Gateways & Business Model
+                Supported Gateway & Pricing
               </span>
-              <span className="text-neutral-400 font-mono text-[11px]">
-                Rate: $2.00 USD / Analysis
+              <span className="text-emerald-400 font-mono text-[11px] font-bold">
+                Rate: $2.00 USD / Credit
               </span>
             </div>
             <p className="text-neutral-400 leading-relaxed">
-              Every registered user receives <strong>1 free analysis per week</strong>. Additional analyses require 1 paid credit ($2.00 USD). Supported payment options include <strong>Pesapal (Cards & M-Pesa / Mobile Money)</strong>, <strong>PayPal</strong>, <strong>Google Pay</strong>, and <strong>Apple Pay</strong>. All transaction intents are verified on the backend before credits are permanently assigned.
+              Every registered user receives <strong>1 free analysis per week</strong>. Additional analyses require 1 paid credit ($2.00 USD). Payments are securely processed via <strong>Pesapal</strong>, supporting <strong>Debit & Credit Cards (Visa, Mastercard, American Express with 3D Secure)</strong> and <strong>Mobile Money (M-Pesa, Airtel Money, MTN MoMo)</strong>. All funds are deposited directly into your Pesapal merchant account.
             </p>
           </div>
 
@@ -552,14 +552,14 @@ export const SettingsView: React.FC<SettingsProps> = ({
                   No payment transactions recorded yet.
                 </p>
                 <p className="text-xs text-neutral-500 max-w-sm mx-auto">
-                  When you complete a payment via Pesapal, PayPal, Google Pay, or Apple Pay, verified transactions will be logged here.
+                  When you complete a payment via Pesapal (Cards or Mobile Money), verified transactions will be logged here.
                 </p>
                 <button
                   type="button"
                   onClick={() => setShowPaymentModal(true)}
-                  className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs transition-colors cursor-pointer"
                 >
-                  Test Payment Checkout Flow
+                  Buy Analysis Credit ($2.00 USD)
                 </button>
               </div>
             ) : (

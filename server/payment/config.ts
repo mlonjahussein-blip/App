@@ -31,10 +31,9 @@ export interface PaymentConfiguration {
 }
 
 export function getPaymentConfig(): PaymentConfiguration {
-  const isTestMode = process.env.PAYMENT_TEST_MODE !== 'false';
+  const isTestMode = process.env.PAYMENT_TEST_MODE === 'true';
   
-  // In TEST MODE, the price is strictly $0.00 USD as required
-  // In production, default is $2.00 USD unless overridden by env
+  // Production live price is $2.00 USD per analysis credit
   const rawPrice = process.env.PAID_ANALYSIS_PRICE_USD;
   const priceUsd = isTestMode ? 0.00 : (rawPrice ? parseFloat(rawPrice) : 2.00);
   const priceDisplay = isTestMode ? '$0.00 USD (TEST MODE)' : `$${priceUsd.toFixed(2)} USD`;
