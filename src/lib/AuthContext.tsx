@@ -243,12 +243,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // One-time upgrade check: Grant 5 free analyses to all existing user accounts
         if (restDoc.v5GrantVersion !== 1) {
           freeAnalysesRemaining = 5;
-          writeDocREST('users', uid, { freeAnalysesRemaining: 5, v5GrantVersion: 1 }).catch(() => {});
+          lastFreeResetAt = new Date().toISOString();
+          writeDocREST('users', uid, { freeAnalysesRemaining: 5, v5GrantVersion: 1, lastFreeResetAt }).catch(() => {});
         }
 
         const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-        const lastResetTime = new Date(lastFreeResetAt).getTime();
-        if (Date.now() - lastResetTime >= sevenDaysMs && freeAnalysesRemaining < 5) {
+        let lastResetTime = new Date(lastFreeResetAt).getTime();
+        if (isNaN(lastResetTime) || Date.now() - lastResetTime >= sevenDaysMs) {
           freeAnalysesRemaining = 5;
           lastFreeResetAt = new Date().toISOString();
           writeDocREST('users', uid, { freeAnalysesRemaining: 5, lastFreeResetAt, v5GrantVersion: 1 }).catch(() => {});

@@ -119,39 +119,47 @@ export async function getUserEntitlements(userId: string): Promise<UserEntitleme
   let lastFreeResetAt = userDoc.lastFreeResetAt || new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
 
   // One-time upgrade check to ensure every existing account gets 5 free analyses
+  const now = Date.now();
+  const nowIso = new Date().toISOString();
+
   if (userDoc.v5GrantVersion !== 1) {
     freeAnalysesRemaining = 5;
     userDoc.v5GrantVersion = 1;
+    lastFreeResetAt = nowIso;
     writeFirestoreDoc('users', cleanUid, {
       freeAnalysesRemaining: 5,
       v5GrantVersion: 1,
-      updatedAt: new Date().toISOString()
+      lastFreeResetAt: nowIso,
+      updatedAt: nowIso
     }).catch(() => {});
-    fallbackUserStore.set(cleanUid, { ...userDoc, freeAnalysesRemaining: 5, v5GrantVersion: 1 });
+    fallbackUserStore.set(cleanUid, { ...userDoc, freeAnalysesRemaining: 5, v5GrantVersion: 1, lastFreeResetAt: nowIso });
   }
 
   // Weekly Free Analysis Reset Check (Every 7 days reset to 5)
-  const lastResetTime = new Date(lastFreeResetAt).getTime();
-  const now = Date.now();
+  let effectiveResetTime = new Date(lastFreeResetAt).getTime();
   const sevenDaysMs = config.freeAnalysisIntervalDays * 24 * 60 * 60 * 1000;
 
-  if (now - lastResetTime >= sevenDaysMs) {
-    if (freeAnalysesRemaining < 5) {
-      freeAnalysesRemaining = 5;
-      lastFreeResetAt = new Date().toISOString();
-      // Persist reset to Firestore
-      await writeFirestoreDoc('users', cleanUid, {
-        freeAnalysesRemaining: 5,
-        lastFreeResetAt,
-        updatedAt: new Date().toISOString()
-      });
-      fallbackUserStore.set(cleanUid, { freeAnalysesRemaining, paidCredits, lastFreeResetAt });
-    }
+  if (isNaN(effectiveResetTime) || now - effectiveResetTime >= sevenDaysMs) {
+    effectiveResetTime = now;
+    lastFreeResetAt = nowIso;
+    freeAnalysesRemaining = 5;
+    // Persist reset to Firestore
+    await writeFirestoreDoc('users', cleanUid, {
+      freeAnalysesRemaining: 5,
+      lastFreeResetAt: nowIso,
+      updatedAt: nowIso
+    });
+    fallbackUserStore.set(cleanUid, { freeAnalysesRemaining, paidCredits, lastFreeResetAt: nowIso });
   }
 
   const weeklyFreeAnalysisAvailable = freeAnalysesRemaining > 0;
   const canAnalyze = weeklyFreeAnalysisAvailable || paidCredits > 0;
-  const nextFreeResetDate = new Date(lastResetTime + sevenDaysMs).toISOString();
+
+  let nextResetMs = effectiveResetTime + sevenDaysMs;
+  if (nextResetMs <= now) {
+    nextResetMs = now + sevenDaysMs;
+  }
+  const nextFreeResetDate = new Date(nextResetMs).toISOString();
 
   return {
     userId: cleanUid,

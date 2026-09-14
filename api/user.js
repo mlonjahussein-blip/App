@@ -453,35 +453,41 @@ async function getUserEntitlements(userId) {
   let freeAnalysesRemaining = typeof userDoc.freeAnalysesRemaining === "number" ? userDoc.freeAnalysesRemaining : 5;
   let paidCredits = typeof userDoc.paidCredits === "number" ? userDoc.paidCredits : 0;
   let lastFreeResetAt = userDoc.lastFreeResetAt || new Date(Date.now() - 8 * 24 * 60 * 60 * 1e3).toISOString();
+  const now = Date.now();
+  const nowIso = (/* @__PURE__ */ new Date()).toISOString();
   if (userDoc.v5GrantVersion !== 1) {
     freeAnalysesRemaining = 5;
     userDoc.v5GrantVersion = 1;
+    lastFreeResetAt = nowIso;
     writeFirestoreDoc("users", cleanUid, {
       freeAnalysesRemaining: 5,
       v5GrantVersion: 1,
-      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      lastFreeResetAt: nowIso,
+      updatedAt: nowIso
     }).catch(() => {
     });
-    fallbackUserStore.set(cleanUid, { ...userDoc, freeAnalysesRemaining: 5, v5GrantVersion: 1 });
+    fallbackUserStore.set(cleanUid, { ...userDoc, freeAnalysesRemaining: 5, v5GrantVersion: 1, lastFreeResetAt: nowIso });
   }
-  const lastResetTime = new Date(lastFreeResetAt).getTime();
-  const now = Date.now();
+  let effectiveResetTime = new Date(lastFreeResetAt).getTime();
   const sevenDaysMs = config.freeAnalysisIntervalDays * 24 * 60 * 60 * 1e3;
-  if (now - lastResetTime >= sevenDaysMs) {
-    if (freeAnalysesRemaining < 5) {
-      freeAnalysesRemaining = 5;
-      lastFreeResetAt = (/* @__PURE__ */ new Date()).toISOString();
-      await writeFirestoreDoc("users", cleanUid, {
-        freeAnalysesRemaining: 5,
-        lastFreeResetAt,
-        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-      });
-      fallbackUserStore.set(cleanUid, { freeAnalysesRemaining, paidCredits, lastFreeResetAt });
-    }
+  if (isNaN(effectiveResetTime) || now - effectiveResetTime >= sevenDaysMs) {
+    effectiveResetTime = now;
+    lastFreeResetAt = nowIso;
+    freeAnalysesRemaining = 5;
+    await writeFirestoreDoc("users", cleanUid, {
+      freeAnalysesRemaining: 5,
+      lastFreeResetAt: nowIso,
+      updatedAt: nowIso
+    });
+    fallbackUserStore.set(cleanUid, { freeAnalysesRemaining, paidCredits, lastFreeResetAt: nowIso });
   }
   const weeklyFreeAnalysisAvailable = freeAnalysesRemaining > 0;
   const canAnalyze = weeklyFreeAnalysisAvailable || paidCredits > 0;
-  const nextFreeResetDate = new Date(lastResetTime + sevenDaysMs).toISOString();
+  let nextResetMs = effectiveResetTime + sevenDaysMs;
+  if (nextResetMs <= now) {
+    nextResetMs = now + sevenDaysMs;
+  }
+  const nextFreeResetDate = new Date(nextResetMs).toISOString();
   return {
     userId: cleanUid,
     weeklyFreeAnalysisAvailable,

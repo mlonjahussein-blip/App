@@ -536,7 +536,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               Weekly Analysis Allocation & Credits
             </h2>
             <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
-              1 Free / Week
+              5 Free / Week
             </span>
           </div>
 
@@ -549,12 +549,19 @@ export const SettingsView: React.FC<SettingsProps> = ({
               <p className="text-xs text-neutral-500">
                 Resets every 7 days automatically for your account.
               </p>
-              {entitlements?.nextFreeResetDate && (
-                <div className="pt-2 text-[11px] text-neutral-400 flex items-center gap-1.5 border-t border-neutral-900">
-                  <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Next reset: {new Date(entitlements.nextFreeResetDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                </div>
-              )}
+              {(() => {
+                const rawDate = entitlements?.nextFreeResetDate ? new Date(entitlements.nextFreeResetDate) : null;
+                const now = new Date();
+                const displayDate = (rawDate && rawDate.getTime() > now.getTime()) 
+                  ? rawDate 
+                  : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                return (
+                  <div className="pt-2 text-[11px] text-neutral-400 flex items-center gap-1.5 border-t border-neutral-900">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Next reset: {displayDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-5 space-y-2">
