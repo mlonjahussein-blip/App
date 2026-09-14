@@ -523,14 +523,14 @@ export async function sendUserFeedbackEmail(payload: UserFeedbackPayload): Promi
       });
       await transporter.sendMail({
         from: `"${cleanName} via eFootball AI Hub" <${gmailUser}>`,
-        to: `${targetEmail}, mlonjahussein@gmail.com`,
+        to: targetEmail,
         replyTo: cleanEmail,
         subject: formattedSubject,
         text: `New Feedback from ${cleanName} (${cleanEmail})\nCategory: ${category}\nSubject: ${subjectText}\n\nMessage:\n${messageBody}`,
         html: htmlContent
       });
       sent = true;
-      console.log('[FEEDBACK EMAIL] Dispatched to efootballaihub@gmail.com and mlonjahussein@gmail.com via Gmail SMTP');
+      console.log(`[FEEDBACK EMAIL] Dispatched to ${targetEmail} via Gmail SMTP`);
     } catch (e) {
       console.warn('[FEEDBACK EMAIL] Gmail error:', e);
     }
