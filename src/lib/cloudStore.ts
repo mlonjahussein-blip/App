@@ -315,21 +315,24 @@ export async function findUniversalCloudAccount(identifier: string): Promise<Clo
   // 3. Query users collection by email via REST
   if (isEmail && cleanEmail) {
     const queryData = await queryUserREST('email', cleanEmail);
-    if (queryData && queryData.salt && queryData.hash) {
+    if (queryData && (queryData.uid || queryData.email)) {
       const acc: CloudAccountRecord = {
-        uid: queryData.uid,
+        uid: queryData.uid || cleanId,
         email: queryData.email || cleanEmail,
         displayName: queryData.displayName || cleanEmail.split('@')[0],
         whatsappNumber: queryData.whatsappNumber || undefined,
-        salt: queryData.salt,
-        hash: queryData.hash,
+        salt: queryData.salt || '',
+        hash: queryData.hash || '',
         createdAt: queryData.createdAt || new Date().toISOString(),
         role: queryData.role,
         freeAnalysesRemaining: queryData.freeAnalysesRemaining,
-        paidCredits: queryData.paidCredits
+        paidCredits: queryData.paidCredits,
+        lastFreeResetAt: queryData.lastFreeResetAt
       };
-      // Cache in authAccounts
-      saveUniversalCloudAccount(acc).catch(() => {});
+      // Cache in authAccounts if salt and hash are present
+      if (acc.salt && acc.hash) {
+        saveUniversalCloudAccount(acc).catch(() => {});
+      }
       return acc;
     }
   }
@@ -382,17 +385,15 @@ export async function findUniversalCloudAccount(identifier: string): Promise<Clo
       const emailSnap = await getDoc(doc(db, 'authAccounts', sanitizeKey(cleanEmail)));
       if (emailSnap.exists()) {
         const data = emailSnap.data() as any;
-        if (data.salt && data.hash) {
-          return {
-            uid: data.uid,
-            email: data.email || cleanEmail,
-            displayName: data.displayName || cleanEmail.split('@')[0],
-            whatsappNumber: data.whatsappNumber || undefined,
-            salt: data.salt,
-            hash: data.hash,
-            createdAt: data.createdAt || new Date().toISOString()
-          };
-        }
+        return {
+          uid: data.uid,
+          email: data.email || cleanEmail,
+          displayName: data.displayName || cleanEmail.split('@')[0],
+          whatsappNumber: data.whatsappNumber || undefined,
+          salt: data.salt || '',
+          hash: data.hash || '',
+          createdAt: data.createdAt || new Date().toISOString()
+        };
       }
     }
   } catch {}

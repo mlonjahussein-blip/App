@@ -20,9 +20,50 @@ import { MaintenanceView } from './components/MaintenanceView.tsx';
 // Temporary maintenance mode flag (set to false to reactivate)
 export const IS_MAINTENANCE_MODE = false;
 
+const VALID_TABS = ['home', 'analyzer', 'results', 'mysquad', 'reports', 'community', 'profile', 'settings', 'login', 'signup'];
+
 function AppContent() {
   const { user, profile, logout } = useAuth();
-  const [currentTab, setCurrentTab] = useState<string>('home');
+  // Restore current tab from URL hash or localStorage so refreshing the page never kicks the user out or loses their screen
+  const [currentTab, setCurrentTabState] = useState<string>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const hash = window.location.hash.replace('#', '').trim().toLowerCase();
+        if (hash && VALID_TABS.includes(hash)) return hash;
+        const saved = localStorage.getItem('ef_active_tab');
+        if (saved && VALID_TABS.includes(saved)) return saved;
+      }
+    } catch {}
+    return 'home';
+  });
+
+  const setCurrentTab = (newTab: string) => {
+    setCurrentTabState(newTab);
+    try {
+      if (VALID_TABS.includes(newTab)) {
+        localStorage.setItem('ef_active_tab', newTab);
+        if (typeof window !== 'undefined') {
+          window.history.replaceState(null, '', `#${newTab}`);
+        }
+      }
+    } catch {}
+  };
+
+  // Listen for browser back / forward / hash changes
+  useEffect(() => {
+    const handleHashChange = () => {
+      try {
+        const hash = window.location.hash.replace('#', '').trim().toLowerCase();
+        if (hash && VALID_TABS.includes(hash)) {
+          setCurrentTabState(hash);
+          localStorage.setItem('ef_active_tab', hash);
+        }
+      } catch {}
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   const [settingsSubTab, setSettingsSubTab] = useState<'account' | 'usage' | 'payments'>('account');
   const [activeAnalysis, setActiveAnalysis] = useState<AnalysisResult | null>(null);
   const [isSharingPost, setIsSharingPost] = useState<boolean>(false);

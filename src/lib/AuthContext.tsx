@@ -167,15 +167,15 @@ async function findCloudAccount(identifier: string): Promise<StoredAccountV2 | n
   // 1. Direct Cloud Store Lookup (REST + SDK)
   try {
     const cloudRecord = await findUniversalCloudAccount(cleanId);
-    if (cloudRecord && cloudRecord.salt && cloudRecord.hash) {
+    if (cloudRecord && (cloudRecord.uid || cloudRecord.email)) {
       return {
-        uid: cloudRecord.uid,
+        uid: cloudRecord.uid || cleanId,
         email: cloudRecord.email,
         displayName: cloudRecord.displayName,
         whatsappNumber: cloudRecord.whatsappNumber,
-        salt: cloudRecord.salt,
-        hash: cloudRecord.hash,
-        createdAt: cloudRecord.createdAt
+        salt: cloudRecord.salt || '',
+        hash: cloudRecord.hash || '',
+        createdAt: cloudRecord.createdAt || new Date().toISOString()
       };
     }
   } catch (e) {
@@ -191,14 +191,14 @@ async function findCloudAccount(identifier: string): Promise<StoredAccountV2 | n
     });
     if (apiRes.ok) {
       const json = await apiRes.json();
-      if (json && json.found && json.account && json.account.salt && json.account.hash) {
+      if (json && json.found && json.account && (json.account.uid || json.account.email)) {
         return {
-          uid: json.account.uid,
+          uid: json.account.uid || cleanId,
           email: json.account.email,
           displayName: json.account.displayName,
           whatsappNumber: json.account.whatsappNumber,
-          salt: json.account.salt,
-          hash: json.account.hash,
+          salt: json.account.salt || '',
+          hash: json.account.hash || '',
           createdAt: json.account.createdAt || new Date().toISOString()
         };
       }
@@ -210,9 +210,52 @@ async function findCloudAccount(identifier: string): Promise<StoredAccountV2 | n
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AppAuthUser | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  // Synchronously initialize user from localStorage to eliminate any login flickering on refresh
+  const [user, setUser] = useState<AppAuthUser | null>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem(STORAGE_SESSION_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as AppAuthUser;
+          if (parsed && (parsed.uid || parsed.email || parsed.whatsappNumber)) {
+            return parsed;
+          }
+        }
+      }
+    } catch {}
+    return null;
+  });
+
+  // Synchronously initialize profile from localStorage for instantaneous hydration
+  const [profile, setProfile] = useState<UserProfile | null>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const rawSession = localStorage.getItem(STORAGE_SESSION_KEY);
+        if (rawSession) {
+          const parsed = JSON.parse(rawSession) as AppAuthUser;
+          if (parsed && parsed.uid) {
+            const rawProf = localStorage.getItem(`ef_profile_${parsed.uid}`);
+            if (rawProf) {
+              const prof = JSON.parse(rawProf) as UserProfile;
+              if (prof && prof.uid) return prof;
+            }
+          }
+        }
+      }
+    } catch {}
+    return null;
+  });
+
+  // If a valid session exists in localStorage, loading is false immediately
+  const [loading, setLoading] = useState<boolean>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem(STORAGE_SESSION_KEY);
+        if (raw) return false;
+      }
+    } catch {}
+    return true;
+  });
 
   const fetchProfile = async (
     uid: string,
@@ -322,7 +365,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const rawSession = localStorage.getItem(STORAGE_SESSION_KEY);
       if (rawSession) {
         const savedSession = JSON.parse(rawSession) as AppAuthUser;
-        if (savedSession && savedSession.uid) {
+        if (savedSession && (savedSession.uid || savedSession.email)) {
           // Immediately set user and fetch cached profile synchronously to prevent sign-out on browser refresh
           setUser(savedSession);
           fetchProfile(
@@ -339,7 +382,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .then((cloudAcc) => {
               if (cloudAcc) {
                 const refreshedUser: AppAuthUser = {
-                  uid: cloudAcc.uid || savedSession.uid,
+                  uid: savedSession.uid, // Always preserve established local session UID
                   email: cloudAcc.email || savedSession.email,
                   displayName: cloudAcc.displayName || savedSession.displayName,
                   photoURL: savedSession.photoURL,
@@ -361,28 +404,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (u) {
         const verifyId = u.email || u.uid;
         try {
+          // Check what we currently have in local storage
+          let currentSessionUid = u.uid;
+          let currentSessionEmail = u.email || '';
+          let currentSessionDisplayName = u.displayName || '';
+          let currentSessionWhatsApp: string | undefined = undefined;
+
+          try {
+            const raw = localStorage.getItem(STORAGE_SESSION_KEY);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed && (parsed.uid || parsed.email)) {
+                // If email matches or UID matches, keep the established app UID
+                if (!u.email || (parsed.email && parsed.email.toLowerCase() === u.email.toLowerCase())) {
+                  currentSessionUid = parsed.uid;
+                  currentSessionEmail = parsed.email;
+                  currentSessionDisplayName = parsed.displayName || currentSessionDisplayName;
+                  currentSessionWhatsApp = parsed.whatsappNumber;
+                }
+              }
+            }
+          } catch {}
+
           const cloudAcc = await findCloudAccount(verifyId);
           const authUser: AppAuthUser = {
-            uid: cloudAcc?.uid || u.uid,
-            email: cloudAcc?.email || u.email,
-            displayName: cloudAcc?.displayName || u.displayName,
+            uid: currentSessionUid || cloudAcc?.uid || u.uid,
+            email: currentSessionEmail || cloudAcc?.email || u.email || '',
+            displayName: currentSessionDisplayName || cloudAcc?.displayName || u.displayName || 'Tactician',
             photoURL: u.photoURL,
             emailVerified: u.emailVerified,
-            whatsappNumber: cloudAcc?.whatsappNumber
+            whatsappNumber: currentSessionWhatsApp || cloudAcc?.whatsappNumber
           };
           setUser(authUser);
           localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
-          await fetchProfile(authUser.uid, authUser.email || '', authUser.displayName || undefined, undefined, authUser.whatsappNumber);
+          await fetchProfile(authUser.uid, authUser.email || '', authUser.displayName || undefined, u.photoURL || undefined, authUser.whatsappNumber);
           setLoading(false);
         } catch {
           setLoading(false);
         }
       } else {
+        // Firebase Auth user is null. Check if a local session exists in localStorage (e.g. WhatsApp, OTP, persistent login)
         const rawSession = localStorage.getItem(STORAGE_SESSION_KEY);
-        if (!rawSession) {
-          setUser(null);
-          setProfile(null);
+        if (rawSession) {
+          try {
+            const savedSession = JSON.parse(rawSession) as AppAuthUser;
+            if (savedSession && (savedSession.uid || savedSession.email)) {
+              setUser(savedSession);
+              fetchProfile(
+                savedSession.uid,
+                savedSession.email || '',
+                savedSession.displayName || undefined,
+                savedSession.photoURL || undefined,
+                savedSession.whatsappNumber || undefined
+              );
+              setLoading(false);
+              return;
+            }
+          } catch {}
         }
+        // Genuinely no session present
+        setUser(null);
+        setProfile(null);
         setLoading(false);
       }
     });
@@ -900,6 +982,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     await fbSignOut(auth).catch(() => {});
     localStorage.removeItem(STORAGE_SESSION_KEY);
+    localStorage.removeItem('ef_active_tab');
     setUser(null);
     setProfile(null);
   };
@@ -947,6 +1030,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // 4. Clear all local user session & cached profile data
     localStorage.removeItem(STORAGE_SESSION_KEY);
+    localStorage.removeItem('ef_active_tab');
     localStorage.removeItem(`ef_profile_${currentUid}`);
     localStorage.removeItem(`ef_user_squads_${currentUid}`);
 
