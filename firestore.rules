@@ -54,5 +54,14 @@ service cloud.firestore {
     match /feedbacks/{feedbackId} {
       allow read, write: if true;
     }
+
+    // OTP verification tokens for email and WhatsApp
+    match /emailOtps/{otpId} {
+      allow read, write: if true;
+    }
+
+    match /waOtps/{otpId} {
+      allow read, write: if true;
+    }
   }
 }

@@ -272,11 +272,16 @@ Sent from eFootball AI Hub
   const gmailUser = process.env.GMAIL_USER || 'efootballaihub@gmail.com';
   const gmailPass = (process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || 'otblyzhyhemwaxws').replace(/\s+/g, '');
   if (gmailPass) {
+    // Attempt 4a: Port 465 SSL with 6s timeout
+    let gmailSent = false;
     try {
       const gmailTransporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 465,
         secure: true,
+        connectionTimeout: 6000,
+        greetingTimeout: 6000,
+        socketTimeout: 6000,
         auth: {
           user: gmailUser,
           pass: gmailPass
@@ -291,7 +296,8 @@ Sent from eFootball AI Hub
         html: htmlContent
       });
 
-      console.log(`[EMAIL DISPATCH] Sent 6-digit OTP code to ${cleanEmail} via Gmail (${gmailUser})`);
+      gmailSent = true;
+      console.log(`[EMAIL DISPATCH] Sent 6-digit OTP code to ${cleanEmail} via Gmail 465 (${gmailUser})`);
       return {
         success: true,
         message: `Code sent to your email. Please check your inbox and spam folder.`,
@@ -300,8 +306,47 @@ Sent from eFootball AI Hub
         from: gmailUser,
         dispatchedVia: 'gmail'
       };
-    } catch (gmailErr) {
-      console.warn('[EMAIL DISPATCH] Gmail service failed:', gmailErr);
+    } catch (gmail465Err) {
+      console.warn('[EMAIL DISPATCH] Gmail 465 SSL failed, trying port 587 STARTTLS:', gmail465Err);
+    }
+
+    // Attempt 4b: Port 587 STARTTLS with 6s timeout
+    if (!gmailSent) {
+      try {
+        const gmailTransporter587 = nodemailer.createTransport({
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false,
+          requireTLS: true,
+          connectionTimeout: 6000,
+          greetingTimeout: 6000,
+          socketTimeout: 6000,
+          auth: {
+            user: gmailUser,
+            pass: gmailPass
+          }
+        });
+
+        await gmailTransporter587.sendMail({
+          from: `"${fromName}" <${gmailUser}>`,
+          to: cleanEmail,
+          subject,
+          text: textContent,
+          html: htmlContent
+        });
+
+        console.log(`[EMAIL DISPATCH] Sent 6-digit OTP code to ${cleanEmail} via Gmail 587 STARTTLS (${gmailUser})`);
+        return {
+          success: true,
+          message: `Code sent to your email. Please check your inbox and spam folder.`,
+          code,
+          expiresAt,
+          from: gmailUser,
+          dispatchedVia: 'gmail'
+        };
+      } catch (gmail587Err) {
+        console.warn('[EMAIL DISPATCH] Gmail 587 STARTTLS failed:', gmail587Err);
+      }
     }
   }
 
