@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import nodemailer from 'nodemailer';
-import { applySecurityHeaders, checkRateLimit, getClientIp, escapeHtml } from '../server/rateLimiter.ts';
+import { applySecurityHeaders, checkRateLimit, getClientIp, escapeHtml } from '../rateLimiter.ts';
 
 const PROJECT_ID = 'emergent-fastness-8lcf1';
 const DB_ID = 'ai-studio-efootballaihub-2a95eb9f-c78b-4ee5-ae97-a914c4288cba';

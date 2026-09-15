@@ -70,7 +70,7 @@ function applySecurityHeaders(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
 }
 
-// api/player-builder.ts
+// server/serverless/playerBuilder.ts
 var maxDuration = 10;
 async function handler(req, res) {
   applySecurityHeaders(req, res);

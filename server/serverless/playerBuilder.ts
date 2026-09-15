@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { applySecurityHeaders, checkRateLimit, getClientIp } from '../server/rateLimiter.ts';
+import { applySecurityHeaders, checkRateLimit, getClientIp } from '../rateLimiter.ts';
 
 export const maxDuration = 10;
 

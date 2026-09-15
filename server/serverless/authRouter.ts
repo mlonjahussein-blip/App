@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import nodemailer from 'nodemailer';
-import { applySecurityHeaders, checkRateLimit, getClientIp, escapeHtml } from '../server/rateLimiter.ts';
+import { applySecurityHeaders, checkRateLimit, getClientIp, escapeHtml } from '../rateLimiter.ts';
 
 // Server-side verification record store with single-use and expiry protection
 interface OtpRecord {

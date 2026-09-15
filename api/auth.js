@@ -1,4 +1,4 @@
-// api/auth.ts
+// server/serverless/authRouter.ts
 import nodemailer from "nodemailer";
 
 // server/rateLimiter.ts
@@ -77,7 +77,7 @@ function applySecurityHeaders(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
 }
 
-// api/auth.ts
+// server/serverless/authRouter.ts
 var emailOtpStore = /* @__PURE__ */ new Map();
 var PROJECT_ID = "emergent-fastness-8lcf1";
 var DB_ID = "ai-studio-efootballaihub-2a95eb9f-c78b-4ee5-ae97-a914c4288cba";
