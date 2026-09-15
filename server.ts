@@ -27,7 +27,21 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://apis.google.com https://*.firebaseapp.com https://*.lemonsqueezy.com https://js.paystack.co https://checkout.flutterwave.com https://www.paypal.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: http:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://api.lemonsqueezy.com https://api.paystack.co https://api.flutterwave.com https://api.paypal.com https://*.run.app https://*.vercel.app; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://*.lemonsqueezy.com https://checkout.flutterwave.com https://www.paypal.com; frame-ancestors 'self' https://*.google.com https://*.run.app; object-src 'none'; base-uri 'self'; upgrade-insecure-requests;"
+  );
+
+  // For API endpoints, prevent any downstream or browser proxy caching of dynamic data
+  if (req.path.startsWith('/api/')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+
   next();
 });
 

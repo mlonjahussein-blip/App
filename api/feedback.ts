@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import nodemailer from 'nodemailer';
+import { applySecurityHeaders, checkRateLimit, getClientIp, escapeHtml } from '../server/rateLimiter.ts';
 
 const PROJECT_ID = 'emergent-fastness-8lcf1';
 const DB_ID = 'ai-studio-efootballaihub-2a95eb9f-c78b-4ee5-ae97-a914c4288cba';
@@ -7,10 +8,7 @@ const API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyAUe9kMRkqAG_Vshpucov
 const BASE_REST_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DB_ID}/documents`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Always set CORS & Content-Type to application/json
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecurityHeaders(req, res);
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'OPTIONS') {
@@ -19,6 +17,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
+  }
+
+  // Rate limiting: Max 5 feedback submissions per 10 minutes per IP
+  const clientIp = getClientIp(req);
+  const rateLimit = checkRateLimit(`feedback:${clientIp}`, 5, 10 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return res.status(429).json({
+      error: `Too many submissions. Please wait ${rateLimit.retryAfterSec} seconds before sending feedback again.`
+    });
   }
 
   try {
@@ -90,39 +97,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         <body>
           <div class="container">
             <div class="header">
-              <span class="badge">${cleanCategory}</span>
+              <span class="badge">${escapeHtml(cleanCategory)}</span>
               <h2 style="color: #10b981; margin: 12px 0 4px 0;">New User Feedback & Query</h2>
               <p style="color: #a3a3a3; font-size: 13px; margin: 0;">Received via eFootball AI Hub Profile Portal</p>
             </div>
             <table class="info-table">
               <tr>
                 <td class="label">User Name:</td>
-                <td class="value"><strong>${cleanName}</strong></td>
+                <td class="value"><strong>${escapeHtml(cleanName)}</strong></td>
               </tr>
               <tr>
                 <td class="label">User Email:</td>
-                <td class="value"><a href="mailto:${cleanEmail}" style="color: #10b981; text-decoration: none;">${cleanEmail}</a></td>
+                <td class="value"><a href="mailto:${escapeHtml(cleanEmail)}" style="color: #10b981; text-decoration: none;">${escapeHtml(cleanEmail)}</a></td>
               </tr>
               <tr>
                 <td class="label">Category:</td>
-                <td class="value">${cleanCategory}</td>
+                <td class="value">${escapeHtml(cleanCategory)}</td>
               </tr>
               <tr>
                 <td class="label">Subject:</td>
-                <td class="value">${cleanSubject}</td>
+                <td class="value">${escapeHtml(cleanSubject)}</td>
               </tr>
               <tr>
                 <td class="label">Date & Time:</td>
                 <td class="value">${new Date().toUTCString()}</td>
               </tr>
-              ${userId ? `<tr><td class="label">User UID:</td><td class="value">${userId}</td></tr>` : ''}
+              ${userId ? `<tr><td class="label">User UID:</td><td class="value">${escapeHtml(userId)}</td></tr>` : ''}
             </table>
             <div>
               <h3 style="color: #f5f5f5; font-size: 14px; margin-bottom: 8px;">Message Content:</h3>
-              <div class="message-box">${cleanMessage.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+              <div class="message-box">${escapeHtml(cleanMessage)}</div>
             </div>
             <div class="footer">
-              <p style="margin: 0;">You can directly reply to this email to respond to <strong>${cleanName}</strong> at <strong>${cleanEmail}</strong>.</p>
+              <p style="margin: 0;">You can directly reply to this email to respond to <strong>${escapeHtml(cleanName)}</strong> at <strong>${escapeHtml(cleanEmail)}</strong>.</p>
             </div>
           </div>
         </body>

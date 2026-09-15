@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getUserEntitlements } from '../payment/paymentService.ts';
+import { applySecurityHeaders, checkRateLimit, getClientIp } from '../rateLimiter.ts';
 
 function getAction(req: VercelRequest): string {
   if (req.query?.action) {
@@ -16,13 +17,16 @@ function getAction(req: VercelRequest): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecurityHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  const clientIp = getClientIp(req);
+  const rateLimit = checkRateLimit(`user_query:${clientIp}`, 60, 60 * 1000);
+  if (!rateLimit.allowed) {
+    return res.status(429).json({ error: `Too many requests. Please wait ${rateLimit.retryAfterSec} seconds.` });
   }
 
   const action = getAction(req);

@@ -94,15 +94,17 @@ export function escapeHtml(str: any): string {
 }
 
 /**
- * Sets hardened security CORS headers
+ * Sets hardened security and browser-enforced headers
  */
 export function applySecurityHeaders(req: any, res: any): void {
-  // 1. Core security headers
+  // 1. Core browser-enforced technical policies
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
 
   // 2. Safe CORS headers
   const origin = req.headers?.origin || req.headers?.Origin;
@@ -119,6 +121,7 @@ export function applySecurityHeaders(req: any, res: any): void {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   } else {
+    // When credentials are not used or origin is not pre-whitelisted
     res.setHeader('Access-Control-Allow-Origin', '*');
   }
 
