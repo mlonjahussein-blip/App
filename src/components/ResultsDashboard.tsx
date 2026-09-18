@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   AnalysisResult, 
   PlayerData, 
@@ -40,7 +40,8 @@ import {
   TrendingUp,
   Clock,
   Flag,
-  Dumbbell
+  Dumbbell,
+  Trophy
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { exportSquadAnalysisToPdf } from '../lib/pdfReportGenerator.ts';
@@ -56,7 +57,7 @@ interface ResultsDashboardProps {
   onSaveReport: (analysis: AnalysisResult) => Promise<void>;
   onShareToCommunity: (analysis: AnalysisResult) => void;
   onPlayerBuilderSelect: (player: PlayerData) => void;
-  onComparePlayersSelect: (p1: PlayerData, p2: PlayerData) => void;
+  onComparePlayersSelect: (p1: PlayerData, p2: PlayerData, initialMode?: 'battles' | 'startingXI') => void;
   isSaved?: boolean;
 }
 
@@ -70,6 +71,10 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
 }) => {
   // Single Source of Truth: Canonical Verified Squad Dataset
   const [squadAnalysis, setSquadAnalysis] = useState<AnalysisResult>(initialAnalysis);
+
+  useEffect(() => {
+    setSquadAnalysis(initialAnalysis);
+  }, [initialAnalysis]);
   const [activeTab, setActiveTab] = useState<'all' | 'verifiedSquad' | 'bestXI' | 'tactics' | 'training' | 'gamePlan' | 'simulation' | 'players'>('all');
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(isSaved);
@@ -1686,24 +1691,39 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                 : `Evaluate starting suitability and tactical synergy for your recommended tactic.`}
             </p>
           </div>
-          <button
-            onClick={() => {
-              const players = squadAnalysis.identifiedPlayers;
-              const firstBattle = detectedComparisonBattles[0];
-              const p1 = firstBattle?.playerA || players[0];
-              const p2 = firstBattle?.playerB || players[1];
-              onComparePlayersSelect(p1, p2);
-            }}
-            className="px-5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-emerald-400 font-bold text-xs border border-neutral-700 transition-colors whitespace-nowrap cursor-pointer flex items-center gap-2"
-          >
-            <span>Launch Player Comparison</span>
-            {detectedComparisonBattles.length > 1 && (
-              <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black">
-                {detectedComparisonBattles.length}
-              </span>
-            )}
-            <span>→</span>
-          </button>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              onClick={() => {
+                const players = squadAnalysis.identifiedPlayers;
+                const firstBattle = detectedComparisonBattles[0];
+                const p1 = firstBattle?.playerA || players[0];
+                const p2 = firstBattle?.playerB || players[1];
+                onComparePlayersSelect(p1, p2, 'battles');
+              }}
+              className="px-4 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-emerald-400 font-bold text-xs border border-neutral-700 transition-colors whitespace-nowrap cursor-pointer flex items-center gap-2"
+            >
+              <span>Launch Player Comparison</span>
+              {detectedComparisonBattles.length > 1 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black">
+                  {detectedComparisonBattles.length}
+                </span>
+              )}
+              <span>→</span>
+            </button>
+            <button
+              onClick={() => {
+                const players = squadAnalysis.identifiedPlayers;
+                const firstBattle = detectedComparisonBattles[0];
+                const p1 = firstBattle?.playerA || players[0];
+                const p2 = firstBattle?.playerB || players[1];
+                onComparePlayersSelect(p1, p2, 'startingXI');
+              }}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-neutral-950 font-black text-xs transition-all shadow-md whitespace-nowrap cursor-pointer flex items-center gap-2"
+            >
+              <Trophy className="w-4 h-4 text-neutral-950" />
+              <span>Recommended Starting XI</span>
+            </button>
+          </div>
         </div>
       )}
 

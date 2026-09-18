@@ -71,7 +71,7 @@ function AppContent() {
 
   // Modals
   const [selectedBuilderPlayer, setSelectedBuilderPlayer] = useState<PlayerData | null>(null);
-  const [comparisonPair, setComparisonPair] = useState<{ p1: PlayerData; p2: PlayerData } | null>(null);
+  const [comparisonPair, setComparisonPair] = useState<{ p1: PlayerData; p2: PlayerData; initialMode?: 'battles' | 'startingXI' } | null>(null);
 
   const handleNavigateToPayments = () => {
     setSettingsSubTab('payments');
@@ -273,7 +273,7 @@ function AppContent() {
             onSaveReport={handleSaveReport}
             onShareToCommunity={handleShareToCommunity}
             onPlayerBuilderSelect={(p) => setSelectedBuilderPlayer(p)}
-            onComparePlayersSelect={(p1, p2) => setComparisonPair({ p1, p2 })}
+            onComparePlayersSelect={(p1, p2, initialMode) => setComparisonPair({ p1, p2, initialMode })}
           />
         )}
 
@@ -368,7 +368,21 @@ function AppContent() {
           playerA={comparisonPair.p1}
           playerB={comparisonPair.p2}
           allPlayers={activeAnalysis?.identifiedPlayers || []}
+          analysis={activeAnalysis || undefined}
+          initialViewMode={comparisonPair.initialMode || 'battles'}
           onClose={() => setComparisonPair(null)}
+          onApplyStartingXI={(updatedAnalysis) => {
+            setActiveAnalysis(updatedAnalysis);
+            if (user) {
+              const cacheKey = `ef_saved_reports_${user.uid}`;
+              const existing = JSON.parse(localStorage.getItem(cacheKey) || '[]');
+              const idx = existing.findIndex((r: any) => r.id === updatedAnalysis.id);
+              if (idx >= 0) {
+                existing[idx] = updatedAnalysis;
+                localStorage.setItem(cacheKey, JSON.stringify(existing));
+              }
+            }
+          }}
           tacticalPlaystyle={activeAnalysis?.coachRecommendation?.tacticalStyle || 'Quick Counter'}
           formation={activeAnalysis?.recommendedFormation || '4-3-3'}
         />
