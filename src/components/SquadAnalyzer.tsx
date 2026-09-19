@@ -7,7 +7,8 @@ import {
   CreditCard,
   Zap,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  Users
 } from 'lucide-react';
 import { 
   AnalysisResult, 
@@ -55,6 +56,7 @@ interface AnalyzerProps {
 
 export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, onNavigateToPayments }) => {
   const { user, profile, refreshProfile } = useAuth();
+  const [analysisMode, setAnalysisMode] = useState<'pure23' | 'guided'>('pure23');
   const [typedPlayers, setTypedPlayers] = useState<TypedPlayerInput[]>([]);
   const [managerDetails, setManagerDetails] = useState<ManagerInputDetails>({
     name: '',
@@ -69,8 +71,8 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
       overload: 86
     }
   });
-  const [preferredPlaystyle, setPreferredPlaystyle] = useState('Quick Counter');
-  const [preferredFormation, setPreferredFormation] = useState('4-2-1-3');
+  const [preferredPlaystyle, setPreferredPlaystyle] = useState('Auto-Detect / AI Optimal Recommendation');
+  const [preferredFormation, setPreferredFormation] = useState('Auto-Detect / Balanced');
   const [customGameplan, setCustomGameplan] = useState('');
   const [tacticalPreference, setTacticalPreference] = useState('');
 
@@ -184,6 +186,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
         } : undefined,
         preferredPlaystyle,
         preferredFormation: finalFormation,
+        analysisMode: analysisMode === 'pure23' ? 'auto23' : 'guided',
         fluidFormations: fluidFormations.enabled ? fluidFormations : undefined,
         linkUpPlay: linkUpPlay.enabled ? linkUpPlay : undefined,
         tacticalPreference,
@@ -360,6 +363,64 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
         </div>
       )}
 
+      {/* Mode Switcher Tabs */}
+      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-2 grid grid-cols-1 md:grid-cols-2 gap-2 shadow-lg">
+        <button
+          type="button"
+          onClick={() => setAnalysisMode('pure23')}
+          className={`flex items-start gap-3 p-4 rounded-xl text-left transition-all cursor-pointer ${
+            analysisMode === 'pure23'
+              ? 'bg-emerald-500/15 border border-emerald-500/50 text-white shadow-md'
+              : 'hover:bg-neutral-800/60 border border-transparent text-neutral-400'
+          }`}
+        >
+          <div className={`p-2.5 rounded-xl shrink-0 ${
+            analysisMode === 'pure23' ? 'bg-emerald-500 text-neutral-950' : 'bg-neutral-800 text-neutral-400'
+          }`}>
+            <Users className="w-5 h-5" />
+          </div>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm text-white">
+                23-Player Squad & AI Auto-Tactics
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                Recommended
+              </span>
+            </div>
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              Enter all 23 squad players. The AI engine automatically chooses the optimal Best XI lineup, tactical playstyle, formation & match directives.
+            </p>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAnalysisMode('guided')}
+          className={`flex items-start gap-3 p-4 rounded-xl text-left transition-all cursor-pointer ${
+            analysisMode === 'guided'
+              ? 'bg-cyan-500/15 border border-cyan-500/50 text-white shadow-md'
+              : 'hover:bg-neutral-800/60 border border-transparent text-neutral-400'
+          }`}
+        >
+          <div className={`p-2.5 rounded-xl shrink-0 ${
+            analysisMode === 'guided' ? 'bg-cyan-500 text-neutral-950' : 'bg-neutral-800 text-neutral-400'
+          }`}>
+            <Sliders className="w-5 h-5" />
+          </div>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm text-white">
+                Guided XI & Substitutes
+              </span>
+            </div>
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              Explicitly split your 11 Starting XI and 12 Substitutes with custom tactical instructions and fluid formation overrides.
+            </p>
+          </div>
+        </button>
+      </div>
+
       {/* Loading Progress State */}
       {isAnalyzing ? (
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 sm:p-12 text-center space-y-6 shadow-2xl">
@@ -411,12 +472,13 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
         <div className="space-y-8">
           
           {/* Enter Squad Players Component */}
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
+          <div>
             <ManualPlayerInput
               typedPlayers={typedPlayers}
               onChange={setTypedPlayers}
               managerDetails={managerDetails}
               onManagerChange={setManagerDetails}
+              mode={analysisMode}
             />
           </div>
 

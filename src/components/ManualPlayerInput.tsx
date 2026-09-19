@@ -5,9 +5,12 @@ import {
   Plus, 
   UserCheck, 
   Layers, 
-  Users
+  Users,
+  ShieldAlert,
+  Sparkles,
+  Award
 } from 'lucide-react';
-import { TypedPlayerInput, ManagerInputDetails, AnalysisResult } from '../types.ts';
+import { TypedPlayerInput, ManagerInputDetails, AnalysisResult, SavedSquad } from '../types.ts';
 import { ManagerDetailsInput } from './ManagerDetailsInput.tsx';
 import { useAuth } from '../lib/AuthContext.tsx';
 import { db } from '../lib/firebase.ts';
@@ -18,41 +21,90 @@ interface ManualPlayerInputProps {
   onChange: (players: TypedPlayerInput[]) => void;
   managerDetails: ManagerInputDetails;
   onManagerChange: (manager: ManagerInputDetails) => void;
+  mode?: 'guided' | 'pure23';
 }
 
 export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   typedPlayers,
   onChange,
   managerDetails,
-  onManagerChange
+  onManagerChange,
+  mode = 'guided'
 }) => {
   const { user } = useAuth();
-  const [savedSquadsList, setSavedSquadsList] = useState<AnalysisResult[]>([]);
+  const [savedSquadsList, setSavedSquadsList] = useState<Array<AnalysisResult | (SavedSquad & { identifiedPlayers?: any[] })>>([]);
 
   useEffect(() => {
     if (!user) return;
     async function loadSaved() {
       try {
-        const q = query(collection(db, 'savedAnalyses'), where('userId', '==', user.uid));
-        const snap = await getDocs(q);
-        const list: AnalysisResult[] = [];
-        snap.forEach((d) => {
-          const data = d.data();
-          if (data.analysisData) {
-            list.push({ ...data.analysisData, id: d.id });
-          }
-        });
-        setSavedSquadsList(list);
-      } catch (e) {
+        const list: Array<any> = [];
+
+        // 1. Fetch from savedAnalyses collection
+        try {
+          const q = query(collection(db, 'savedAnalyses'), where('userId', '==', user.uid));
+          const snap = await getDocs(q);
+          snap.forEach((d) => {
+            const data = d.data();
+            if (data.analysisData) {
+              list.push({ ...data.analysisData, id: d.id, sourceCollection: 'savedAnalyses' });
+            }
+          });
+        } catch (e) {
+          console.warn('Could not query savedAnalyses:', e);
+        }
+
+        // 2. Fetch from userSquads collection
+        try {
+          const q2 = query(collection(db, 'userSquads'), where('userId', '==', user.uid));
+          const snap2 = await getDocs(q2);
+          snap2.forEach((d) => {
+            const data = d.data() as SavedSquad;
+            if (data && data.players && data.players.length > 0) {
+              list.push({
+                id: d.id,
+                title: data.squadName || 'Saved Squad',
+                identifiedPlayers: data.players,
+                managerDetails: (data.analysisData && data.analysisData.managerDetails) ? data.analysisData.managerDetails : undefined,
+                ...data
+              });
+            }
+          });
+        } catch (e) {
+          console.warn('Could not query userSquads:', e);
+        }
+
+        // 3. Fallback to localStorage
         const cached = localStorage.getItem(`ef_saved_reports_${user.uid}`);
         if (cached) {
-          try { setSavedSquadsList(JSON.parse(cached)); } catch (err) {}
+          try {
+            const cachedReports: AnalysisResult[] = JSON.parse(cached);
+            cachedReports.forEach(r => {
+              if (!list.some(item => item.id === r.id)) {
+                list.push(r);
+              }
+            });
+          } catch (err) {}
         }
+
+        setSavedSquadsList(list);
+      } catch (e) {
+        console.error('Error loading saved squads:', e);
       }
     }
     loadSaved();
   }, [user]);
-  // Starting XI Form State
+
+  // Pure 23 Squad Form State (Mode 2)
+  const [squadPlayerName, setSquadPlayerName] = useState('');
+  const [squadPlayerPos, setSquadPlayerPos] = useState('CF');
+  const [squadPlayerCardType, setSquadPlayerCardType] = useState('Highlight');
+  const [squadPlayerPlaystyle, setSquadPlayerPlaystyle] = useState('Goal Poacher');
+  const [squadPlayerRating, setSquadPlayerRating] = useState<number | string>(95);
+  const [squadPlayerTeam, setSquadPlayerTeam] = useState('');
+  const [squadPlayerLiveUpdate, setSquadPlayerLiveUpdate] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('C');
+
+  // Starting XI Form State (Mode 1)
   const [xiName, setXiName] = useState('');
   const [xiPos, setXiPos] = useState('CF');
   const [xiCardType, setXiCardType] = useState('Highlight');
@@ -61,7 +113,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const [xiTeam, setXiTeam] = useState('');
   const [xiLiveUpdate, setXiLiveUpdate] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('C');
 
-  // Substitute Form State
+  // Substitute Form State (Mode 1)
   const [subName, setSubName] = useState('');
   const [subPos, setSubPos] = useState('CF');
   const [subCardType, setSubCardType] = useState('Highlight');
@@ -73,6 +125,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const liveUpdateOptions = ['A', 'B', 'C', 'D', 'E'] as const;
 
   const positions = ['CF', 'SS', 'LWF', 'RWF', 'AMF', 'CMF', 'DMF', 'LMF', 'RMF', 'LB', 'CB', 'RB', 'GK'];
+  
   const cardTypes = [
     'Epic',
     'Show Time',
@@ -93,6 +146,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     'Featured',
     'Standard'
   ];
+
   const playstyles = [
     'Goal Poacher',
     'Adv. Striker',
@@ -134,6 +188,30 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const startingXI = typedPlayers.filter(p => p.role === 'starting_xi' || !p.role);
   const substitutes = typedPlayers.filter(p => p.role === 'substitute');
 
+  // Add Pure 23 Squad Player (Mode 2)
+  const addSquadPlayer = () => {
+    if (!squadPlayerName.trim()) return;
+    if (typedPlayers.length >= 23) return;
+
+    const newPlayer: TypedPlayerInput = {
+      id: 'sq_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      name: squadPlayerName.trim(),
+      position: squadPlayerPos,
+      cardType: squadPlayerCardType,
+      playstyle: squadPlayerPlaystyle,
+      rating: Math.min(110, Math.max(20, Number(squadPlayerRating) || 90)),
+      club: squadPlayerTeam.trim() || undefined,
+      role: typedPlayers.length < 11 ? 'starting_xi' : 'substitute',
+      liveUpdate: squadPlayerLiveUpdate
+    };
+
+    onChange([...typedPlayers, newPlayer]);
+    setSquadPlayerName('');
+    setSquadPlayerTeam('');
+    setSquadPlayerLiveUpdate('C');
+  };
+
+  // Add Starting XI Player (Mode 1)
   const addStartingXIPlayer = () => {
     if (!xiName.trim()) return;
     if (startingXI.length >= 11) return;
@@ -156,6 +234,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     setXiLiveUpdate('C');
   };
 
+  // Add Substitute Player (Mode 1)
   const addSubstitutePlayer = () => {
     if (!subName.trim()) return;
     if (substitutes.length >= 12) return;
@@ -182,410 +261,549 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     onChange(typedPlayers.filter(p => p.id !== id));
   };
 
+  const updatePlayerPosition = (id: string, newPos: string) => {
+    onChange(typedPlayers.map(p => p.id === id ? { ...p, position: newPos } : p));
+  };
+
   const updatePlayerRating = (id: string, newRating: number | string) => {
     onChange(typedPlayers.map(p => p.id === id ? { ...p, rating: newRating } : p));
-  };
-
-  const updatePlayerPosition = (id: string, newPosition: string) => {
-    onChange(typedPlayers.map(p => p.id === id ? { ...p, position: newPosition } : p));
-  };
-
-  const updatePlayerPlaystyle = (id: string, newPlaystyle: string) => {
-    onChange(typedPlayers.map(p => p.id === id ? { ...p, playstyle: newPlaystyle } : p));
   };
 
   const updatePlayerCardType = (id: string, newCardType: string) => {
     onChange(typedPlayers.map(p => p.id === id ? { ...p, cardType: newCardType } : p));
   };
 
+  const updatePlayerPlaystyle = (id: string, newPlaystyle: string) => {
+    onChange(typedPlayers.map(p => p.id === id ? { ...p, playstyle: newPlaystyle } : p));
+  };
+
   const updatePlayerLiveUpdate = (id: string, newLiveUpdate: string) => {
     onChange(typedPlayers.map(p => p.id === id ? { ...p, liveUpdate: newLiveUpdate } : p));
+  };
+
+  const updatePlayerClub = (id: string, newClub: string) => {
+    onChange(typedPlayers.map(p => p.id === id ? { ...p, club: newClub } : p));
   };
 
   const clearAllSquad = () => {
     onChange([]);
   };
 
-  const getLiveUpdateBadgeStyle = (rating?: string) => {
-    switch (rating) {
-      case 'A':
-        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
-      case 'B':
-        return 'bg-teal-500/20 text-teal-300 border-teal-500/40';
-      case 'C':
-        return 'bg-neutral-800 text-neutral-300 border-neutral-700';
-      case 'D':
-        return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
-      case 'E':
-        return 'bg-rose-500/20 text-rose-400 border-rose-500/40';
-      default:
-        return 'bg-neutral-800 text-neutral-300 border-neutral-700';
+  const handleLoadSavedSquad = (sId: string) => {
+    if (!sId) return;
+    const found: any = savedSquadsList.find(s => s.id === sId);
+    if (found) {
+      const playersSource: any[] = found.identifiedPlayers || (found.bestXI && found.bestXI.players) || found.players || [];
+      if (playersSource && playersSource.length > 0) {
+        const mapped: TypedPlayerInput[] = playersSource.map((p, i) => {
+          const cardTypeVal = p.cardType || p.playerType || (p.extractedVisuals && p.extractedVisuals.cardType) || p.cardEdition || 'Highlight';
+          const clubVal = p.club || p.team || '';
+          return {
+            id: p.id || `loaded_${i}_${Date.now()}`,
+            name: p.name || `Player ${i + 1}`,
+            position: p.position || 'CF',
+            rating: p.rating || 90,
+            cardType: cardTypeVal,
+            playstyle: p.playstyle || 'Goal Poacher',
+            club: clubVal,
+            nationality: p.nationality,
+            skills: Array.isArray(p.skills) ? p.skills : [],
+            role: p.role || (i < 11 ? 'starting_xi' : 'substitute'),
+            liveUpdate: p.liveUpdate || 'C'
+          };
+        });
+        onChange(mapped);
+        if (found.managerDetails && onManagerChange) {
+          onManagerChange(found.managerDetails);
+        }
+      }
     }
   };
 
   const getPositionColor = (pos: string) => {
     switch (pos) {
+      case 'GK': return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+      case 'CB':
+      case 'LB':
+      case 'RB': return 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20';
+      case 'DMF':
+      case 'CMF':
+      case 'AMF':
+      case 'LMF':
+      case 'RMF': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
       case 'CF':
       case 'SS':
       case 'LWF':
-      case 'RWF':
-        return 'bg-rose-500/20 text-rose-300 border-rose-500/40';
-      case 'AMF':
-      case 'CMF':
-      case 'DMF':
-      case 'LMF':
-      case 'RMF':
-        return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
-      case 'CB':
-      case 'LB':
-      case 'RB':
-        return 'bg-blue-500/20 text-blue-300 border-blue-500/40';
-      case 'GK':
-        return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
-      default:
-        return 'bg-neutral-800 text-neutral-300 border-neutral-700';
+      case 'RWF': return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+      default: return 'text-neutral-400 bg-neutral-800 border-neutral-700';
     }
   };
 
-  const getCardTypeBadgeStyle = (cardType?: string) => {
-    switch (cardType) {
-      case 'Epic':
-      case 'Big Time':
-      case 'Booster':
-        return 'bg-gradient-to-r from-amber-500/30 via-yellow-400/20 to-amber-600/30 text-amber-300 border-amber-400/50';
-      case 'Show Time':
-        return 'bg-gradient-to-r from-cyan-500/30 via-blue-500/20 to-indigo-500/30 text-cyan-300 border-cyan-400/50';
-      case 'Highlight':
-      case 'POTW':
-      case 'Featured':
-        return 'bg-purple-500/20 text-purple-300 border-purple-500/40';
-      case 'Legendary':
-        return 'bg-yellow-600/20 text-yellow-300 border-yellow-500/40';
-      default:
-        return 'bg-neutral-800 text-neutral-400 border-neutral-700';
+  const getLiveUpdateBadgeStyle = (condition?: string) => {
+    switch (condition?.toUpperCase()) {
+      case 'A': return 'text-emerald-300 bg-emerald-950/80 border-emerald-500/60 font-black';
+      case 'B': return 'text-cyan-300 bg-cyan-950/80 border-cyan-500/60 font-black';
+      case 'C': return 'text-amber-300 bg-neutral-900 border-amber-500/40 font-bold';
+      case 'D': return 'text-orange-400 bg-orange-950/80 border-orange-500/60 font-black';
+      case 'E': return 'text-rose-400 bg-rose-950/80 border-rose-500/60 font-black';
+      default: return 'text-neutral-400 bg-neutral-900 border-neutral-700 font-medium';
     }
+  };
+
+  const getCardTypeBadgeStyle = (ct?: string) => {
+    if (!ct) return 'text-neutral-300 border-neutral-700 bg-neutral-900';
+    const lower = ct.toLowerCase();
+    if (lower.includes('epic')) return 'text-amber-300 border-amber-500/40 bg-amber-950/40';
+    if (lower.includes('show time') || lower.includes('showtime')) return 'text-cyan-300 border-cyan-500/40 bg-cyan-950/40';
+    if (lower.includes('potw') || lower.includes('potd') || lower.includes('pots')) return 'text-emerald-300 border-emerald-500/40 bg-emerald-950/40';
+    if (lower.includes('big time') || lower.includes('legendary')) return 'text-purple-300 border-purple-500/40 bg-purple-950/40';
+    if (lower.includes('highlight') || lower.includes('featured')) return 'text-blue-300 border-blue-500/40 bg-blue-950/40';
+    return 'text-neutral-400 border-neutral-700 bg-neutral-900';
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
 
-      {/* 1. Manager / Coach Details Section */}
+      {/* 1. Manager Details Section */}
       <ManagerDetailsInput
         managerDetails={managerDetails}
-        onManagerChange={onManagerChange}
+        onChange={onManagerChange}
       />
 
-      {/* 2. Enter the XI Player's Details */}
-      <div className="bg-neutral-950/70 border border-neutral-800 rounded-2xl p-5 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-neutral-800">
-          <div className="flex items-center gap-2">
-            <UserCheck className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-sm sm:text-base font-bold text-white">
-              Enter the XI Player's Details:
-            </h3>
+      {/* 2. Mode-Specific Player Input Form */}
+      {mode === 'pure23' ? (
+        /* MODE 2: Unified 23-Player Input Form */
+        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-800">
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+                <Users className="w-5 h-5" />
+              </span>
+              <div>
+                <h3 className="text-base font-black text-white">
+                  Add Squad Player ({typedPlayers.length} / 23)
+                </h3>
+                <p className="text-xs text-neutral-400">
+                  Enter up to 23 squad players. The AI will automatically build your starting lineup, formation, playstyle and tactics.
+                </p>
+              </div>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-xs font-bold border self-start sm:self-auto ${
+              typedPlayers.length >= 23 
+                ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' 
+                : typedPlayers.length >= 11
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                : 'bg-neutral-800 text-neutral-400 border-neutral-700'
+            }`}>
+              {typedPlayers.length}/23 Players Entered
+            </span>
           </div>
-          <span className={`text-xs font-black px-3 py-1 rounded-full self-start sm:self-auto ${
-            startingXI.length === 11 
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-              : 'bg-neutral-800 text-neutral-300'
-          }`}>
-            Starting XI: {startingXI.length} / 11 Players
-          </span>
+
+          {/* Unified Add Player Input Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 items-end">
+            
+            {/* Player's Name */}
+            <div className="lg:col-span-2">
+              <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">
+                Player's Name *
+              </label>
+              <input
+                type="text"
+                value={squadPlayerName}
+                onChange={(e) => setSquadPlayerName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addSquadPlayer()}
+                placeholder="e.g. L. Messi"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {/* Team / Club */}
+            <div className="lg:col-span-1">
+              <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">
+                Team / Club
+              </label>
+              <input
+                type="text"
+                value={squadPlayerTeam}
+                onChange={(e) => setSquadPlayerTeam(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addSquadPlayer()}
+                placeholder="e.g. Inter Miami"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {/* Pos */}
+            <div>
+              <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">
+                Pos
+              </label>
+              <select
+                value={squadPlayerPos}
+                onChange={(e) => setSquadPlayerPos(e.target.value)}
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-2.5 py-2 text-xs text-white font-bold focus:outline-none focus:border-emerald-500"
+              >
+                {positions.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Card Type */}
+            <div>
+              <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">
+                Card Type
+              </label>
+              <select
+                value={squadPlayerCardType}
+                onChange={(e) => setSquadPlayerCardType(e.target.value)}
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+              >
+                {cardTypes.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Playing Style */}
+            <div>
+              <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">
+                Playing Style
+              </label>
+              <select
+                value={squadPlayerPlaystyle}
+                onChange={(e) => setSquadPlayerPlaystyle(e.target.value)}
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+              >
+                {playstyles.map(ps => (
+                  <option key={ps} value={ps}>{ps}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* OVR & Live Update */}
+            <div className="grid grid-cols-2 gap-1.5">
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">
+                  OVR
+                </label>
+                <input
+                  type="number"
+                  min="20"
+                  max="110"
+                  value={squadPlayerRating}
+                  onChange={(e) => setSquadPlayerRating(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-2 py-2 text-xs text-amber-300 font-black text-center focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">
+                  Live
+                </label>
+                <select
+                  value={squadPlayerLiveUpdate}
+                  onChange={(e) => setSquadPlayerLiveUpdate(e.target.value as any)}
+                  className={`w-full border rounded-xl px-1 py-2 text-xs text-center font-black focus:outline-none ${getLiveUpdateBadgeStyle(squadPlayerLiveUpdate)}`}
+                >
+                  {liveUpdateOptions.map(lu => (
+                    <option key={lu} value={lu}>{lu}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Add Player Button */}
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={addSquadPlayer}
+              disabled={!squadPlayerName.trim() || typedPlayers.length >= 23}
+              className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-neutral-950 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+            >
+              <Plus className="w-4 h-4" />
+              Add Player to Squad ({typedPlayers.length} / 23)
+            </button>
+          </div>
         </div>
+      ) : (
+        /* MODE 1: Guided XI + Substitutes Forms */
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          {/* Starting XI Form */}
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 shadow-xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                  <UserPlus className="w-4 h-4" />
+                </span>
+                <h3 className="text-sm font-bold text-white">
+                  Add Starting XI Player
+                </h3>
+              </div>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${startingXI.length >= 11 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                {startingXI.length} / 11 XI
+              </span>
+            </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-12 gap-2.5 items-end">
-          {/* Player Name */}
-          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Player Name</label>
-            <input
-              type="text"
-              placeholder="e.g. K. Mbappé, Haaland"
-              value={xiName}
-              onChange={(e) => setXiName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addStartingXIPlayer(); }}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                  Player's Name *
+                </label>
+                <input
+                  type="text"
+                  value={xiName}
+                  onChange={(e) => setXiName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addStartingXIPlayer()}
+                  placeholder="e.g. Lionel Messi"
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
 
-          {/* Team / Club */}
-          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Team / Club</label>
-            <input
-              type="text"
-              placeholder="e.g. Real Madrid, Man City"
-              value={xiTeam}
-              onChange={(e) => setXiTeam(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addStartingXIPlayer(); }}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                  Position
+                </label>
+                <select
+                  value={xiPos}
+                  onChange={(e) => setXiPos(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                >
+                  {positions.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
 
-          {/* Position */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">Pos</label>
-            <select
-              value={xiPos}
-              onChange={(e) => setXiPos(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 text-center"
-            >
-              {positions.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                  Card Type
+                </label>
+                <select
+                  value={xiCardType}
+                  onChange={(e) => setXiCardType(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                >
+                  {cardTypes.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
 
-          {/* Card Type */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-2">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Card Type</label>
-            <select
-              value={xiCardType}
-              onChange={(e) => setXiCardType(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-            >
-              {cardTypes.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                  Playing Style
+                </label>
+                <select
+                  value={xiPlaystyle}
+                  onChange={(e) => setXiPlaystyle(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                >
+                  {playstyles.map(ps => (
+                    <option key={ps} value={ps}>{ps}</option>
+                  ))}
+                </select>
+              </div>
 
-          {/* Player Playing Style */}
-          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Playing Style</label>
-            <select
-              value={xiPlaystyle}
-              onChange={(e) => setXiPlaystyle(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-            >
-              {playstyles.map(ps => (
-                <option key={ps} value={ps}>{ps}</option>
-              ))}
-            </select>
-          </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                    OVR
+                  </label>
+                  <input
+                    type="number"
+                    min="20"
+                    max="110"
+                    value={xiRating}
+                    onChange={(e) => setXiRating(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-2 py-2 text-xs text-amber-300 font-black text-center focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                    Live
+                  </label>
+                  <select
+                    value={xiLiveUpdate}
+                    onChange={(e) => setXiLiveUpdate(e.target.value as any)}
+                    className={`w-full border rounded-xl px-1 py-2 text-xs text-center font-black focus:outline-none ${getLiveUpdateBadgeStyle(xiLiveUpdate)}`}
+                  >
+                    {liveUpdateOptions.map(lu => (
+                      <option key={lu} value={lu}>{lu}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-          {/* Rating (OVR) */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR</label>
-            <input
-              type="number"
-              min="20"
-              max="110"
-              value={xiRating === '' ? '' : xiRating}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === '') {
-                  setXiRating('');
-                  return;
-                }
-                const num = parseInt(val, 10);
-                setXiRating(isNaN(num) ? val : num);
-              }}
-              onBlur={(e) => {
-                const num = parseInt(e.target.value, 10);
-                setXiRating(isNaN(num) ? 90 : Math.min(110, Math.max(20, num)));
-              }}
-              onKeyDown={(e) => { if (e.key === 'Enter') addStartingXIPlayer(); }}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-1.5 py-2 text-xs font-black text-amber-300 placeholder-neutral-500 focus:outline-none focus:border-emerald-500 text-center"
-            />
-          </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                  Team / Club
+                </label>
+                <input
+                  type="text"
+                  value={xiTeam}
+                  onChange={(e) => setXiTeam(e.target.value)}
+                  placeholder="e.g. Inter Miami"
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
 
-          {/* Live Update */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center" title="Live Update Rating (A - E)">
-              Live Update
-            </label>
-            <select
-              value={xiLiveUpdate}
-              onChange={(e) => setXiLiveUpdate(e.target.value as 'A' | 'B' | 'C' | 'D' | 'E')}
-              className={`w-full bg-neutral-900 border rounded-lg px-2 py-2 text-xs font-black text-center focus:outline-none focus:border-emerald-500 cursor-pointer ${getLiveUpdateBadgeStyle(xiLiveUpdate)}`}
-              title="Live Update: A (Top), B (Good), C (Normal), D (Poor), E (Terrible)"
-            >
-              {liveUpdateOptions.map(opt => (
-                <option key={opt} value={opt} className="bg-neutral-900 text-white font-bold">
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Add XI Button */}
-          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-1">
             <button
               type="button"
               onClick={addStartingXIPlayer}
               disabled={!xiName.trim() || startingXI.length >= 11}
-              className={`w-full py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-colors ${
-                xiName.trim() && startingXI.length < 11
-                  ? 'bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-md cursor-pointer'
-                  : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
-              }`}
-              title={startingXI.length >= 11 ? 'Starting XI full (11 players maximum)' : 'Add player to Starting XI'}
+              className="w-full py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-neutral-950 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5 shadow-md"
             >
               <Plus className="w-4 h-4" />
-              <span>Add XI</span>
+              Add to Starting XI ({startingXI.length}/11)
             </button>
           </div>
-        </div>
-      </div>
 
-      {/* 3. Enter the Substitution Player's Details */}
-      <div className="bg-neutral-950/70 border border-neutral-800 rounded-2xl p-5 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-neutral-800">
-          <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-cyan-400" />
-            <h3 className="text-sm sm:text-base font-bold text-white">
-              Enter the Substitution Player's Details:
-            </h3>
-          </div>
-          <span className={`text-xs font-black px-3 py-1 rounded-full self-start sm:self-auto ${
-            substitutes.length === 12 
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-              : 'bg-neutral-800 text-neutral-300'
-          }`}>
-            Substitutions: {substitutes.length} / 12 Players
-          </span>
-        </div>
+          {/* Substitutes Form */}
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 shadow-xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400">
+                  <UserPlus className="w-4 h-4" />
+                </span>
+                <h3 className="text-sm font-bold text-white">
+                  Add Substitute Player
+                </h3>
+              </div>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${substitutes.length >= 12 ? 'bg-rose-500/20 text-rose-300' : 'bg-cyan-500/20 text-cyan-300'}`}>
+                {substitutes.length} / 12 Subs
+              </span>
+            </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-12 gap-2.5 items-end">
-          {/* Player Name */}
-          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Player Name</label>
-            <input
-              type="text"
-              placeholder="e.g. Rodrygo, Camavinga"
-              value={subName}
-              onChange={(e) => setSubName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addSubstitutePlayer(); }}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-cyan-500"
-            />
-          </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                  Player's Name *
+                </label>
+                <input
+                  type="text"
+                  value={subName}
+                  onChange={(e) => setSubName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addSubstitutePlayer()}
+                  placeholder="e.g. Erling Haaland"
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
 
-          {/* Team / Club */}
-          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Team / Club</label>
-            <input
-              type="text"
-              placeholder="e.g. Arsenal, Bayern"
-              value={subTeam}
-              onChange={(e) => setSubTeam(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addSubstitutePlayer(); }}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-cyan-500"
-            />
-          </div>
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                  Position
+                </label>
+                <select
+                  value={subPos}
+                  onChange={(e) => setSubPos(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                >
+                  {positions.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
 
-          {/* Position */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">Pos</label>
-            <select
-              value={subPos}
-              onChange={(e) => setSubPos(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 text-center"
-            >
-              {positions.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                  Card Type
+                </label>
+                <select
+                  value={subCardType}
+                  onChange={(e) => setSubCardType(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                >
+                  {cardTypes.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
 
-          {/* Card Type */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-2">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Card Type</label>
-            <select
-              value={subCardType}
-              onChange={(e) => setSubCardType(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-            >
-              {cardTypes.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                  Playing Style
+                </label>
+                <select
+                  value={subPlaystyle}
+                  onChange={(e) => setSubPlaystyle(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                >
+                  {playstyles.map(ps => (
+                    <option key={ps} value={ps}>{ps}</option>
+                  ))}
+                </select>
+              </div>
 
-          {/* Player Playing Style */}
-          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Playing Style</label>
-            <select
-              value={subPlaystyle}
-              onChange={(e) => setSubPlaystyle(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-            >
-              {playstyles.map(ps => (
-                <option key={ps} value={ps}>{ps}</option>
-              ))}
-            </select>
-          </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                    OVR
+                  </label>
+                  <input
+                    type="number"
+                    min="20"
+                    max="110"
+                    value={subRating}
+                    onChange={(e) => setSubRating(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-2 py-2 text-xs text-amber-300 font-black text-center focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                    Live
+                  </label>
+                  <select
+                    value={subLiveUpdate}
+                    onChange={(e) => setSubLiveUpdate(e.target.value as any)}
+                    className={`w-full border rounded-xl px-1 py-2 text-xs text-center font-black focus:outline-none ${getLiveUpdateBadgeStyle(subLiveUpdate)}`}
+                  >
+                    {liveUpdateOptions.map(lu => (
+                      <option key={lu} value={lu}>{lu}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-          {/* Rating (OVR) */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR</label>
-            <input
-              type="number"
-              min="20"
-              max="110"
-              value={subRating === '' ? '' : subRating}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === '') {
-                  setSubRating('');
-                  return;
-                }
-                const num = parseInt(val, 10);
-                setSubRating(isNaN(num) ? val : num);
-              }}
-              onBlur={(e) => {
-                const num = parseInt(e.target.value, 10);
-                setSubRating(isNaN(num) ? 90 : Math.min(110, Math.max(20, num)));
-              }}
-              onKeyDown={(e) => { if (e.key === 'Enter') addSubstitutePlayer(); }}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-1.5 py-2 text-xs font-black text-amber-300 placeholder-neutral-500 focus:outline-none focus:border-cyan-500 text-center"
-            />
-          </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                  Team / Club
+                </label>
+                <input
+                  type="text"
+                  value={subTeam}
+                  onChange={(e) => setSubTeam(e.target.value)}
+                  placeholder="e.g. Manchester City"
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            </div>
 
-          {/* Live Update */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center" title="Live Update Rating (A - E)">
-              Live Update
-            </label>
-            <select
-              value={subLiveUpdate}
-              onChange={(e) => setSubLiveUpdate(e.target.value as 'A' | 'B' | 'C' | 'D' | 'E')}
-              className={`w-full bg-neutral-900 border rounded-lg px-2 py-2 text-xs font-black text-center focus:outline-none focus:border-cyan-500 cursor-pointer ${getLiveUpdateBadgeStyle(subLiveUpdate)}`}
-              title="Live Update: A (Top), B (Good), C (Normal), D (Poor), E (Terrible)"
-            >
-              {liveUpdateOptions.map(opt => (
-                <option key={opt} value={opt} className="bg-neutral-900 text-white font-bold">
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Add Substitute Button */}
-          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-1">
             <button
               type="button"
               onClick={addSubstitutePlayer}
               disabled={!subName.trim() || substitutes.length >= 12}
-              className={`w-full py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-colors ${
-                subName.trim() && substitutes.length < 12
-                  ? 'bg-cyan-500 hover:bg-cyan-400 text-neutral-950 shadow-md cursor-pointer'
-                  : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
-              }`}
-              title={substitutes.length >= 12 ? 'Substitutes full (12 players maximum)' : 'Add player to Substitutes'}
+              className="w-full py-2.5 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-neutral-950 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5 shadow-md"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Sub</span>
+              Add to Substitutes ({substitutes.length}/12)
             </button>
           </div>
-        </div>
-      </div>
 
-      {/* 4. Selected Squad (0 / 23 players) Area */}
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-neutral-950/70 p-4 rounded-xl border border-neutral-800">
-          <div className="flex items-center gap-3">
-            <Layers className="w-5 h-5 text-emerald-400" />
+        </div>
+      )}
+
+      {/* 3. Selected Squad (0 / 23 players) Area */}
+      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-neutral-800">
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-xl bg-purple-500/20 text-purple-400">
+              <Layers className="w-5 h-5" />
+            </span>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-white">
+              <h3 className="text-base font-black text-white">
                 Selected Squad ({typedPlayers.length} / 23 players)
               </h3>
               <p className="text-xs text-neutral-400">
@@ -595,40 +813,20 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Load Saved Squad Dropdown */}
             {savedSquadsList.length > 0 && (
               <select
                 onChange={(e) => {
-                  const sId = e.target.value;
-                  if (!sId) return;
-                  const found = savedSquadsList.find(s => s.id === sId);
-                  if (found && found.identifiedPlayers) {
-                    const mapped: TypedPlayerInput[] = found.identifiedPlayers.map((p, i) => ({
-                      id: p.id || `loaded_${i}_${Date.now()}`,
-                      name: p.name,
-                      position: p.position || 'CF',
-                      rating: p.rating || 90,
-                      cardType: p.cardType || 'Highlight',
-                      playstyle: p.playstyle || 'Goal Poacher',
-                      club: p.club,
-                      nationality: p.nationality,
-                      skills: p.skills,
-                      role: p.role || (i < 11 ? 'starting_xi' : 'substitute'),
-                      liveUpdate: p.liveUpdate || 'C'
-                    }));
-                    onChange(mapped);
-                    if (found.managerDetails && onManagerChange) {
-                      onManagerChange(found.managerDetails);
-                    }
-                  }
+                  handleLoadSavedSquad(e.target.value);
                   e.target.value = '';
                 }}
                 defaultValue=""
-                className="bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-emerald-500 cursor-pointer"
+                className="bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-emerald-400 font-bold focus:outline-none focus:border-emerald-500 cursor-pointer shadow-sm"
               >
                 <option value="" disabled>📂 Load Saved Squad...</option>
-                {savedSquadsList.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.title || 'Saved Squad'} ({s.identifiedPlayers?.length || 0} players)
+                {savedSquadsList.map((s, idx) => (
+                  <option key={s.id || idx} value={s.id}>
+                    {s.title || (s as any).squadName || 'Saved Squad'} ({s.identifiedPlayers?.length || (s as any).players?.length || 0} players)
                   </option>
                 ))}
               </select>
@@ -638,7 +836,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
               <button
                 type="button"
                 onClick={clearAllSquad}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 transition-colors"
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 transition-colors shadow-sm"
               >
                 Clear All Players
               </button>
@@ -653,33 +851,29 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
               No players added to squad yet
             </p>
             <p className="text-xs text-neutral-500 max-w-md mx-auto">
-              Add up to 11 Starting XI players and up to 12 Substitutes using the detail forms above.
+              Add players using the form above or load a previously saved squad.
             </p>
           </div>
         ) : (
           <div className="space-y-6">
 
-            {/* Starting XI Section */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <UserCheck className="w-4 h-4" />
-                  Starting XI ({startingXI.length} / 11)
-                </span>
-                {startingXI.length === 11 && (
-                  <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                    Full XI Complete
+            {/* In Pure23 mode: render single unified list. In Guided mode: render XI and Subs separated */}
+            {mode === 'pure23' ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="w-4 h-4" />
+                    Squad Players ({typedPlayers.length} / 23)
                   </span>
-                )}
-              </div>
+                  {typedPlayers.length >= 23 && (
+                    <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      Full 23-Player Squad Complete
+                    </span>
+                  )}
+                </div>
 
-              {startingXI.length === 0 ? (
-                <p className="text-xs text-neutral-500 italic p-3 bg-neutral-950/40 rounded-xl border border-neutral-800/60">
-                  No Starting XI players added yet.
-                </p>
-              ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {startingXI.map((player, idx) => (
+                  {typedPlayers.map((player, idx) => (
                     <div
                       key={player.id}
                       className="bg-neutral-900/90 border border-neutral-800 hover:border-emerald-500/40 rounded-xl p-3 flex flex-col gap-2 shadow-sm transition-colors"
@@ -705,6 +899,11 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                             <span className="text-xs font-bold text-white block truncate">
                               {player.name}
                             </span>
+                            {player.club && (
+                              <span className="text-[10px] text-neutral-400 block truncate">
+                                {player.club}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -785,137 +984,278 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-
-            {/* Substitutes Section */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Users className="w-4 h-4" />
-                  Substitution Players ({substitutes.length} / 12)
-                </span>
-                {substitutes.length === 12 && (
-                  <span className="text-[11px] font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
-                    Max Substitutes Added (12)
-                  </span>
-                )}
               </div>
+            ) : (
+              <>
+                {/* Starting XI Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <UserCheck className="w-4 h-4" />
+                      Starting XI ({startingXI.length} / 11)
+                    </span>
+                    {startingXI.length === 11 && (
+                      <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                        Full XI Complete
+                      </span>
+                    )}
+                  </div>
 
-              {substitutes.length === 0 ? (
-                <p className="text-xs text-neutral-500 italic p-3 bg-neutral-950/40 rounded-xl border border-neutral-800/60">
-                  No Substitutes added yet.
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {substitutes.map((player, idx) => (
-                    <div
-                      key={player.id}
-                      className="bg-neutral-900/90 border border-neutral-800 hover:border-cyan-500/40 rounded-xl p-3 flex flex-col gap-2 shadow-sm transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-[10px] font-bold text-neutral-500 w-4 text-right shrink-0">
-                            {idx + 1}.
-                          </span>
+                  {startingXI.length === 0 ? (
+                    <p className="text-xs text-neutral-500 italic p-3 bg-neutral-950/40 rounded-xl border border-neutral-800/60">
+                      No Starting XI players added yet.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                      {startingXI.map((player, idx) => (
+                        <div
+                          key={player.id}
+                          className="bg-neutral-900/90 border border-neutral-800 hover:border-emerald-500/40 rounded-xl p-3 flex flex-col gap-2 shadow-sm transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-[10px] font-bold text-neutral-500 w-4 text-right shrink-0">
+                                {idx + 1}.
+                              </span>
 
-                          {/* Editable Position */}
-                          <select
-                            value={player.position}
-                            onChange={(e) => updatePlayerPosition(player.id, e.target.value)}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-black border cursor-pointer ${getPositionColor(player.position)}`}
-                          >
-                            {positions.map(p => (
-                              <option key={p} value={p}>{p}</option>
-                            ))}
-                          </select>
+                              {/* Editable Position */}
+                              <select
+                                value={player.position}
+                                onChange={(e) => updatePlayerPosition(player.id, e.target.value)}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-black border cursor-pointer ${getPositionColor(player.position)}`}
+                              >
+                                {positions.map(p => (
+                                  <option key={p} value={p}>{p}</option>
+                                ))}
+                              </select>
 
-                          <div className="min-w-0">
-                            <span className="text-xs font-bold text-white block truncate">
-                              {player.name}
-                            </span>
+                              <div className="min-w-0">
+                                <span className="text-xs font-bold text-white block truncate">
+                                  {player.name}
+                                </span>
+                                {player.club && (
+                                  <span className="text-[10px] text-neutral-400 block truncate">
+                                    {player.club}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {/* Live Update Condition */}
+                              <select
+                                value={player.liveUpdate || 'C'}
+                                onChange={(e) => updatePlayerLiveUpdate(player.id, e.target.value)}
+                                className={`px-1.5 py-1 rounded text-[10px] font-black border cursor-pointer ${getLiveUpdateBadgeStyle(player.liveUpdate)}`}
+                                title="Live Update Condition (A to E)"
+                              >
+                                {liveUpdateOptions.map(lu => (
+                                  <option key={lu} value={lu} className="bg-neutral-900 text-white font-bold">
+                                    {lu}
+                                  </option>
+                                ))}
+                              </select>
+
+                              {/* Rating Input */}
+                              <div className="flex items-center gap-1 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
+                                <input
+                                  type="number"
+                                  min="20"
+                                  max="110"
+                                  value={player.rating === '' ? '' : player.rating}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '') {
+                                      updatePlayerRating(player.id, '');
+                                      return;
+                                    }
+                                    const num = parseInt(val, 10);
+                                    updatePlayerRating(player.id, isNaN(num) ? val : num);
+                                  }}
+                                  onBlur={(e) => {
+                                    const num = parseInt(e.target.value, 10);
+                                    updatePlayerRating(player.id, isNaN(num) ? 90 : Math.min(110, Math.max(20, num)));
+                                  }}
+                                  className="w-12 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
+                                />
+                                <span className="text-[9px] font-bold text-neutral-500">OVR</span>
+                              </div>
+
+                              {/* Remove Button */}
+                              <button
+                                type="button"
+                                onClick={() => removePlayer(player.id)}
+                                className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
+                                title="Remove player"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Card Type & Editable Playstyle */}
+                          <div className="flex items-center justify-between pt-1 border-t border-neutral-800/60 text-[10px]">
+                            <select
+                              value={player.cardType || 'Highlight'}
+                              onChange={(e) => updatePlayerCardType(player.id, e.target.value)}
+                              className={`bg-neutral-950 border border-neutral-700 text-[9px] font-bold rounded px-1.5 py-0.5 focus:outline-none focus:border-emerald-500 cursor-pointer ${getCardTypeBadgeStyle(player.cardType)}`}
+                            >
+                              {cardTypes.map(c => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                            
+                            <select
+                              value={player.playstyle || 'Goal Poacher'}
+                              onChange={(e) => updatePlayerPlaystyle(player.id, e.target.value)}
+                              className="bg-neutral-950 border border-neutral-700 text-neutral-300 rounded px-2 py-1 text-[10px] focus:outline-none focus:border-emerald-500"
+                            >
+                              {playstyles.map(ps => (
+                                <option key={ps} value={ps}>{ps}</option>
+                              ))}
+                            </select>
                           </div>
                         </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {/* Live Update Condition */}
-                          <select
-                            value={player.liveUpdate || 'C'}
-                            onChange={(e) => updatePlayerLiveUpdate(player.id, e.target.value)}
-                            className={`px-1.5 py-1 rounded text-[10px] font-black border cursor-pointer ${getLiveUpdateBadgeStyle(player.liveUpdate)}`}
-                            title="Live Update Condition (A to E)"
-                          >
-                            {liveUpdateOptions.map(lu => (
-                              <option key={lu} value={lu} className="bg-neutral-900 text-white font-bold">
-                                {lu}
-                              </option>
-                            ))}
-                          </select>
-
-                          {/* Rating Input */}
-                          <div className="flex items-center gap-1 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
-                            <input
-                              type="number"
-                              min="20"
-                              max="110"
-                              value={player.rating === '' ? '' : player.rating}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === '') {
-                                  updatePlayerRating(player.id, '');
-                                  return;
-                                }
-                                const num = parseInt(val, 10);
-                                updatePlayerRating(player.id, isNaN(num) ? val : num);
-                              }}
-                              onBlur={(e) => {
-                                const num = parseInt(e.target.value, 10);
-                                updatePlayerRating(player.id, isNaN(num) ? 90 : Math.min(110, Math.max(20, num)));
-                              }}
-                              className="w-12 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
-                            />
-                            <span className="text-[9px] font-bold text-neutral-500">OVR</span>
-                          </div>
-
-                          {/* Remove Button */}
-                          <button
-                            type="button"
-                            onClick={() => removePlayer(player.id)}
-                            className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
-                            title="Remove player"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Card Type & Editable Playstyle */}
-                      <div className="flex items-center justify-between pt-1 border-t border-neutral-800/60 text-[10px]">
-                        <select
-                          value={player.cardType || 'Highlight'}
-                          onChange={(e) => updatePlayerCardType(player.id, e.target.value)}
-                          className={`bg-neutral-950 border border-neutral-700 text-[9px] font-bold rounded px-1.5 py-0.5 focus:outline-none focus:border-cyan-500 cursor-pointer ${getCardTypeBadgeStyle(player.cardType)}`}
-                        >
-                          {cardTypes.map(c => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
-                        
-                        <select
-                          value={player.playstyle || 'Goal Poacher'}
-                          onChange={(e) => updatePlayerPlaystyle(player.id, e.target.value)}
-                          className="bg-neutral-950 border border-neutral-700 text-neutral-300 rounded px-2 py-1 text-[10px] focus:outline-none focus:border-cyan-500"
-                        >
-                          {playstyles.map(ps => (
-                            <option key={ps} value={ps}>{ps}</option>
-                          ))}
-                        </select>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-            </div>
+
+                {/* Substitutes Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Users className="w-4 h-4" />
+                      Substitution Players ({substitutes.length} / 12)
+                    </span>
+                    {substitutes.length === 12 && (
+                      <span className="text-[11px] font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+                        Max Substitutes Added (12)
+                      </span>
+                    )}
+                  </div>
+
+                  {substitutes.length === 0 ? (
+                    <p className="text-xs text-neutral-500 italic p-3 bg-neutral-950/40 rounded-xl border border-neutral-800/60">
+                      No Substitutes added yet.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                      {substitutes.map((player, idx) => (
+                        <div
+                          key={player.id}
+                          className="bg-neutral-900/90 border border-neutral-800 hover:border-cyan-500/40 rounded-xl p-3 flex flex-col gap-2 shadow-sm transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-[10px] font-bold text-neutral-500 w-4 text-right shrink-0">
+                                {idx + 1}.
+                              </span>
+
+                              {/* Editable Position */}
+                              <select
+                                value={player.position}
+                                onChange={(e) => updatePlayerPosition(player.id, e.target.value)}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-black border cursor-pointer ${getPositionColor(player.position)}`}
+                              >
+                                {positions.map(p => (
+                                  <option key={p} value={p}>{p}</option>
+                                ))}
+                              </select>
+
+                              <div className="min-w-0">
+                                <span className="text-xs font-bold text-white block truncate">
+                                  {player.name}
+                                </span>
+                                {player.club && (
+                                  <span className="text-[10px] text-neutral-400 block truncate">
+                                    {player.club}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {/* Live Update Condition */}
+                              <select
+                                value={player.liveUpdate || 'C'}
+                                onChange={(e) => updatePlayerLiveUpdate(player.id, e.target.value)}
+                                className={`px-1.5 py-1 rounded text-[10px] font-black border cursor-pointer ${getLiveUpdateBadgeStyle(player.liveUpdate)}`}
+                                title="Live Update Condition (A to E)"
+                              >
+                                {liveUpdateOptions.map(lu => (
+                                  <option key={lu} value={lu} className="bg-neutral-900 text-white font-bold">
+                                    {lu}
+                                  </option>
+                                ))}
+                              </select>
+
+                              {/* Rating Input */}
+                              <div className="flex items-center gap-1 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
+                                <input
+                                  type="number"
+                                  min="20"
+                                  max="110"
+                                  value={player.rating === '' ? '' : player.rating}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '') {
+                                      updatePlayerRating(player.id, '');
+                                      return;
+                                    }
+                                    const num = parseInt(val, 10);
+                                    updatePlayerRating(player.id, isNaN(num) ? val : num);
+                                  }}
+                                  onBlur={(e) => {
+                                    const num = parseInt(e.target.value, 10);
+                                    updatePlayerRating(player.id, isNaN(num) ? 90 : Math.min(110, Math.max(20, num)));
+                                  }}
+                                  className="w-12 bg-transparent text-xs font-black text-amber-300 text-center focus:outline-none"
+                                />
+                                <span className="text-[9px] font-bold text-neutral-500">OVR</span>
+                              </div>
+
+                              {/* Remove Button */}
+                              <button
+                                type="button"
+                                onClick={() => removePlayer(player.id)}
+                                className="p-1.5 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
+                                title="Remove player"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Card Type & Editable Playstyle */}
+                          <div className="flex items-center justify-between pt-1 border-t border-neutral-800/60 text-[10px]">
+                            <select
+                              value={player.cardType || 'Highlight'}
+                              onChange={(e) => updatePlayerCardType(player.id, e.target.value)}
+                              className={`bg-neutral-950 border border-neutral-700 text-[9px] font-bold rounded px-1.5 py-0.5 focus:outline-none focus:border-cyan-500 cursor-pointer ${getCardTypeBadgeStyle(player.cardType)}`}
+                            >
+                              {cardTypes.map(c => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                            
+                            <select
+                              value={player.playstyle || 'Goal Poacher'}
+                              onChange={(e) => updatePlayerPlaystyle(player.id, e.target.value)}
+                              className="bg-neutral-950 border border-neutral-700 text-neutral-300 rounded px-2 py-1 text-[10px] focus:outline-none focus:border-cyan-500"
+                            >
+                              {playstyles.map(ps => (
+                                <option key={ps} value={ps}>{ps}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
           </div>
         )}

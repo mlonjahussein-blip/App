@@ -32,6 +32,10 @@ export interface PlayerData {
   confidenceLevel?: 'VERIFIED' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNVERIFIED';
   status?: 'verified' | 'high_confidence' | 'needs_confirmation' | 'unverified';
   playerType?: string; // e.g. Epic, Highlight, Standard, POTW, Show Time
+  cardType?: string;
+  club?: string;
+  team?: string;
+  nationality?: string;
   keyAttributes?: Record<string, number | string>;
   skills?: string[];
   roleExplanation?: string;
@@ -304,6 +308,8 @@ export interface AnalysisResult {
   inferences?: string[];
   actionRecommendations?: string[];
   isDeveloperModeAvailable?: boolean;
+  managerDetails?: ManagerInputDetails;
+  analysisMode?: 'guided_tactics' | 'auto_tactics_23';
 }
 
 export interface UserProfile {
@@ -434,6 +440,7 @@ export interface AnalyzeSquadRequestPayload {
   tacticalPreference?: string;
   hasCoachScreenshot?: boolean;
   userId?: string;
+  analysisMode?: 'guided_tactics' | 'auto_tactics_23';
 }
 
 export type PaymentProviderType = 'pesapal' | 'paypal' | 'google_pay' | 'apple_pay';
