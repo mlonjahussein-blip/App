@@ -45,6 +45,12 @@ import {
   stringSimilarity,
   matchPlayerCandidatesByVisualSignals
 } from '../src/lib/efootballDatabase.ts';
+import {
+  crosscheckAndAuditSquadDetails,
+  buildSpecializedGeminiPrompt,
+  reEvaluateAndErrorProofResult,
+  generateDeepAlgorithmicAnalysis
+} from './deepAnalysisEngine.ts';
 
 let aiClient: GoogleGenAI | null = null;
 
@@ -311,9 +317,65 @@ export async function runMultiStageSquadPipeline(payload: AnalyzeSquadPayload): 
   const images = Array.isArray(payload.images) ? payload.images : [];
   const typedPlayers = Array.isArray(payload.typedPlayers) ? payload.typedPlayers : [];
 
-  // If no images are provided but typed players exist, or if API key is not configured, generate evidence-based analysis directly
-  if (images.length === 0 || !apiKey || apiKey === 'dummy-key') {
-    return createEvidenceBasedFallback(payload);
+  // Stage 1: Pre-Analysis Input Cross-Checking & Deep Auditing
+  const preAudit = crosscheckAndAuditSquadDetails(payload);
+
+  // If API key is not configured, generate deep evidence-based analysis directly using pre-audit
+  if (!apiKey || apiKey === 'dummy-key') {
+    return generateDeepAlgorithmicAnalysis(payload, preAudit);
+  }
+
+  // If no images are provided but typed players exist, run the specialized AI model on verified squad data
+  if (images.length === 0) {
+    try {
+      const ai = getGenAI();
+      const prompt = buildSpecializedGeminiPrompt(payload, preAudit);
+      const candidateModels = [
+        'gemini-3.8-flash',
+        'gemini-3.1-pro-preview',
+        'gemini-flash-latest',
+        'gemini-3.1-flash-lite'
+      ];
+
+      let responseText = '';
+      for (const modelName of candidateModels) {
+        try {
+          const res = await ai.models.generateContent({
+            model: modelName,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: {
+              responseMimeType: 'application/json',
+              temperature: 0.1
+            }
+          });
+          if (res?.text) {
+            responseText = res.text;
+            break;
+          }
+        } catch (modelAttemptErr: any) {
+          console.warn(`Specialized model attempt with ${modelName} encountered an issue:`, modelAttemptErr?.message || modelAttemptErr);
+        }
+      }
+
+      if (responseText) {
+        let cleanJson = responseText.trim();
+        if (cleanJson.startsWith('```')) {
+          cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+        } else {
+          const firstBrace = cleanJson.indexOf('{');
+          const lastBrace = cleanJson.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace > firstBrace) {
+            cleanJson = cleanJson.slice(firstBrace, lastBrace + 1);
+          }
+        }
+        const parsed = JSON.parse(cleanJson);
+        // Stage 3: Master Post-Analysis Re-evaluation & Error-Proofing
+        return reEvaluateAndErrorProofResult(parsed, preAudit, payload);
+      }
+    } catch (specializedErr) {
+      console.warn('Specialized AI analysis encountered error, engaging deep algorithmic engine:', specializedErr);
+    }
+    return generateDeepAlgorithmicAnalysis(payload, preAudit);
   }
 
   try {
@@ -628,7 +690,9 @@ Coach Screenshot Uploaded: ${payload.hasCoachScreenshot ? 'YES - inspect coach c
     }
 
     const parsed = JSON.parse(cleanJson);
-    return await postProcessAndVerifySquad(parsed, payload, imageBuffers);
+    const postProcessed = await postProcessAndVerifySquad(parsed, payload, imageBuffers);
+    // Stage 3: Master Post-Analysis Re-evaluation & Error-Proofing
+    return reEvaluateAndErrorProofResult(postProcessed, preAudit, payload);
   } catch (error) {
     console.error('Error in multi-stage vision analysis, using evidence-based fallback:', error);
     return createEvidenceBasedFallback(payload);
@@ -1146,6 +1210,13 @@ export async function postProcessAndVerifySquad(
 
 // Fallback when API key is missing or for reliable offline processing
 export function createEvidenceBasedFallback(payload: AnalyzeSquadPayload): AnalysisResult {
+  const preAudit = crosscheckAndAuditSquadDetails(payload);
+  try {
+    return generateDeepAlgorithmicAnalysis(payload, preAudit);
+  } catch (err) {
+    console.error('Error in deep algorithmic analysis fallback, using emergency baseline:', err);
+  }
+
   try {
     const formation = payload.preferredFormation && payload.preferredFormation !== 'Auto-Detect / Balanced'
       ? payload.preferredFormation

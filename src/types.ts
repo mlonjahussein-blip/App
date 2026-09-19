@@ -60,6 +60,7 @@ export interface PlayerData {
   userConfirmed?: boolean;
   userCorrected?: boolean;
   liveUpdate?: 'A' | 'B' | 'C' | 'D' | 'E' | string;
+  role?: 'starting_xi' | 'substitute';
 }
 
 export interface CoachData {
