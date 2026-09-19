@@ -23,7 +23,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       testMode: entitlements.testMode,
       priceUsd: entitlements.paidAnalysisPriceUsd,
       priceDisplay: entitlements.priceDisplay,
-      nextFreeResetDate: entitlements.nextFreeResetDate
+      nextFreeResetDate: entitlements.nextFreeResetDate,
+      isUnlimitedTestingAccount: entitlements.isUnlimitedTestingAccount || false
     });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Failed to fetch usage status' });

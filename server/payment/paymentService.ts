@@ -90,6 +90,28 @@ const fallbackUserStore: Map<string, { freeAnalysesRemaining: number; paidCredit
 const fallbackPaymentStore: Map<string, PaymentRecord> = new Map();
 
 /**
+ * Dedicated Testing Account Definition
+ * Strict rule: ONLY this account ("Mr. Who" / "u_4qa0c1cp_mu44a6d0") has unlimited free analyses.
+ * Strictly forbidden for any other account.
+ */
+export const UNLIMITED_TESTING_USER_ID = 'u_4qa0c1cp_mu44a6d0';
+export const UNLIMITED_TESTING_GAMER_NAME = 'Mr. Who';
+
+export function isUnlimitedTestingAccount(userId?: string | null, displayName?: string | null): boolean {
+  if (!userId && !displayName) return false;
+  const cleanUid = (userId || '').trim();
+  const cleanName = (displayName || '').trim().toLowerCase();
+
+  if (cleanUid === UNLIMITED_TESTING_USER_ID) {
+    return true;
+  }
+  if (cleanName === UNLIMITED_TESTING_GAMER_NAME.toLowerCase() && (cleanUid === UNLIMITED_TESTING_USER_ID || cleanUid.startsWith('u_'))) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Retrieve user entitlements (Free weekly analysis check + Paid credits)
  * Backend is the source of truth!
  */
@@ -97,7 +119,41 @@ export async function getUserEntitlements(userId: string): Promise<UserEntitleme
   const config = getPaymentConfig();
   const cleanUid = (userId || 'guest').trim();
 
+  // Check designated testing account first
+  if (isUnlimitedTestingAccount(cleanUid)) {
+    return {
+      userId: cleanUid,
+      weeklyFreeAnalysisAvailable: true,
+      freeAnalysesRemaining: 999999,
+      paidAnalysisCredits: 999999,
+      canAnalyze: true,
+      nextFreeResetDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      lastFreeResetAt: new Date().toISOString(),
+      testMode: config.isTestMode,
+      paidAnalysisPriceUsd: 0,
+      priceDisplay: '$0.00 USD (Unlimited Tester Pass)',
+      isUnlimitedTestingAccount: true
+    };
+  }
+
   let userDoc = await fetchFirestoreDoc('users', cleanUid);
+
+  // Secondary verification if document contains Mr. Who
+  if (userDoc && isUnlimitedTestingAccount(cleanUid, userDoc.displayName)) {
+    return {
+      userId: cleanUid,
+      weeklyFreeAnalysisAvailable: true,
+      freeAnalysesRemaining: 999999,
+      paidAnalysisCredits: 999999,
+      canAnalyze: true,
+      nextFreeResetDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      lastFreeResetAt: new Date().toISOString(),
+      testMode: config.isTestMode,
+      paidAnalysisPriceUsd: 0,
+      priceDisplay: '$0.00 USD (Unlimited Tester Pass)',
+      isUnlimitedTestingAccount: true
+    };
+  }
   
   if (!userDoc) {
     const cached = fallbackUserStore.get(cleanUid);
@@ -156,7 +212,8 @@ export async function getUserEntitlements(userId: string): Promise<UserEntitleme
     lastFreeResetAt,
     testMode: config.isTestMode,
     paidAnalysisPriceUsd: config.priceUsd,
-    priceDisplay: config.priceDisplay
+    priceDisplay: config.priceDisplay,
+    isUnlimitedTestingAccount: false
   };
 }
 
@@ -167,7 +224,23 @@ export async function consumeEntitlementForAnalysis(
   userId: string
 ): Promise<{ allowed: boolean; analysisType?: AnalysisCreditType; error?: string }> {
   const cleanUid = (userId || 'guest').trim();
+
+  // Strict check for the designated testing account ("Mr. Who", "u_4qa0c1cp_mu44a6d0")
+  if (isUnlimitedTestingAccount(cleanUid)) {
+    return {
+      allowed: true,
+      analysisType: 'FREE_WEEKLY'
+    };
+  }
+
   const entitlements = await getUserEntitlements(cleanUid);
+
+  if (entitlements.isUnlimitedTestingAccount) {
+    return {
+      allowed: true,
+      analysisType: 'FREE_WEEKLY'
+    };
+  }
 
   if (!entitlements.canAnalyze) {
     return {

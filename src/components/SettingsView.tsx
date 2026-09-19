@@ -544,12 +544,22 @@ export const SettingsView: React.FC<SettingsProps> = ({
             <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-5 space-y-2">
               <span className="text-xs uppercase font-bold text-neutral-400">Free Analyses Remaining</span>
               <div className="text-3xl font-black text-emerald-400">
-                {entitlements ? entitlements.freeAnalysesRemaining : (profile?.freeAnalysesRemaining ?? 1)}
+                {entitlements?.isUnlimitedTestingAccount || profile?.isUnlimitedTestingAccount ? '∞ Unlimited' : entitlements ? entitlements.freeAnalysesRemaining : (profile?.freeAnalysesRemaining ?? 1)}
               </div>
               <p className="text-xs text-neutral-500">
-                Resets every 7 days automatically for your account.
+                {entitlements?.isUnlimitedTestingAccount || profile?.isUnlimitedTestingAccount 
+                  ? 'Unlimited testing account pass active (Mr. Who).' 
+                  : 'Resets every 7 days automatically for your account.'}
               </p>
               {(() => {
+                if (entitlements?.isUnlimitedTestingAccount || profile?.isUnlimitedTestingAccount) {
+                  return (
+                    <div className="pt-2 text-[11px] text-cyan-400 flex items-center gap-1.5 border-t border-neutral-900">
+                      <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                      <span>Permanent Unlimited Tester Status</span>
+                    </div>
+                  );
+                }
                 const rawDate = entitlements?.nextFreeResetDate ? new Date(entitlements.nextFreeResetDate) : null;
                 const now = new Date();
                 const displayDate = (rawDate && rawDate.getTime() > now.getTime()) 
@@ -567,7 +577,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
             <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-5 space-y-2">
               <span className="text-xs uppercase font-bold text-neutral-400">Paid Analysis Credits</span>
               <div className="text-3xl font-black text-cyan-400">
-                {entitlements ? entitlements.paidAnalysisCredits : (profile?.paidCredits ?? 0)}
+                {entitlements?.isUnlimitedTestingAccount || profile?.isUnlimitedTestingAccount ? '∞ Unlimited' : entitlements ? entitlements.paidAnalysisCredits : (profile?.paidCredits ?? 0)}
               </div>
               <p className="text-xs text-neutral-500">
                 Purchased credits never expire and carry over between weeks.

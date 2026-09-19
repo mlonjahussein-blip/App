@@ -35,6 +35,7 @@ export interface UserEntitlements {
   testMode: boolean;
   paidAnalysisPriceUsd: number;
   priceDisplay: string;
+  isUnlimitedTestingAccount?: boolean;
 }
 
 export interface CreatePaymentParams {

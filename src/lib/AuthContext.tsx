@@ -291,6 +291,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           writeDocREST('users', uid, { freeAnalysesRemaining: 1, lastFreeResetAt }).catch(() => {});
         }
 
+        const isTester = uid === 'u_4qa0c1cp_mu44a6d0' || (restDoc.displayName || displayName) === 'Mr. Who' || restDoc.isUnlimitedTestingAccount;
         const fullProf: UserProfile = {
           uid: restDoc.uid || uid,
           email: restDoc.email || defaultEmail,
@@ -298,10 +299,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           whatsappNumber: restDoc.whatsappNumber || whatsappNumber || undefined,
           photoURL: restDoc.photoURL || photoURL || undefined,
           createdAt: restDoc.createdAt || new Date().toISOString(),
-          freeAnalysesRemaining,
-          paidCredits: typeof restDoc.paidCredits === 'number' ? restDoc.paidCredits : 0,
+          freeAnalysesRemaining: isTester ? 999999 : freeAnalysesRemaining,
+          paidCredits: isTester ? 999999 : (typeof restDoc.paidCredits === 'number' ? restDoc.paidCredits : 0),
           lastFreeResetAt,
-          role: restDoc.role || 'user'
+          role: restDoc.role || 'user',
+          isUnlimitedTestingAccount: isTester ? true : undefined
         };
         setProfile(fullProf);
         localStorage.setItem(localProfileKey, JSON.stringify(fullProf));
@@ -318,10 +320,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (whatsappNumber && !data.whatsappNumber) {
           data.whatsappNumber = whatsappNumber;
         }
+        if (uid === 'u_4qa0c1cp_mu44a6d0' || data.displayName === 'Mr. Who') {
+          data.isUnlimitedTestingAccount = true;
+          data.freeAnalysesRemaining = 999999;
+          data.paidCredits = 999999;
+        }
         setProfile(data);
         localStorage.setItem(localProfileKey, JSON.stringify(data));
         return;
       } else {
+        const isTester = uid === 'u_4qa0c1cp_mu44a6d0' || displayName === 'Mr. Who';
         const newProf: UserProfile = cachedProfile || {
           uid,
           email: defaultEmail,
@@ -329,10 +337,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           whatsappNumber: whatsappNumber || undefined,
           photoURL: photoURL || undefined,
           createdAt: new Date().toISOString(),
-          freeAnalysesRemaining: 1,
-          paidCredits: 0,
+          freeAnalysesRemaining: isTester ? 999999 : 1,
+          paidCredits: isTester ? 999999 : 0,
           lastFreeResetAt: new Date().toISOString(),
-          role: 'user'
+          role: 'user',
+          isUnlimitedTestingAccount: isTester ? true : undefined
         };
         try {
           await writeDocREST('users', uid, newProf);

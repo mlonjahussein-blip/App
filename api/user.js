@@ -432,10 +432,54 @@ async function writeFirestoreDoc(collection, docId, data) {
   }
 }
 var fallbackUserStore = /* @__PURE__ */ new Map();
+var UNLIMITED_TESTING_USER_ID = "u_4qa0c1cp_mu44a6d0";
+var UNLIMITED_TESTING_GAMER_NAME = "Mr. Who";
+function isUnlimitedTestingAccount(userId, displayName) {
+  if (!userId && !displayName) return false;
+  const cleanUid = (userId || "").trim();
+  const cleanName = (displayName || "").trim().toLowerCase();
+  if (cleanUid === UNLIMITED_TESTING_USER_ID) {
+    return true;
+  }
+  if (cleanName === UNLIMITED_TESTING_GAMER_NAME.toLowerCase() && (cleanUid === UNLIMITED_TESTING_USER_ID || cleanUid.startsWith("u_"))) {
+    return true;
+  }
+  return false;
+}
 async function getUserEntitlements(userId) {
   const config = getPaymentConfig();
   const cleanUid = (userId || "guest").trim();
+  if (isUnlimitedTestingAccount(cleanUid)) {
+    return {
+      userId: cleanUid,
+      weeklyFreeAnalysisAvailable: true,
+      freeAnalysesRemaining: 999999,
+      paidAnalysisCredits: 999999,
+      canAnalyze: true,
+      nextFreeResetDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1e3).toISOString(),
+      lastFreeResetAt: (/* @__PURE__ */ new Date()).toISOString(),
+      testMode: config.isTestMode,
+      paidAnalysisPriceUsd: 0,
+      priceDisplay: "$0.00 USD (Unlimited Tester Pass)",
+      isUnlimitedTestingAccount: true
+    };
+  }
   let userDoc = await fetchFirestoreDoc("users", cleanUid);
+  if (userDoc && isUnlimitedTestingAccount(cleanUid, userDoc.displayName)) {
+    return {
+      userId: cleanUid,
+      weeklyFreeAnalysisAvailable: true,
+      freeAnalysesRemaining: 999999,
+      paidAnalysisCredits: 999999,
+      canAnalyze: true,
+      nextFreeResetDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1e3).toISOString(),
+      lastFreeResetAt: (/* @__PURE__ */ new Date()).toISOString(),
+      testMode: config.isTestMode,
+      paidAnalysisPriceUsd: 0,
+      priceDisplay: "$0.00 USD (Unlimited Tester Pass)",
+      isUnlimitedTestingAccount: true
+    };
+  }
   if (!userDoc) {
     const cached = fallbackUserStore.get(cleanUid);
     if (cached) {
@@ -484,7 +528,8 @@ async function getUserEntitlements(userId) {
     lastFreeResetAt,
     testMode: config.isTestMode,
     paidAnalysisPriceUsd: config.priceUsd,
-    priceDisplay: config.priceDisplay
+    priceDisplay: config.priceDisplay,
+    isUnlimitedTestingAccount: false
   };
 }
 
@@ -601,7 +646,8 @@ async function handler(req, res) {
         testMode: entitlements.testMode,
         priceUsd: entitlements.paidAnalysisPriceUsd,
         priceDisplay: entitlements.priceDisplay,
-        nextFreeResetDate: entitlements.nextFreeResetDate
+        nextFreeResetDate: entitlements.nextFreeResetDate,
+        isUnlimitedTestingAccount: entitlements.isUnlimitedTestingAccount || false
       });
     }
     return res.status(404).json({

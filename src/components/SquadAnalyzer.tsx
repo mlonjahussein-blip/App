@@ -54,7 +54,7 @@ interface AnalyzerProps {
 }
 
 export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, onNavigateToPayments }) => {
-  const { user, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [typedPlayers, setTypedPlayers] = useState<TypedPlayerInput[]>([]);
   const [managerDetails, setManagerDetails] = useState<ManagerInputDetails>({
     name: '',
@@ -255,7 +255,12 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
             </div>
 
             {/* Entitlement Quota Pill */}
-            {entitlements?.weeklyFreeAnalysisAvailable ? (
+            {entitlements?.isUnlimitedTestingAccount || profile?.isUnlimitedTestingAccount ? (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 text-xs font-bold shadow-sm shadow-cyan-500/10">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                Unlimited Tester Pass (Mr. Who)
+              </div>
+            ) : entitlements?.weeklyFreeAnalysisAvailable ? (
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
                 <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                 1 Free Analysis Available This Week

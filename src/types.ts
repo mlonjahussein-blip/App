@@ -317,6 +317,7 @@ export interface UserProfile {
   paidCredits: number;
   lastFreeResetAt: string;
   role: 'user' | 'admin';
+  isUnlimitedTestingAccount?: boolean;
 }
 
 export interface CommunityPost {
@@ -468,5 +469,6 @@ export interface UserEntitlements {
   testMode: boolean;
   paidAnalysisPriceUsd: number;
   priceDisplay: string;
+  isUnlimitedTestingAccount?: boolean;
 }
 
