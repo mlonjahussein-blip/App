@@ -1,339 +1,6 @@
 // server/accuracyPipeline.ts
 import { GoogleGenAI } from "@google/genai";
 
-// src/lib/tacticalReportGenerator.ts
-function generatePlayerTrainingReport(players, playstyle = "Quick Counter") {
-  const topPlayers = [...players].filter((p) => !p.isUnidentified && !p.name.includes("Unidentified")).sort((a, b) => b.rating - a.rating).slice(0, 4);
-  const fallbackNames = [
-    { name: "Primary Striker", pos: "CF", rating: 98 },
-    { name: "Defensive Anchor", pos: "DMF", rating: 96 },
-    { name: "Creative Playmaker", pos: "AMF", rating: 97 },
-    { name: "Commanding CB", pos: "CB", rating: 95 }
-  ];
-  const progressionAllocationAdvice = (topPlayers.length > 0 ? topPlayers : fallbackNames.map((f, i) => ({
-    id: `fb_${i}`,
-    name: f.name,
-    position: f.pos,
-    rating: f.rating,
-    confidence: "High"
-  }))).map((player) => {
-    const pos = (player.position || "CF").toUpperCase();
-    if (pos === "CF" || pos === "SS" || pos === "LWF" || pos === "RWF") {
-      return {
-        playerName: player.name,
-        position: player.position,
-        rating: player.rating,
-        recommendedProgression: [
-          { attributeGroup: "Shooting (Finishing & Kicking Power)", points: 8, targetImpact: "Reaches 90+ Finishing for consistent first-time shots inside the box." },
-          { attributeGroup: "Dribbling (Tight Possession & Balance)", points: 6, targetImpact: "Increases agility in tight penalty box scrambles." },
-          { attributeGroup: "Dexterity (Offensive Awareness & Acceleration)", points: 10, targetImpact: "Optimizes off-the-shoulder runs and initial 5-yard burst." },
-          { attributeGroup: "Lower Body Strength (Speed & Stamina)", points: 8, targetImpact: "Maintains top sprint speed on breakaways into minute 75+." }
-        ],
-        recommendedSkills: ["First-time Shot", "One-touch Pass", "Sole Control", "Acrobatic Finishing", "Outside Curler"],
-        specialTrainingFocus: `Fine-tune acceleration and finishing so ${player.name} can exploit half-space through-balls under ${playstyle}.`
-      };
-    } else if (pos === "DMF" || pos === "CMF") {
-      return {
-        playerName: player.name,
-        position: player.position,
-        rating: player.rating,
-        recommendedProgression: [
-          { attributeGroup: "Passing (Low Pass & Lofted Pass)", points: 8, targetImpact: "Guarantees laser-sharp transition passes that bypass high opponent presses." },
-          { attributeGroup: "Defending (Tackling, Defensive Engagement)", points: 8, targetImpact: "Boosts ball recovery rate when intercepting central cutbacks." },
-          { attributeGroup: "Physical Contact & Stamina", points: 8, targetImpact: "Wins shoulder-to-shoulder duels in the midfield second-ball scrap." },
-          { attributeGroup: "Dexterity & Speed", points: 4, targetImpact: "Maintains positional balance to close down counter-attacks promptly." }
-        ],
-        recommendedSkills: ["One-touch Pass", "Interception", "Through Passing", "Weighted Pass", "Blocker"],
-        specialTrainingFocus: `Prioritize defensive engagement and low passing accuracy to anchor the spine during high-tempo ${playstyle} transitions.`
-      };
-    } else if (pos === "AMF") {
-      return {
-        playerName: player.name,
-        position: player.position,
-        rating: player.rating,
-        recommendedProgression: [
-          { attributeGroup: "Passing (Low Pass & Curl)", points: 9, targetImpact: "Pins through-balls through compact defensive 5-back lines." },
-          { attributeGroup: "Dribbling & Tight Possession", points: 8, targetImpact: "Smooth turns on the edge of the D to draw fouls or shoot." },
-          { attributeGroup: "Dexterity & Offensive Awareness", points: 7, targetImpact: "Finds pockets of space between opponent midfield and backlines." },
-          { attributeGroup: "Shooting & Kicking Power", points: 6, targetImpact: "Unlocks dangerous long-range finesse shots and dipping efforts." }
-        ],
-        recommendedSkills: ["One-touch Pass", "Through Passing", "Double Touch", "Long-Range Curler", "Gamesmanship"],
-        specialTrainingFocus: `Maximizes pass curl and tight possession so ${player.name} can serve as the primary offensive orchestrator.`
-      };
-    } else if (pos === "CB" || pos === "LB" || pos === "RB") {
-      return {
-        playerName: player.name,
-        position: player.position,
-        rating: player.rating,
-        recommendedProgression: [
-          { attributeGroup: "Defending (Defensive Awareness, Tackling, Aggression)", points: 12, targetImpact: "Hits 92+ Defensive Awareness for automatic anticipation." },
-          { attributeGroup: "Strength & Jumping", points: 8, targetImpact: "Prevents opponent strikers from winning headers on corner kicks." },
-          { attributeGroup: "Speed & Acceleration", points: 8, targetImpact: "Crucial recovery pace against opponent Blitz Curler and speedy wingers." },
-          { attributeGroup: "Pass (Low Pass)", points: 2, targetImpact: "Prevents errant clearances from turning into defensive turnovers." }
-        ],
-        recommendedSkills: ["Interception", "Blocker", "Aerial Superiority", "Man Marking", "Acrobatic Clearance"],
-        specialTrainingFocus: `Invest progression points into speed and defensive engagement to withstand aggressive counter-presses.`
-      };
-    } else {
-      return {
-        playerName: player.name,
-        position: player.position,
-        rating: player.rating,
-        recommendedProgression: [
-          { attributeGroup: "GK 1 (GK Awareness & Jumping)", points: 10, targetImpact: "Immediate reaction times to point-blank rebound shots." },
-          { attributeGroup: "GK 2 (GK Clearing & GK Reach)", points: 10, targetImpact: "Tips curving long shots around the woodwork." },
-          { attributeGroup: "GK 3 (GK Catching & GK Reflexes)", points: 8, targetImpact: "Zero fumbled parries into danger areas." }
-        ],
-        recommendedSkills: ["GK Low Punt", "GK High Punt", "Penalty Saver"],
-        specialTrainingFocus: "Maximizes reach and reflexes to shut down finesse and dipping shots from outside the box."
-      };
-    }
-  });
-  return {
-    summary: `Structured progression point distribution designed to maximize breakpoint stat tiers (85, 90, and 95) across key tactical roles for ${playstyle}.`,
-    progressionAllocationAdvice,
-    positionSpecificTips: [
-      {
-        role: "Goalkeeper (GK)",
-        keyStatsToPrioritize: ["GK Reach", "GK Reflexes", "GK Awareness"],
-        guidance: "Allocate points to GK Reach and Reflexes until both reach at least 88+. In eFootball 2026/2027, Reach determines shot coverage on long curled efforts."
-      },
-      {
-        role: "Centre Backs (CB)",
-        keyStatsToPrioritize: ["Defensive Awareness", "Tackling", "Speed", "Physical Contact"],
-        guidance: "Never neglect Speed. A CB with 95 Defending but sub-70 Speed will be destroyed by through-balls. Aim for at least 76+ Speed and 90+ Defensive Engagement."
-      },
-      {
-        role: "Fullbacks (LB / RB)",
-        keyStatsToPrioritize: ["Speed", "Stamina", "Low Pass", "Interception"],
-        guidance: "If playing Offensive Fullbacks, give them 8+ points in Lower Body Strength so stamina survives till the 80th minute. Defensive Fullbacks should invest in Defending + Speed."
-      },
-      {
-        role: "Defensive Midfield (DMF / CMF)",
-        keyStatsToPrioritize: ["Defensive Engagement", "Low Pass", "Physical Contact", "Stamina"],
-        guidance: "Anchor Men require high Tackling and Physical Contact. Orchestrators need 88+ Low Pass with One-touch Pass and Through Passing skills."
-      },
-      {
-        role: "Attacking Midfield & Wingers (AMF / LWF / RWF)",
-        keyStatsToPrioritize: ["Dribbling", "Tight Possession", "Acceleration", "Curl"],
-        guidance: "Cap Acceleration to at least 88. Tight Possession enables smooth 180-degree pivots before opponent defenders can initiate match-up contact."
-      },
-      {
-        role: "Centre Forwards (CF / SS)",
-        keyStatsToPrioritize: ["Offensive Awareness", "Finishing", "Acceleration", "Kicking Power"],
-        guidance: "Offensive Awareness 90+ ensures instinctive runs off the shoulder of the last defender. Pair with First-time Shot to minimize touch latency."
-      }
-    ]
-  };
-}
-function generateTacticalPreferences(playstyle = "Quick Counter", formation = "4-2-1-3") {
-  const normPlaystyle = playstyle.trim();
-  if (normPlaystyle.toLowerCase().includes("possession")) {
-    return {
-      chosenPlaystyle: "Possession Game",
-      playstyleOverview: "Patience, high positioning density, short triangular passing, and total territorial dominance. Forces the opponent into an exhausting low block.",
-      attackingSetup: {
-        title: "Triangular Overloads & Controlled Incursions",
-        buildUpStyle: "Short Passing through the central pivot. CBs split wide to receive short balls from the keeper.",
-        attackingArea: "Center & Half-spaces. Wingers hold wide touchlines to stretch opponent fullbacks, opening pockets for the AMF.",
-        positioningFocus: "Support runs come toward the ball handler. Players rarely make blind forward runs; they offer close triangular options.",
-        details: [
-          "Maintain 2-3 passing outlets around every ball carrier at all times.",
-          "Use Pass-and-Run sparingly to preserve midfield shape and prevent counter-attack vulnerability.",
-          "Switch play to the weak-side fullback once opponent shifts horizontally."
-        ]
-      },
-      defensiveSetup: {
-        title: "Frontline Press with High Defensive Line",
-        defensiveStyle: "Aggressive immediate recovery in the opponent half to suffocate clearances.",
-        containmentArea: "Center. Direct opponent into tight central traps where two midfielders can double-team.",
-        pressuringGuidelines: [
-          "Trigger pressure the moment an opponent plays a backwards pass.",
-          "Hold offside trap line around the midfield stripe; manually track runners with your DMF."
-        ],
-        defensiveLineLevel: "High (Level 8/10). Maintain compact intervals between midfield and defensive line."
-      },
-      transitionSetup: {
-        title: "Immediate Gegenpress & Ball Retention",
-        offensiveTransition: "Secure the ball first. Do not force immediate 50-yard through-balls unless the CF has a 5-yard head start.",
-        defensiveTransition: "3-second immediate counter-press. If the ball is not won within 3 seconds, drop the defensive line by 10 yards.",
-        counterPressRules: [
-          "Closest 2 players instantly close down the opponent receiver before they turn.",
-          "DMF steps forward to intercept panicked clearance balls."
-        ]
-      }
-    };
-  } else if (normPlaystyle.toLowerCase().includes("long ball counter")) {
-    return {
-      chosenPlaystyle: "Long Ball Counter",
-      playstyleOverview: "Deep, unbreakable defensive block followed by lightning-fast, high-verticality direct releases into attacking forwards.",
-      attackingSetup: {
-        title: "Vertical Exploitation & Direct Channel Runs",
-        buildUpStyle: "Direct and vertical. Upon ball recovery, forwards sprint forward in behind the opponent backline without delay.",
-        attackingArea: "Deep Channels & Central Pockets. CF pins centre-backs while wingers cut into the half-spaces.",
-        positioningFocus: "Forwards make automatic forward runs rather than dropping deep. Midfielders look to execute direct passes with 1-2 touches.",
-        details: [
-          "Hit the CF directly on recovery to hold up the ball or flick on to rushing wingers.",
-          "Fullbacks remain disciplined; offensive attacks do not rely on fullback overlaps.",
-          "Low crossing and far-post heading are primary goal-scoring routes."
-        ]
-      },
-      defensiveSetup: {
-        title: "Low Block & Central Wall",
-        defensiveStyle: "Drop deep into own penalty area to eliminate space behind the defensive line.",
-        containmentArea: "Middle and Box perimeter. Force opponent into low-percentage crosses or rushed long shots.",
-        pressuringGuidelines: [
-          "Do not pull CBs out of position. Use the Match-up button and protect the penalty spot.",
-          "Allow opponent harmless possession in wide areas; win headers with tall CBs."
-        ],
-        defensiveLineLevel: "Deep (Level 3/10). Eliminates vulnerability to opponent through-balls."
-      },
-      transitionSetup: {
-        title: "Zero-Delay Breakaway Launch",
-        offensiveTransition: "First pass must be forward. Utilize Lofted Through Passes or driven low ground passes into the striker.",
-        defensiveTransition: "All midfielders instantly sprint back into defensive shape. Zero counter-pressing in advanced areas.",
-        counterPressRules: [
-          "Fall back behind the ball immediately upon turnover.",
-          "Delay opponent ball carrier without committing to a slide tackle."
-        ]
-      }
-    };
-  } else if (normPlaystyle.toLowerCase().includes("out wide")) {
-    return {
-      chosenPlaystyle: "Out Wide",
-      playstyleOverview: "Systematic flank overloads, overlapping fullbacks, and aerial bombardment into the penalty area targeting physical strikers.",
-      attackingSetup: {
-        title: "Flank Overloads & Pinpoint Crossing",
-        buildUpStyle: "Direct distribution to touchline wingers and advancing fullbacks.",
-        attackingArea: "Flanks (Left and Right Touchlines). Stretch opponent pitch width to maximum.",
-        positioningFocus: "Midfielders and far-side wingers crash the penalty box when a cross is delivered.",
-        details: [
-          "Pair with a physical Target Man or Fox in the Box striker with Heading and Aerial Superiority.",
-          "Use early stunning crosses (R2/RT + O/B) from deep fullback positions.",
-          "Second balls at the top of the box are cleaned up by your arriving CMF/AMF."
-        ]
-      },
-      defensiveSetup: {
-        title: "Mid-Block with Wide Containment",
-        defensiveStyle: "Structured mid-block preventing opponent switches of play.",
-        containmentArea: "Flanks. Channel opponent into touchlines and use sideline as an extra defender.",
-        pressuringGuidelines: [
-          "Fullbacks close down opponent crossers quickly to block deliveries.",
-          "DMF drops into the backline to provide aerial reinforcement."
-        ],
-        defensiveLineLevel: "Balanced (Level 5/10)."
-      },
-      transitionSetup: {
-        title: "Diagonal Release to Free Wingers",
-        offensiveTransition: "Launch diagonal cross-field balls to the unmarked winger.",
-        defensiveTransition: "Ensure cover behind advancing fullbacks; DMF must slide over to defend the vacant wide channel.",
-        counterPressRules: [
-          "Nearest winger harasses fullback to prevent easy diagonal switches.",
-          "Central pivot balances between the two CBs."
-        ]
-      }
-    };
-  } else if (normPlaystyle.toLowerCase().includes("overload")) {
-    return {
-      chosenPlaystyle: "Overload (eFootball 2027)",
-      playstyleOverview: "Dynamic tactical overload shifting 4+ players into a single quadrant of the pitch to manufacture numerical superiority before snapping a diagonal switch.",
-      attackingSetup: {
-        title: "Asymmetric Quad Overload & Weak-Side Isolation",
-        buildUpStyle: "Heavy concentration of short passes on one side of the pitch to draw the opponent block.",
-        attackingArea: "Strong-side half space switching suddenly to isolated weak-side forward.",
-        positioningFocus: "Fullback, AMF, winger, and CF converge within a 20-yard radius to create 4v3 and 5v4 scenarios.",
-        details: [
-          "Execute quick one-touch wall passes in the crowded zone.",
-          "Once opponent shifts their whole team, execute a Stunning Lofted Pass to the completely unmarked weak-side winger.",
-          "High reward system with immense tactical surprise."
-        ]
-      },
-      defensiveSetup: {
-        title: "Zonal Compaction & Aggressive Match-Up",
-        defensiveStyle: "Active zonal recovery pressing.",
-        containmentArea: "Wide and central channels.",
-        pressuringGuidelines: [
-          "Maintain situational awareness to avoid being caught on quick counter switches.",
-          "Use tactical fouls in the middle third if the overload is broken."
-        ],
-        defensiveLineLevel: "Medium-High (Level 7/10)."
-      },
-      transitionSetup: {
-        title: "Rapid Reset & Re-Balancing",
-        offensiveTransition: "Flood the predetermined overload zone with 3 supporting runners.",
-        defensiveTransition: "The far-side winger and fullback must instantly sprint inward to restore central balance.",
-        counterPressRules: [
-          "Immediate double-team in the overload zone where player density is highest."
-        ]
-      }
-    };
-  } else {
-    return {
-      chosenPlaystyle: "Quick Counter",
-      playstyleOverview: "High-octane direct counter-attacking. Relentless forward momentum upon winning the ball with rapid forward sprints and aggressive frontline pressing.",
-      attackingSetup: {
-        title: "High-Speed Vertical Penetration",
-        buildUpStyle: "Direct and explosive. Forwards instantly dart forward when possession is won in any third.",
-        attackingArea: "Center and Half-spaces. Overwhelming opponent CBs through vertical runner volume.",
-        positioningFocus: "High offensive line. Supporting midfielders surge into the box to support second-phase shots.",
-        details: [
-          "Release through-balls early; do not take more than 2-3 touches in the middle third.",
-          "Trigger 1-2 pass combinations with the AMF to pull opponent centre-backs out of line.",
-          "Capitalize on high turnovers within 5-8 seconds of ball recovery."
-        ]
-      },
-      defensiveSetup: {
-        title: "High Defensive Line with Aggressive Choke Points",
-        defensiveStyle: "Aggressive frontline pressing to force turnovers in the opponent half.",
-        containmentArea: "Center. Squeeze opponent ball carriers into narrow lanes where fast tackles can be applied.",
-        pressuringGuidelines: [
-          "Apply pressure with the nearest forward while manually cutting passing channels with your DMF.",
-          "Be prepared to sprint back manually if the opponent bypasses your initial press."
-        ],
-        defensiveLineLevel: "Very High (Level 8.5/10). Offside trap must be active."
-      },
-      transitionSetup: {
-        title: "Instantaneous Counter-Press & Surge",
-        offensiveTransition: "All 3 front players immediately break into maximum sprint forward.",
-        defensiveTransition: "Aggressive instant counter-press. Try to recover the ball within 5 seconds of losing it.",
-        counterPressRules: [
-          "Hunt the ball in packs of two immediately upon loss of possession.",
-          "Anchor DMF must never press high; hold him 15 yards ahead of the CB pairing."
-        ]
-      }
-    };
-  }
-}
-function generateGamePlanRecommendations(playstyle = "Quick Counter", formation = "4-2-1-3", players = []) {
-  const superSubCandidates = players.filter((p) => p.skills?.includes("Super-sub") || p.rating >= 88).slice(0, 3).map((p) => `${p.name} (${p.position})`).join(", ") || "Speedy Winger, Fresh CF with Super-sub skill, High-stamina Box-to-Box CMF";
-  return {
-    matchDayPreparation: {
-      conditionArrowPriorities: "Always check player form arrows before kick-off. A top form (Blue/Top) player receives a +10% boost to key physical and technical stats. A bottom form (Red/Down) player loses up to 12% across speed, stamina, and finishing. Replace red/orange arrow starters with yellow/green bench options regardless of baseline rating difference.",
-      captaincyAndSetPieceTakers: 'Assign a Captain with the "Captaincy" skill to reduce team stamina consumption and maintain composure. Select your highest Curl & Place Kicking specialist for long and short free kicks, and your tallest CB with "Aerial Superiority" as Target 1 on offensive corner kicks.',
-      fluidFormationNotes: `When using ${formation}, consider activating Fluid Formations: shift into a compact 5-3-2 or 4-5-1 out of possession to congest central spaces, then expand back into ${formation} when in possession.`
-    },
-    substitutionStrategy: {
-      earlySecondHalfSub: "60th - 65th Minute: Replace your highest-stamina drain positions (usually the central AMF or high-pressing wingers). If their stamina bar drops into the red zone, their sprint recovery drops by 35%, inviting counter-attacks.",
-      closingStageSub: "75th - 80th Minute: Introduce your primary Super-sub forward. In eFootball, the Super-sub skill triggers a massive stat multiplier when subbed in during the 2nd half, dramatically improving finishing and burst speed.",
-      staminaTriggers: [
-        "Stamina bar < 25%: Immediate substitution required to prevent pulled muscles and defensive gaps.",
-        "Winger unable to track back: Sub on a fresh wide player with high work rate.",
-        "Midfielder booked with yellow card: Replace to avoid high-pressure second yellow dismissal."
-      ],
-      superSubRecommendations: [
-        `Recommended bench game-changers: ${superSubCandidates}`,
-        "Keep 1 defensive specialist (Anchor Man or Defensive Fullback) on the bench to protect leads in the final 10 minutes."
-      ]
-    },
-    inMatchAdjustments: {
-      leadingLate: 'When leading by 1 goal in the 80th+ minute: Lower attacking mentality by 1 notch (Blue -1). Apply "Deep Line" on your DMF and set "Defensive" instruction on both fullbacks to prevent late counter-attacks.',
-      trailingLate: 'When trailing after the 70th minute: Raise attacking mentality by 1 notch (Red +1). Apply "Attacking Fullbacks" or switch to an aggressive 4-2-4 shape with an extra forward pinning the opponent centre-backs.',
-      counteringWideOverloads: 'If opponent spams crosses from wide wingers: Apply "Tight Marking" or "Man Marking" on their primary crosser, and instruct your fullback to stay "Defensive".',
-      counteringCentralThroughBalls: 'If opponent plays quick 1-2 central passes: Set your DMF to "Deep Line" to create a 3-CB barrier, and switch cursor control manually using the right stick to intercept through-ball channels.'
-    }
-  };
-}
-
 // src/lib/efootballDatabase.ts
 var EFOOTBALL_MASTER_PLAYERS = [
   // ATTACKERS
@@ -1379,6 +1046,166 @@ var EFOOTBALL_MASTER_PLAYERS = [
     cardType: "Highlight",
     keyAttributes: { GKReflexes: 97, GKReach: 96, GKAwareness: 96, GKParrying: 95 },
     skills: ["GK Low Punt", "Penalty Saver"]
+  },
+  {
+    id: "vitinha_v",
+    fullName: "V\xEDtor Machado Ferreira",
+    commonName: "Vitinha",
+    aliases: ["VITINHA", "V. FERREIRA", "VITOR FERREIRA", "VITOR MACHADO", "V. MACHADO"],
+    primaryPosition: "CMF",
+    secondaryPositions: ["AMF", "DMF"],
+    baseRating: 90,
+    maxRating: 101,
+    playstyle: "Orchestrator",
+    club: "Paris Saint-Germain",
+    nationality: "Portugal",
+    cardType: "Highlight",
+    keyAttributes: { LowPass: 95, LoftedPass: 92, TightPossession: 96, Dribbling: 93, Balance: 92, Stamina: 94 },
+    skills: ["One-touch Pass", "Through Passing", "Double Touch", "Sole Control", "Weighted Pass", "Outside Curler"]
+  },
+  {
+    id: "scholes_p",
+    fullName: "Paul Scholes",
+    commonName: "P. Scholes",
+    aliases: ["P. SCHOLES", "SCHOLES", "PAUL SCHOLES", "P SCHOLES"],
+    primaryPosition: "CMF",
+    secondaryPositions: ["AMF", "DMF"],
+    baseRating: 93,
+    maxRating: 104,
+    playstyle: "Orchestrator",
+    club: "Manchester United",
+    nationality: "England",
+    cardType: "Epic",
+    keyAttributes: { KickingPower: 99, LoftedPass: 98, LowPass: 96, Finishing: 92, LongRangeShooting: 98, Stamina: 90 },
+    skills: ["Long Range Shooting", "Dipping Shot", "Weighted Pass", "Through Passing", "One-touch Pass", "Pinpoint Crossing"]
+  },
+  {
+    id: "mac_allister_a",
+    fullName: "Alexis Mac Allister",
+    commonName: "A. Mac Allister",
+    aliases: ["A. MAC ALLISTER", "MAC ALLISTER", "ALLISTER", "ALEXIS MAC ALLISTER", "A MAC ALLISTER"],
+    primaryPosition: "CMF",
+    secondaryPositions: ["AMF", "DMF"],
+    baseRating: 91,
+    maxRating: 103,
+    playstyle: "Orchestrator",
+    club: "Liverpool",
+    nationality: "Argentina",
+    cardType: "Highlight",
+    keyAttributes: { LowPass: 94, LoftedPass: 90, TightPossession: 93, Balance: 90, Interception: 85, Stamina: 93 },
+    skills: ["One-touch Pass", "Through Passing", "Interception", "Long Range Shooting", "Sole Control"]
+  },
+  {
+    id: "nunez_d",
+    fullName: "Darwin N\xFA\xF1ez",
+    commonName: "D. N\xFA\xF1ez",
+    aliases: ["D. NUNEZ", "NUNEZ", "DARWIN NUNEZ", "D. N\xDA\xD1EZ", "DARWIN N\xDA\xD1EZ", "D NUNEZ"],
+    primaryPosition: "CF",
+    secondaryPositions: ["LWF", "SS", "RWF"],
+    baseRating: 91,
+    maxRating: 103,
+    playstyle: "Goal Poacher",
+    club: "Liverpool",
+    nationality: "Uruguay",
+    cardType: "Highlight",
+    keyAttributes: { Speed: 97, Acceleration: 94, PhysicalContact: 93, Finishing: 92, Heading: 88, OffensiveAwareness: 94 },
+    skills: ["First-time Shot", "Heading", "Acrobatic Finishing", "Fighting Spirit", "Speeding Bullet"]
+  },
+  {
+    id: "rijkaard_f",
+    fullName: "Frank Rijkaard",
+    commonName: "F. Rijkaard",
+    aliases: ["F. RIJKAARD", "RIJKAARD", "FRANK RIJKAARD", "F RIJKAARD"],
+    primaryPosition: "DMF",
+    secondaryPositions: ["CB", "CMF"],
+    baseRating: 93,
+    maxRating: 102,
+    playstyle: "The Destroyer",
+    club: "AC Milan",
+    nationality: "Netherlands",
+    cardType: "Epic",
+    keyAttributes: { DefensiveAwareness: 98, Tackling: 97, Aggression: 96, PhysicalContact: 95, LowPass: 88, Heading: 90 },
+    skills: ["Interception", "Blocker", "Aerial Superiority", "One-touch Pass", "Man Marking", "Fighting Spirit"]
+  },
+  {
+    id: "marquez_r",
+    fullName: "Rafael M\xE1rquez",
+    commonName: "R. M\xE1rquez",
+    aliases: ["R. MARQUEZ", "MARQUEZ", "RAFAEL MARQUEZ", "R. M\xC1RQUEZ", "RAFAEL M\xC1RQUEZ", "R MARQUEZ"],
+    primaryPosition: "CB",
+    secondaryPositions: ["DMF"],
+    baseRating: 91,
+    maxRating: 99,
+    playstyle: "Build Up",
+    club: "FC Barcelona",
+    nationality: "Mexico",
+    cardType: "Epic",
+    keyAttributes: { DefensiveAwareness: 96, Tackling: 95, LoftedPass: 94, Heading: 90, PhysicalContact: 91, Interception: 94 },
+    skills: ["Interception", "Man Marking", "Weighted Pass", "Aerial Superiority", "Blocker", "Captaincy"]
+  },
+  {
+    id: "alaba_d",
+    fullName: "David Alaba",
+    commonName: "D. Alaba",
+    aliases: ["D. ALABA", "ALABA", "DAVID ALABA", "D ALABA"],
+    primaryPosition: "CB",
+    secondaryPositions: ["LB", "DMF", "CMF"],
+    baseRating: 91,
+    maxRating: 102,
+    playstyle: "Build Up",
+    club: "Real Madrid",
+    nationality: "Austria",
+    cardType: "Highlight",
+    keyAttributes: { LowPass: 92, LoftedPass: 91, DefensiveAwareness: 94, Tackling: 93, PlaceKicking: 89, Speed: 88 },
+    skills: ["Interception", "Pinpoint Crossing", "Through Passing", "Long Range Curler", "Man Marking"]
+  },
+  {
+    id: "mendes_n",
+    fullName: "Nuno Mendes",
+    commonName: "N. Mendes",
+    aliases: ["N. MENDES", "MENDES", "NUNO MENDES", "N MENDES"],
+    primaryPosition: "LB",
+    secondaryPositions: ["LWB", "LMF"],
+    baseRating: 90,
+    maxRating: 101,
+    playstyle: "Offensive Fullback",
+    club: "Paris Saint-Germain",
+    nationality: "Portugal",
+    cardType: "Highlight",
+    keyAttributes: { Speed: 98, Acceleration: 97, PinpointCrossing: 90, Dribbling: 88, Stamina: 94, Tackling: 86 },
+    skills: ["Pinpoint Crossing", "Double Touch", "Interception", "Acrobatic Clearance", "Speeding Bullet"]
+  },
+  {
+    id: "hakimi_a",
+    fullName: "Achraf Hakimi",
+    commonName: "A. Hakimi",
+    aliases: ["A. HAKIMI", "HAKIMI", "ACHRAF HAKIMI", "A HAKIMI"],
+    primaryPosition: "RB",
+    secondaryPositions: ["RWB", "RMF"],
+    baseRating: 90,
+    maxRating: 100,
+    playstyle: "Offensive Fullback",
+    club: "Paris Saint-Germain",
+    nationality: "Morocco",
+    cardType: "Highlight",
+    keyAttributes: { Speed: 99, Acceleration: 98, Stamina: 95, PinpointCrossing: 88, Dribbling: 87, Finishing: 82 },
+    skills: ["Pinpoint Crossing", "Outside Curler", "Double Touch", "Speeding Bullet", "Interception"]
+  },
+  {
+    id: "peruzzi_a",
+    fullName: "Angelo Peruzzi",
+    commonName: "A. Peruzzi",
+    aliases: ["A. PERUZZI", "PERUZZI", "ANGELO PERUZZI", "M. PERUZZI", "MATTIA PERUZZI"],
+    primaryPosition: "GK",
+    secondaryPositions: [],
+    baseRating: 92,
+    maxRating: 103,
+    playstyle: "Defensive Goalkeeper",
+    club: "Lazio",
+    nationality: "Italy",
+    cardType: "Epic",
+    keyAttributes: { GKAwareness: 98, GKReflexes: 99, GKReach: 96, GKParrying: 97, PhysicalContact: 94 },
+    skills: ["GK Low Punt", "Penalty Saver", "Captaincy", "Fighting Spirit"]
   }
 ];
 var EFOOTBALL_MASTER_COACHES = [
@@ -1695,6 +1522,829 @@ function findDatabaseCoach(ocrText) {
   return bestCoach;
 }
 
+// src/lib/tacticalPlacement.ts
+function getFormationSlots(formation) {
+  const clean = (formation || "4-2-1-3").replace(/custom\s+gameplan:?/i, "").trim();
+  const library = {
+    "4-2-1-3": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lb", pos: "LB", x: 12, y: 73, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 37, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 63, y: 76, roleCategory: "DEF" },
+      { slotId: "rb", pos: "RB", x: 88, y: 73, roleCategory: "DEF" },
+      { slotId: "dmf", pos: "DMF", x: 38, y: 58, roleCategory: "MID" },
+      { slotId: "cmf", pos: "CMF", x: 62, y: 58, roleCategory: "MID" },
+      { slotId: "amf", pos: "AMF", x: 50, y: 38, roleCategory: "MID" },
+      { slotId: "lwf", pos: "LWF", x: 16, y: 22, roleCategory: "ATT" },
+      { slotId: "cf", pos: "CF", x: 50, y: 15, roleCategory: "ATT" },
+      { slotId: "rwf", pos: "RWF", x: 84, y: 22, roleCategory: "ATT" }
+    ],
+    "4-3-3": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lb", pos: "LB", x: 12, y: 73, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 37, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 63, y: 76, roleCategory: "DEF" },
+      { slotId: "rb", pos: "RB", x: 88, y: 73, roleCategory: "DEF" },
+      { slotId: "dmf", pos: "DMF", x: 50, y: 62, roleCategory: "MID" },
+      { slotId: "cmf_l", pos: "CMF", x: 30, y: 48, roleCategory: "MID" },
+      { slotId: "cmf_r", pos: "CMF", x: 70, y: 48, roleCategory: "MID" },
+      { slotId: "lwf", pos: "LWF", x: 16, y: 22, roleCategory: "ATT" },
+      { slotId: "cf", pos: "CF", x: 50, y: 15, roleCategory: "ATT" },
+      { slotId: "rwf", pos: "RWF", x: 84, y: 22, roleCategory: "ATT" }
+    ],
+    "4-3-1-2": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lb", pos: "LB", x: 12, y: 73, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 37, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 63, y: 76, roleCategory: "DEF" },
+      { slotId: "rb", pos: "RB", x: 88, y: 73, roleCategory: "DEF" },
+      { slotId: "dmf", pos: "DMF", x: 50, y: 62, roleCategory: "MID" },
+      { slotId: "cmf_l", pos: "CMF", x: 28, y: 50, roleCategory: "MID" },
+      { slotId: "cmf_r", pos: "CMF", x: 72, y: 50, roleCategory: "MID" },
+      { slotId: "amf", pos: "AMF", x: 50, y: 35, roleCategory: "MID" },
+      { slotId: "cf_l", pos: "CF", x: 36, y: 17, roleCategory: "ATT" },
+      { slotId: "cf_r", pos: "CF", x: 64, y: 17, roleCategory: "ATT" }
+    ],
+    "4-2-2-2": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lb", pos: "LB", x: 12, y: 73, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 37, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 63, y: 76, roleCategory: "DEF" },
+      { slotId: "rb", pos: "RB", x: 88, y: 73, roleCategory: "DEF" },
+      { slotId: "dmf_l", pos: "DMF", x: 38, y: 58, roleCategory: "MID" },
+      { slotId: "dmf_r", pos: "CMF", x: 62, y: 58, roleCategory: "MID" },
+      { slotId: "amf_l", pos: "AMF", x: 25, y: 38, roleCategory: "MID" },
+      { slotId: "amf_r", pos: "AMF", x: 75, y: 38, roleCategory: "MID" },
+      { slotId: "cf_l", pos: "CF", x: 38, y: 17, roleCategory: "ATT" },
+      { slotId: "cf_r", pos: "CF", x: 62, y: 17, roleCategory: "ATT" }
+    ],
+    "4-4-2": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lb", pos: "LB", x: 12, y: 73, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 37, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 63, y: 76, roleCategory: "DEF" },
+      { slotId: "rb", pos: "RB", x: 88, y: 73, roleCategory: "DEF" },
+      { slotId: "lmf", pos: "LMF", x: 14, y: 48, roleCategory: "MID" },
+      { slotId: "cmf_l", pos: "CMF", x: 38, y: 54, roleCategory: "MID" },
+      { slotId: "cmf_r", pos: "CMF", x: 62, y: 54, roleCategory: "MID" },
+      { slotId: "rmf", pos: "RMF", x: 86, y: 48, roleCategory: "MID" },
+      { slotId: "cf_l", pos: "CF", x: 38, y: 17, roleCategory: "ATT" },
+      { slotId: "cf_r", pos: "CF", x: 62, y: 17, roleCategory: "ATT" }
+    ],
+    "3-4-3": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "cb_l", pos: "CB", x: 25, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_c", pos: "CB", x: 50, y: 78, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 75, y: 76, roleCategory: "DEF" },
+      { slotId: "lmf", pos: "LMF", x: 14, y: 50, roleCategory: "MID" },
+      { slotId: "cmf_l", pos: "CMF", x: 38, y: 54, roleCategory: "MID" },
+      { slotId: "cmf_r", pos: "CMF", x: 62, y: 54, roleCategory: "MID" },
+      { slotId: "rmf", pos: "RMF", x: 86, y: 50, roleCategory: "MID" },
+      { slotId: "lwf", pos: "LWF", x: 18, y: 22, roleCategory: "ATT" },
+      { slotId: "cf", pos: "CF", x: 50, y: 15, roleCategory: "ATT" },
+      { slotId: "rwf", pos: "RWF", x: 82, y: 22, roleCategory: "ATT" }
+    ],
+    "5-3-2": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lwb", pos: "LWB", x: 12, y: 70, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 31, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_c", pos: "CB", x: 50, y: 78, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 69, y: 76, roleCategory: "DEF" },
+      { slotId: "rwb", pos: "RWB", x: 88, y: 70, roleCategory: "DEF" },
+      { slotId: "cmf_l", pos: "CMF", x: 32, y: 52, roleCategory: "MID" },
+      { slotId: "dmf", pos: "DMF", x: 50, y: 58, roleCategory: "MID" },
+      { slotId: "cmf_r", pos: "CMF", x: 68, y: 52, roleCategory: "MID" },
+      { slotId: "cf_l", pos: "CF", x: 38, y: 17, roleCategory: "ATT" },
+      { slotId: "cf_r", pos: "CF", x: 62, y: 17, roleCategory: "ATT" }
+    ]
+  };
+  if (library[clean]) {
+    return library[clean];
+  }
+  const digits = clean.match(/\d+/g);
+  if (digits && digits.length >= 2) {
+    const slots = [{ slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" }];
+    const defs = parseInt(digits[0], 10) || 4;
+    const mids = parseInt(digits[1], 10) || 3;
+    const atts = parseInt(digits.slice(2).join(""), 10) || (digits.length > 2 ? 3 : 2);
+    for (let i = 0; i < defs; i++) {
+      const xStep = 80 / (defs + 1);
+      const pos = defs >= 5 ? i === 0 ? "LWB" : i === defs - 1 ? "RWB" : "CB" : i === 0 ? "LB" : i === defs - 1 ? "RB" : "CB";
+      slots.push({
+        slotId: `def_${i}`,
+        pos,
+        x: Math.round(15 + (i + 1) * xStep),
+        y: 75,
+        roleCategory: "DEF"
+      });
+    }
+    for (let i = 0; i < mids; i++) {
+      const xStep = 80 / (mids + 1);
+      const pos = i === 0 && mids > 2 ? "DMF" : i === mids - 1 && mids > 2 ? "AMF" : "CMF";
+      slots.push({
+        slotId: `mid_${i}`,
+        pos,
+        x: Math.round(15 + (i + 1) * xStep),
+        y: 52,
+        roleCategory: "MID"
+      });
+    }
+    for (let i = 0; i < atts; i++) {
+      const xStep = 80 / (atts + 1);
+      const pos = atts >= 3 ? i === 0 ? "LWF" : i === atts - 1 ? "RWF" : "CF" : "CF";
+      slots.push({
+        slotId: `att_${i}`,
+        pos,
+        x: Math.round(15 + (i + 1) * xStep),
+        y: 18,
+        roleCategory: "ATT"
+      });
+    }
+    return slots.slice(0, 11);
+  }
+  return library["4-2-1-3"];
+}
+function calculatePlayerSlotSuitability(player, slot) {
+  const normName = normalizeString(player.name);
+  const registeredPos = (player.position || "").toUpperCase().trim();
+  const slotPos = slot.pos.toUpperCase().trim();
+  if (slotPos === "GK") {
+    if (registeredPos === "GK" || normName.includes("PERUZZI") || normName.includes("ALISSON") || normName.includes("COURTOIS") || normName.includes("NEUER") || normName.includes("CASILLAS") || normName.includes("BUFFON")) {
+      return 1e3 + (player.rating || 90);
+    }
+    return -2e3;
+  }
+  if (registeredPos === "GK") {
+    return -2e3;
+  }
+  const masterEntry = EFOOTBALL_MASTER_PLAYERS.find((m) => {
+    const mNorm = normalizeString(m.fullName);
+    const mCommon = normalizeString(m.commonName);
+    return normName === mNorm || normName === mCommon || m.aliases.some((a) => normalizeString(a) === normName);
+  });
+  const primaryPos = masterEntry?.primaryPosition || registeredPos;
+  const secondaryPositions = masterEntry?.secondaryPositions || [];
+  let score = 0;
+  const isPureCenterForward = normName.includes("SUAREZ") || normName.includes("SU\xC1REZ") || normName.includes("HAALAND") || normName.includes("OSIMHEN") || normName.includes("LEWANDOWSKI") || normName.includes("BENZEMA");
+  if (isPureCenterForward) {
+    if (slotPos === "CF") return 220 + (player.rating || 90);
+    if (slotPos === "SS") return 140 + (player.rating || 90);
+    if (slotPos === "LWF" || slotPos === "RWF") return 30;
+    return -1e3;
+  }
+  const isEliteWingForward = normName.includes("RONALDO") || normName.includes("NUNEZ") || normName.includes("N\xDA\xD1EZ") || normName.includes("MBAPPE") || normName.includes("MBAPP\xC9") || normName.includes("VINICIUS") || normName.includes("LEAO");
+  if (isEliteWingForward) {
+    if (normName.includes("RONALDO")) {
+      if (slotPos === "LWF") return 215 + (player.rating || 90);
+      if (slotPos === "CF") return 205 + (player.rating || 90);
+      if (slotPos === "SS") return 195 + (player.rating || 90);
+      if (slotPos === "RWF") return 160 + (player.rating || 90);
+      if (slotPos === "AMF") return 40;
+      return -1e3;
+    }
+    if (normName.includes("NUNEZ") || normName.includes("N\xDA\xD1EZ")) {
+      if (slotPos === "CF") return 205 + (player.rating || 90);
+      if (slotPos === "LWF") return 200 + (player.rating || 90);
+      if (slotPos === "RWF") return 195 + (player.rating || 90);
+      if (slotPos === "SS") return 190 + (player.rating || 90);
+      return -1e3;
+    }
+    if (slotPos === "LWF" || slotPos === "RWF" || slotPos === "CF" || slotPos === "SS") {
+      return 200 + (player.rating || 90);
+    }
+    return -1e3;
+  }
+  const isCentralMidfieldMaestro = normName.includes("VITINHA") || normName.includes("SCHOLES") || normName.includes("ALLISTER") || normName.includes("PEDRI") || normName.includes("MODRIC") || normName.includes("KROOS");
+  if (isCentralMidfieldMaestro) {
+    if (normName.includes("VITINHA")) {
+      if (slotPos === "AMF") return 210 + (player.rating || 90);
+      if (slotPos === "CMF") return 210 + (player.rating || 90);
+      if (slotPos === "DMF") return 170 + (player.rating || 90);
+      return -1e3;
+    }
+    if (normName.includes("SCHOLES")) {
+      if (slotPos === "CMF") return 220 + (player.rating || 90);
+      if (slotPos === "DMF") return 180 + (player.rating || 90);
+      if (slotPos === "AMF") return 180 + (player.rating || 90);
+      return -1e3;
+    }
+    if (normName.includes("ALLISTER")) {
+      if (slotPos === "CMF") return 210 + (player.rating || 90);
+      if (slotPos === "DMF") return 200 + (player.rating || 90);
+      if (slotPos === "AMF") return 195 + (player.rating || 90);
+      return -1e3;
+    }
+  }
+  if (normName.includes("RIJKAARD")) {
+    if (slotPos === "DMF") return 215 + (player.rating || 90);
+    if (slotPos === "CB") return 210 + (player.rating || 90);
+    if (slotPos === "CMF") return 140;
+    return -1e3;
+  }
+  if (normName.includes("MARQUEZ") || normName.includes("M\xC1RQUEZ")) {
+    if (slotPos === "CB") return 210 + (player.rating || 90);
+    if (slotPos === "DMF") return 180 + (player.rating || 90);
+    return -1e3;
+  }
+  if (normName.includes("ALABA")) {
+    if (slotPos === "CB") return 205 + (player.rating || 90);
+    if (slotPos === "LB") return 205 + (player.rating || 90);
+    if (slotPos === "DMF") return 175 + (player.rating || 90);
+    return -1e3;
+  }
+  if (normName.includes("MENDES")) {
+    if (slotPos === "LB" || slotPos === "LWB") return 220 + (player.rating || 90);
+    if (slotPos === "LMF") return 150;
+    return -1e3;
+  }
+  if (normName.includes("HAKIMI")) {
+    if (slotPos === "RB" || slotPos === "RWB") return 220 + (player.rating || 90);
+    if (slotPos === "RMF") return 150;
+    return -1e3;
+  }
+  if (registeredPos === slotPos || primaryPos === slotPos) {
+    score = 180 + (player.rating || 90);
+  } else if (secondaryPositions.includes(slotPos)) {
+    score = 150 + (player.rating || 90);
+  } else {
+    switch (slotPos) {
+      case "CF":
+        if (registeredPos === "SS") score = 140;
+        else if (registeredPos === "LWF" || registeredPos === "RWF") score = 110;
+        else score = -500;
+        break;
+      case "LWF":
+        if (registeredPos === "LMF") score = 150;
+        else if (registeredPos === "SS") score = 140;
+        else if (registeredPos === "CF") score = 110;
+        else if (registeredPos === "RWF") score = 120;
+        else score = -600;
+        break;
+      case "RWF":
+        if (registeredPos === "RMF") score = 150;
+        else if (registeredPos === "SS") score = 140;
+        else if (registeredPos === "CF") score = 110;
+        else if (registeredPos === "LWF") score = 120;
+        else score = -600;
+        break;
+      case "AMF":
+        if (registeredPos === "CMF") score = 160;
+        else if (registeredPos === "SS") score = 145;
+        else if (registeredPos === "LMF" || registeredPos === "RMF") score = 130;
+        else if (registeredPos === "DMF") score = 110;
+        else score = -400;
+        break;
+      case "CMF":
+        if (registeredPos === "AMF") score = 155;
+        else if (registeredPos === "DMF") score = 155;
+        else if (registeredPos === "LMF" || registeredPos === "RMF") score = 135;
+        else score = -400;
+        break;
+      case "DMF":
+        if (registeredPos === "CMF") score = 150;
+        else if (registeredPos === "CB") score = 140;
+        else score = -500;
+        break;
+      case "CB":
+        if (registeredPos === "DMF") score = 140;
+        else if (registeredPos === "LB" || registeredPos === "RB") score = 120;
+        else score = -700;
+        break;
+      case "LB":
+      case "LWB":
+        if (registeredPos === "LMF") score = 140;
+        else if (registeredPos === "CB") score = 110;
+        else if (registeredPos === "RB") score = 100;
+        else score = -700;
+        break;
+      case "RB":
+      case "RWB":
+        if (registeredPos === "RMF") score = 140;
+        else if (registeredPos === "CB") score = 110;
+        else if (registeredPos === "LB") score = 100;
+        else score = -700;
+        break;
+      default:
+        score = -200;
+    }
+    score += player.rating || 85;
+  }
+  return score;
+}
+function solveHungarianMaximumWeight(costMatrix) {
+  const n = costMatrix.length;
+  if (n === 0) return [];
+  const m = costMatrix[0].length;
+  let maxWeight = -Infinity;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < m; j++) {
+      if (costMatrix[i][j] > maxWeight) maxWeight = costMatrix[i][j];
+    }
+  }
+  const size = Math.max(n, m);
+  const matrix = Array.from(
+    { length: size },
+    (_, i) => Array.from({ length: size }, (_2, j) => {
+      if (i < n && j < m) {
+        return maxWeight - costMatrix[i][j];
+      }
+      return 1e5;
+    })
+  );
+  const u = new Array(size + 1).fill(0);
+  const v = new Array(size + 1).fill(0);
+  const p = new Array(size + 1).fill(0);
+  const way = new Array(size + 1).fill(0);
+  for (let i = 1; i <= size; i++) {
+    p[0] = i;
+    let j0 = 0;
+    const minv = new Array(size + 1).fill(Infinity);
+    const used = new Array(size + 1).fill(false);
+    do {
+      used[j0] = true;
+      const i0 = p[j0];
+      let delta = Infinity;
+      let j1 = 0;
+      for (let j = 1; j <= size; j++) {
+        if (!used[j]) {
+          const cur = matrix[i0 - 1][j - 1] - u[i0] - v[j];
+          if (cur < minv[j]) {
+            minv[j] = cur;
+            way[j] = j0;
+          }
+          if (minv[j] < delta) {
+            delta = minv[j];
+            j1 = j;
+          }
+        }
+      }
+      for (let j = 0; j <= size; j++) {
+        if (used[j]) {
+          u[p[j]] += delta;
+          v[j] -= delta;
+        } else {
+          minv[j] -= delta;
+        }
+      }
+      j0 = j1;
+    } while (p[j0] !== 0);
+    do {
+      const j1 = way[j0];
+      p[j0] = p[j1];
+      j0 = j1;
+    } while (j0 !== 0);
+  }
+  const assignment = new Array(n).fill(-1);
+  for (let j = 1; j <= m; j++) {
+    if (p[j] <= n && p[j] > 0) {
+      assignment[p[j] - 1] = j - 1;
+    }
+  }
+  return assignment;
+}
+function buildAuthenticSelectionReason(player, slot, formation) {
+  const normName = normalizeString(player.name);
+  const pos = slot.pos;
+  if (pos === "GK") {
+    return `Commanding primary Goalkeeper commanding the penalty box with elite reflexes and distribution.`;
+  }
+  if (normName.includes("SUAREZ") || normName.includes("SU\xC1REZ")) {
+    return `Primary Centre Forward (CF) acting as a lethal Fox in the Box with clinical first-time finishing and physical box hold-up play.`;
+  }
+  if (normName.includes("RONALDO")) {
+    return `Starting Left Wing Forward (LWF) providing explosive diagonal inside-forward runs, aerial dominance at the back post, and elite scoring output.`;
+  }
+  if (normName.includes("NUNEZ") || normName.includes("N\xDA\xD1EZ")) {
+    return `Dynamic Right Forward / Winger (RWF) utilizing blistering acceleration and aggressive pressing to isolate and overpower opponent defenders.`;
+  }
+  if (normName.includes("VITINHA")) {
+    return `Attacking Midfield Playmaker (AMF/CMF) linking lines with tight close control, progressive transitional carries, and pinpoint through-balls.`;
+  }
+  if (normName.includes("SCHOLES")) {
+    return `Central Midfield Orchestrator (CMF) dictating the game tempo with laser-accurate long switches and devastating shooting from the edge of the area.`;
+  }
+  if (normName.includes("ALLISTER")) {
+    return `Central / Defensive Pivot (DMF/CMF) providing second-ball recoveries, progressive distribution under heavy pressing, and tactical balance.`;
+  }
+  if (normName.includes("RIJKAARD")) {
+    return `Defensive Anchor (DMF/CB) imposing physical supremacy in front of the backline, neutralizing counter-attacks and winning aerial duels.`;
+  }
+  if (normName.includes("MARQUEZ") || normName.includes("M\xC1RQUEZ")) {
+    return `Ball-Playing Centre Back (CB) delivering immaculate build-up passes and intelligent positioning to cut off through-balls.`;
+  }
+  if (normName.includes("ALABA")) {
+    return `Versatile Defensive Pillar (CB/LB) offering elite recovery pace and pinpoint progressive distribution out of defense.`;
+  }
+  if (normName.includes("MENDES")) {
+    return `Dynamic Left Back (LB) maintaining defensive compactness while providing overlapping width and dangerous low cutback crosses.`;
+  }
+  if (normName.includes("HAKIMI")) {
+    return `Rapid Right Back (RB) offering elite recovery pace along the flank to neutralize opponent wingers and support transition breaks.`;
+  }
+  return `Tactical first-choice anchor for ${pos} in ${formation} delivering optimal positional synergy and rating stability (${player.rating} OVR).`;
+}
+function solveOptimalLineupPlacement(formation, candidatePlayers) {
+  if (!Array.isArray(candidatePlayers) || candidatePlayers.length === 0) {
+    return [];
+  }
+  const uniquePool = [];
+  const seenKeys = /* @__PURE__ */ new Set();
+  candidatePlayers.forEach((p) => {
+    const key = (p.id || p.name).toLowerCase().trim();
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniquePool.push(p);
+    }
+  });
+  const slots = getFormationSlots(formation);
+  const gkSlot = slots.find((s) => s.pos === "GK") || slots[0];
+  let chosenGK = uniquePool.find((p) => (p.position || "").toUpperCase() === "GK" || normalizeString(p.name).includes("PERUZZI"));
+  if (!chosenGK) {
+    chosenGK = uniquePool[0];
+  }
+  const assignedGK = {
+    ...chosenGK,
+    position: "GK",
+    pitchX: gkSlot.x,
+    pitchY: gkSlot.y,
+    selectionReason: buildAuthenticSelectionReason(chosenGK, gkSlot, formation),
+    tacticalRole: "GK"
+  };
+  const outfieldSlots = slots.filter((s) => s !== gkSlot).slice(0, 10);
+  const outfieldCandidates = uniquePool.filter((p) => (p.id || p.name) !== (chosenGK.id || chosenGK.name));
+  while (outfieldCandidates.length < 10) {
+    const idx = outfieldCandidates.length;
+    outfieldCandidates.push({
+      id: `squad_sub_${idx}`,
+      name: `Squad Player ${idx + 1}`,
+      position: outfieldSlots[idx]?.pos || "CMF",
+      rating: 85,
+      confidence: "Medium",
+      playstyle: "Standard"
+    });
+  }
+  const costMatrix = outfieldSlots.map(
+    (slot) => outfieldCandidates.map((player) => calculatePlayerSlotSuitability(player, slot))
+  );
+  const assignment = solveHungarianMaximumWeight(costMatrix);
+  const assignedOutfield = [];
+  const usedPlayerIndices = /* @__PURE__ */ new Set();
+  for (let slotIdx = 0; slotIdx < outfieldSlots.length; slotIdx++) {
+    const slot = outfieldSlots[slotIdx];
+    let playerIdx = assignment[slotIdx];
+    if (playerIdx === void 0 || playerIdx < 0 || usedPlayerIndices.has(playerIdx)) {
+      playerIdx = outfieldCandidates.findIndex((_, idx) => !usedPlayerIndices.has(idx));
+    }
+    if (playerIdx >= 0 && playerIdx < outfieldCandidates.length) {
+      usedPlayerIndices.add(playerIdx);
+      const player = outfieldCandidates[playerIdx];
+      assignedOutfield.push({
+        ...player,
+        position: slot.pos,
+        // Explicitly shows authentic slot role (e.g. LWF, AMF, CF, CMF, DMF)
+        pitchX: slot.x,
+        pitchY: slot.y,
+        selectionReason: buildAuthenticSelectionReason(player, slot, formation),
+        tacticalRole: slot.pos
+      });
+    }
+  }
+  return [assignedGK, ...assignedOutfield];
+}
+
+// src/lib/tacticalReportGenerator.ts
+function generatePlayerTrainingReport(players, playstyle = "Quick Counter") {
+  const topPlayers = [...players].filter((p) => !p.isUnidentified && !p.name.includes("Unidentified")).sort((a, b) => b.rating - a.rating).slice(0, 4);
+  const fallbackNames = [
+    { name: "Primary Striker", pos: "CF", rating: 98 },
+    { name: "Defensive Anchor", pos: "DMF", rating: 96 },
+    { name: "Creative Playmaker", pos: "AMF", rating: 97 },
+    { name: "Commanding CB", pos: "CB", rating: 95 }
+  ];
+  const progressionAllocationAdvice = (topPlayers.length > 0 ? topPlayers : fallbackNames.map((f, i) => ({
+    id: `fb_${i}`,
+    name: f.name,
+    position: f.pos,
+    rating: f.rating,
+    confidence: "High"
+  }))).map((player) => {
+    const pos = (player.position || "CF").toUpperCase();
+    if (pos === "CF" || pos === "SS" || pos === "LWF" || pos === "RWF") {
+      return {
+        playerName: player.name,
+        position: player.position,
+        rating: player.rating,
+        recommendedProgression: [
+          { attributeGroup: "Shooting (Finishing & Kicking Power)", points: 8, targetImpact: "Reaches 90+ Finishing for consistent first-time shots inside the box." },
+          { attributeGroup: "Dribbling (Tight Possession & Balance)", points: 6, targetImpact: "Increases agility in tight penalty box scrambles." },
+          { attributeGroup: "Dexterity (Offensive Awareness & Acceleration)", points: 10, targetImpact: "Optimizes off-the-shoulder runs and initial 5-yard burst." },
+          { attributeGroup: "Lower Body Strength (Speed & Stamina)", points: 8, targetImpact: "Maintains top sprint speed on breakaways into minute 75+." }
+        ],
+        recommendedSkills: ["First-time Shot", "One-touch Pass", "Sole Control", "Acrobatic Finishing", "Outside Curler"],
+        specialTrainingFocus: `Fine-tune acceleration and finishing so ${player.name} can exploit half-space through-balls under ${playstyle}.`
+      };
+    } else if (pos === "DMF" || pos === "CMF") {
+      return {
+        playerName: player.name,
+        position: player.position,
+        rating: player.rating,
+        recommendedProgression: [
+          { attributeGroup: "Passing (Low Pass & Lofted Pass)", points: 8, targetImpact: "Guarantees laser-sharp transition passes that bypass high opponent presses." },
+          { attributeGroup: "Defending (Tackling, Defensive Engagement)", points: 8, targetImpact: "Boosts ball recovery rate when intercepting central cutbacks." },
+          { attributeGroup: "Physical Contact & Stamina", points: 8, targetImpact: "Wins shoulder-to-shoulder duels in the midfield second-ball scrap." },
+          { attributeGroup: "Dexterity & Speed", points: 4, targetImpact: "Maintains positional balance to close down counter-attacks promptly." }
+        ],
+        recommendedSkills: ["One-touch Pass", "Interception", "Through Passing", "Weighted Pass", "Blocker"],
+        specialTrainingFocus: `Prioritize defensive engagement and low passing accuracy to anchor the spine during high-tempo ${playstyle} transitions.`
+      };
+    } else if (pos === "AMF") {
+      return {
+        playerName: player.name,
+        position: player.position,
+        rating: player.rating,
+        recommendedProgression: [
+          { attributeGroup: "Passing (Low Pass & Curl)", points: 9, targetImpact: "Pins through-balls through compact defensive 5-back lines." },
+          { attributeGroup: "Dribbling & Tight Possession", points: 8, targetImpact: "Smooth turns on the edge of the D to draw fouls or shoot." },
+          { attributeGroup: "Dexterity & Offensive Awareness", points: 7, targetImpact: "Finds pockets of space between opponent midfield and backlines." },
+          { attributeGroup: "Shooting & Kicking Power", points: 6, targetImpact: "Unlocks dangerous long-range finesse shots and dipping efforts." }
+        ],
+        recommendedSkills: ["One-touch Pass", "Through Passing", "Double Touch", "Long-Range Curler", "Gamesmanship"],
+        specialTrainingFocus: `Maximizes pass curl and tight possession so ${player.name} can serve as the primary offensive orchestrator.`
+      };
+    } else if (pos === "CB" || pos === "LB" || pos === "RB") {
+      return {
+        playerName: player.name,
+        position: player.position,
+        rating: player.rating,
+        recommendedProgression: [
+          { attributeGroup: "Defending (Defensive Awareness, Tackling, Aggression)", points: 12, targetImpact: "Hits 92+ Defensive Awareness for automatic anticipation." },
+          { attributeGroup: "Strength & Jumping", points: 8, targetImpact: "Prevents opponent strikers from winning headers on corner kicks." },
+          { attributeGroup: "Speed & Acceleration", points: 8, targetImpact: "Crucial recovery pace against opponent Blitz Curler and speedy wingers." },
+          { attributeGroup: "Pass (Low Pass)", points: 2, targetImpact: "Prevents errant clearances from turning into defensive turnovers." }
+        ],
+        recommendedSkills: ["Interception", "Blocker", "Aerial Superiority", "Man Marking", "Acrobatic Clearance"],
+        specialTrainingFocus: `Invest progression points into speed and defensive engagement to withstand aggressive counter-presses.`
+      };
+    } else {
+      return {
+        playerName: player.name,
+        position: player.position,
+        rating: player.rating,
+        recommendedProgression: [
+          { attributeGroup: "GK 1 (GK Awareness & Jumping)", points: 10, targetImpact: "Immediate reaction times to point-blank rebound shots." },
+          { attributeGroup: "GK 2 (GK Clearing & GK Reach)", points: 10, targetImpact: "Tips curving long shots around the woodwork." },
+          { attributeGroup: "GK 3 (GK Catching & GK Reflexes)", points: 8, targetImpact: "Zero fumbled parries into danger areas." }
+        ],
+        recommendedSkills: ["GK Low Punt", "GK High Punt", "Penalty Saver"],
+        specialTrainingFocus: "Maximizes reach and reflexes to shut down finesse and dipping shots from outside the box."
+      };
+    }
+  });
+  return {
+    summary: `Structured progression point distribution designed to maximize breakpoint stat tiers (85, 90, and 95) across key tactical roles for ${playstyle}.`,
+    progressionAllocationAdvice,
+    positionSpecificTips: [
+      {
+        role: "Goalkeeper (GK)",
+        keyStatsToPrioritize: ["GK Reach", "GK Reflexes", "GK Awareness"],
+        guidance: "Allocate points to GK Reach and Reflexes until both reach at least 88+. In eFootball 2026/2027, Reach determines shot coverage on long curled efforts."
+      },
+      {
+        role: "Centre Backs (CB)",
+        keyStatsToPrioritize: ["Defensive Awareness", "Tackling", "Speed", "Physical Contact"],
+        guidance: "Never neglect Speed. A CB with 95 Defending but sub-70 Speed will be destroyed by through-balls. Aim for at least 76+ Speed and 90+ Defensive Engagement."
+      },
+      {
+        role: "Fullbacks (LB / RB)",
+        keyStatsToPrioritize: ["Speed", "Stamina", "Low Pass", "Interception"],
+        guidance: "If playing Offensive Fullbacks, give them 8+ points in Lower Body Strength so stamina survives till the 80th minute. Defensive Fullbacks should invest in Defending + Speed."
+      },
+      {
+        role: "Defensive Midfield (DMF / CMF)",
+        keyStatsToPrioritize: ["Defensive Engagement", "Low Pass", "Physical Contact", "Stamina"],
+        guidance: "Anchor Men require high Tackling and Physical Contact. Orchestrators need 88+ Low Pass with One-touch Pass and Through Passing skills."
+      },
+      {
+        role: "Attacking Midfield & Wingers (AMF / LWF / RWF)",
+        keyStatsToPrioritize: ["Dribbling", "Tight Possession", "Acceleration", "Curl"],
+        guidance: "Cap Acceleration to at least 88. Tight Possession enables smooth 180-degree pivots before opponent defenders can initiate match-up contact."
+      },
+      {
+        role: "Centre Forwards (CF / SS)",
+        keyStatsToPrioritize: ["Offensive Awareness", "Finishing", "Acceleration", "Kicking Power"],
+        guidance: "Offensive Awareness 90+ ensures instinctive runs off the shoulder of the last defender. Pair with First-time Shot to minimize touch latency."
+      }
+    ]
+  };
+}
+function generateTacticalPreferences(playstyle = "Quick Counter", formation = "4-2-1-3") {
+  const normPlaystyle = playstyle.trim();
+  if (normPlaystyle.toLowerCase().includes("possession")) {
+    return {
+      chosenPlaystyle: "Possession Game",
+      playstyleOverview: "Patience, high positioning density, short triangular passing, and total territorial dominance. Forces the opponent into an exhausting low block.",
+      attackingSetup: {
+        title: "Triangular Overloads & Controlled Incursions",
+        buildUpStyle: "Short Passing through the central pivot. CBs split wide to receive short balls from the keeper.",
+        attackingArea: "Center & Half-spaces. Wingers hold wide touchlines to stretch opponent fullbacks, opening pockets for the AMF.",
+        positioningFocus: "Support runs come toward the ball handler. Players rarely make blind forward runs; they offer close triangular options.",
+        details: [
+          "Maintain 2-3 passing outlets around every ball carrier at all times.",
+          "Use Pass-and-Run sparingly to preserve midfield shape and prevent counter-attack vulnerability.",
+          "Switch play to the weak-side fullback once opponent shifts horizontally."
+        ]
+      },
+      defensiveSetup: {
+        title: "Frontline Press with High Defensive Line",
+        defensiveStyle: "Aggressive immediate recovery in the opponent half to suffocate clearances.",
+        containmentArea: "Center. Direct opponent into tight central traps where two midfielders can double-team.",
+        pressuringGuidelines: [
+          "Trigger pressure the moment an opponent plays a backwards pass.",
+          "Hold offside trap line around the midfield stripe; manually track runners with your DMF."
+        ],
+        defensiveLineLevel: "High (Level 8/10). Maintain compact intervals between midfield and defensive line."
+      },
+      transitionSetup: {
+        title: "Immediate Gegenpress & Ball Retention",
+        offensiveTransition: "Secure the ball first. Do not force immediate 50-yard through-balls unless the CF has a 5-yard head start.",
+        defensiveTransition: "3-second immediate counter-press. If the ball is not won within 3 seconds, drop the defensive line by 10 yards.",
+        counterPressRules: [
+          "Closest 2 players instantly close down the opponent receiver before they turn.",
+          "DMF steps forward to intercept panicked clearance balls."
+        ]
+      }
+    };
+  } else if (normPlaystyle.toLowerCase().includes("long ball counter")) {
+    return {
+      chosenPlaystyle: "Long Ball Counter",
+      playstyleOverview: "Deep, unbreakable defensive block followed by lightning-fast, high-verticality direct releases into attacking forwards.",
+      attackingSetup: {
+        title: "Vertical Exploitation & Direct Channel Runs",
+        buildUpStyle: "Direct and vertical. Upon ball recovery, forwards sprint forward in behind the opponent backline without delay.",
+        attackingArea: "Deep Channels & Central Pockets. CF pins centre-backs while wingers cut into the half-spaces.",
+        positioningFocus: "Forwards make automatic forward runs rather than dropping deep. Midfielders look to execute direct passes with 1-2 touches.",
+        details: [
+          "Hit the CF directly on recovery to hold up the ball or flick on to rushing wingers.",
+          "Fullbacks remain disciplined; offensive attacks do not rely on fullback overlaps.",
+          "Low crossing and far-post heading are primary goal-scoring routes."
+        ]
+      },
+      defensiveSetup: {
+        title: "Low Block & Central Wall",
+        defensiveStyle: "Drop deep into own penalty area to eliminate space behind the defensive line.",
+        containmentArea: "Middle and Box perimeter. Force opponent into low-percentage crosses or rushed long shots.",
+        pressuringGuidelines: [
+          "Do not pull CBs out of position. Use the Match-up button and protect the penalty spot.",
+          "Allow opponent harmless possession in wide areas; win headers with tall CBs."
+        ],
+        defensiveLineLevel: "Deep (Level 3/10). Eliminates vulnerability to opponent through-balls."
+      },
+      transitionSetup: {
+        title: "Zero-Delay Breakaway Launch",
+        offensiveTransition: "First pass must be forward. Utilize Lofted Through Passes or driven low ground passes into the striker.",
+        defensiveTransition: "All midfielders instantly sprint back into defensive shape. Zero counter-pressing in advanced areas.",
+        counterPressRules: [
+          "Fall back behind the ball immediately upon turnover.",
+          "Delay opponent ball carrier without committing to a slide tackle."
+        ]
+      }
+    };
+  } else if (normPlaystyle.toLowerCase().includes("out wide")) {
+    return {
+      chosenPlaystyle: "Out Wide",
+      playstyleOverview: "Systematic flank overloads, overlapping fullbacks, and aerial bombardment into the penalty area targeting physical strikers.",
+      attackingSetup: {
+        title: "Flank Overloads & Pinpoint Crossing",
+        buildUpStyle: "Direct distribution to touchline wingers and advancing fullbacks.",
+        attackingArea: "Flanks (Left and Right Touchlines). Stretch opponent pitch width to maximum.",
+        positioningFocus: "Midfielders and far-side wingers crash the penalty box when a cross is delivered.",
+        details: [
+          "Pair with a physical Target Man or Fox in the Box striker with Heading and Aerial Superiority.",
+          "Use early stunning crosses (R2/RT + O/B) from deep fullback positions.",
+          "Second balls at the top of the box are cleaned up by your arriving CMF/AMF."
+        ]
+      },
+      defensiveSetup: {
+        title: "Mid-Block with Wide Containment",
+        defensiveStyle: "Structured mid-block preventing opponent switches of play.",
+        containmentArea: "Flanks. Channel opponent into touchlines and use sideline as an extra defender.",
+        pressuringGuidelines: [
+          "Fullbacks close down opponent crossers quickly to block deliveries.",
+          "DMF drops into the backline to provide aerial reinforcement."
+        ],
+        defensiveLineLevel: "Balanced (Level 5/10)."
+      },
+      transitionSetup: {
+        title: "Diagonal Release to Free Wingers",
+        offensiveTransition: "Launch diagonal cross-field balls to the unmarked winger.",
+        defensiveTransition: "Ensure cover behind advancing fullbacks; DMF must slide over to defend the vacant wide channel.",
+        counterPressRules: [
+          "Nearest winger harasses fullback to prevent easy diagonal switches.",
+          "Central pivot balances between the two CBs."
+        ]
+      }
+    };
+  } else if (normPlaystyle.toLowerCase().includes("overload")) {
+    return {
+      chosenPlaystyle: "Overload (eFootball 2027)",
+      playstyleOverview: "Dynamic tactical overload shifting 4+ players into a single quadrant of the pitch to manufacture numerical superiority before snapping a diagonal switch.",
+      attackingSetup: {
+        title: "Asymmetric Quad Overload & Weak-Side Isolation",
+        buildUpStyle: "Heavy concentration of short passes on one side of the pitch to draw the opponent block.",
+        attackingArea: "Strong-side half space switching suddenly to isolated weak-side forward.",
+        positioningFocus: "Fullback, AMF, winger, and CF converge within a 20-yard radius to create 4v3 and 5v4 scenarios.",
+        details: [
+          "Execute quick one-touch wall passes in the crowded zone.",
+          "Once opponent shifts their whole team, execute a Stunning Lofted Pass to the completely unmarked weak-side winger.",
+          "High reward system with immense tactical surprise."
+        ]
+      },
+      defensiveSetup: {
+        title: "Zonal Compaction & Aggressive Match-Up",
+        defensiveStyle: "Active zonal recovery pressing.",
+        containmentArea: "Wide and central channels.",
+        pressuringGuidelines: [
+          "Maintain situational awareness to avoid being caught on quick counter switches.",
+          "Use tactical fouls in the middle third if the overload is broken."
+        ],
+        defensiveLineLevel: "Medium-High (Level 7/10)."
+      },
+      transitionSetup: {
+        title: "Rapid Reset & Re-Balancing",
+        offensiveTransition: "Flood the predetermined overload zone with 3 supporting runners.",
+        defensiveTransition: "The far-side winger and fullback must instantly sprint inward to restore central balance.",
+        counterPressRules: [
+          "Immediate double-team in the overload zone where player density is highest."
+        ]
+      }
+    };
+  } else {
+    return {
+      chosenPlaystyle: "Quick Counter",
+      playstyleOverview: "High-octane direct counter-attacking. Relentless forward momentum upon winning the ball with rapid forward sprints and aggressive frontline pressing.",
+      attackingSetup: {
+        title: "High-Speed Vertical Penetration",
+        buildUpStyle: "Direct and explosive. Forwards instantly dart forward when possession is won in any third.",
+        attackingArea: "Center and Half-spaces. Overwhelming opponent CBs through vertical runner volume.",
+        positioningFocus: "High offensive line. Supporting midfielders surge into the box to support second-phase shots.",
+        details: [
+          "Release through-balls early; do not take more than 2-3 touches in the middle third.",
+          "Trigger 1-2 pass combinations with the AMF to pull opponent centre-backs out of line.",
+          "Capitalize on high turnovers within 5-8 seconds of ball recovery."
+        ]
+      },
+      defensiveSetup: {
+        title: "High Defensive Line with Aggressive Choke Points",
+        defensiveStyle: "Aggressive frontline pressing to force turnovers in the opponent half.",
+        containmentArea: "Center. Squeeze opponent ball carriers into narrow lanes where fast tackles can be applied.",
+        pressuringGuidelines: [
+          "Apply pressure with the nearest forward while manually cutting passing channels with your DMF.",
+          "Be prepared to sprint back manually if the opponent bypasses your initial press."
+        ],
+        defensiveLineLevel: "Very High (Level 8.5/10). Offside trap must be active."
+      },
+      transitionSetup: {
+        title: "Instantaneous Counter-Press & Surge",
+        offensiveTransition: "All 3 front players immediately break into maximum sprint forward.",
+        defensiveTransition: "Aggressive instant counter-press. Try to recover the ball within 5 seconds of losing it.",
+        counterPressRules: [
+          "Hunt the ball in packs of two immediately upon loss of possession.",
+          "Anchor DMF must never press high; hold him 15 yards ahead of the CB pairing."
+        ]
+      }
+    };
+  }
+}
+function generateGamePlanRecommendations(playstyle = "Quick Counter", formation = "4-2-1-3", players = []) {
+  const superSubCandidates = players.filter((p) => p.skills?.includes("Super-sub") || p.rating >= 88).slice(0, 3).map((p) => `${p.name} (${p.position})`).join(", ") || "Speedy Winger, Fresh CF with Super-sub skill, High-stamina Box-to-Box CMF";
+  return {
+    matchDayPreparation: {
+      conditionArrowPriorities: "Always check player form arrows before kick-off. A top form (Blue/Top) player receives a +10% boost to key physical and technical stats. A bottom form (Red/Down) player loses up to 12% across speed, stamina, and finishing. Replace red/orange arrow starters with yellow/green bench options regardless of baseline rating difference.",
+      captaincyAndSetPieceTakers: 'Assign a Captain with the "Captaincy" skill to reduce team stamina consumption and maintain composure. Select your highest Curl & Place Kicking specialist for long and short free kicks, and your tallest CB with "Aerial Superiority" as Target 1 on offensive corner kicks.',
+      fluidFormationNotes: `When using ${formation}, consider activating Fluid Formations: shift into a compact 5-3-2 or 4-5-1 out of possession to congest central spaces, then expand back into ${formation} when in possession.`
+    },
+    substitutionStrategy: {
+      earlySecondHalfSub: "60th - 65th Minute: Replace your highest-stamina drain positions (usually the central AMF or high-pressing wingers). If their stamina bar drops into the red zone, their sprint recovery drops by 35%, inviting counter-attacks.",
+      closingStageSub: "75th - 80th Minute: Introduce your primary Super-sub forward. In eFootball, the Super-sub skill triggers a massive stat multiplier when subbed in during the 2nd half, dramatically improving finishing and burst speed.",
+      staminaTriggers: [
+        "Stamina bar < 25%: Immediate substitution required to prevent pulled muscles and defensive gaps.",
+        "Winger unable to track back: Sub on a fresh wide player with high work rate.",
+        "Midfielder booked with yellow card: Replace to avoid high-pressure second yellow dismissal."
+      ],
+      superSubRecommendations: [
+        `Recommended bench game-changers: ${superSubCandidates}`,
+        "Keep 1 defensive specialist (Anchor Man or Defensive Fullback) on the bench to protect leads in the final 10 minutes."
+      ]
+    },
+    inMatchAdjustments: {
+      leadingLate: 'When leading by 1 goal in the 80th+ minute: Lower attacking mentality by 1 notch (Blue -1). Apply "Deep Line" on your DMF and set "Defensive" instruction on both fullbacks to prevent late counter-attacks.',
+      trailingLate: 'When trailing after the 70th minute: Raise attacking mentality by 1 notch (Red +1). Apply "Attacking Fullbacks" or switch to an aggressive 4-2-4 shape with an extra forward pinning the opponent centre-backs.',
+      counteringWideOverloads: 'If opponent spams crosses from wide wingers: Apply "Tight Marking" or "Man Marking" on their primary crosser, and instruct your fullback to stay "Defensive".',
+      counteringCentralThroughBalls: 'If opponent plays quick 1-2 central passes: Set your DMF to "Deep Line" to create a 3-CB barrier, and switch cursor control manually using the right stick to intercept through-ball channels.'
+    }
+  };
+}
+
 // server/deepAnalysisEngine.ts
 function crosscheckAndAuditSquadDetails(payload) {
   const formation = payload.preferredFormation && payload.preferredFormation !== "Auto-Detect / Balanced" ? payload.preferredFormation : "4-2-1-3";
@@ -1910,7 +2560,12 @@ ${riskNotice}${fluidNote}${linkUpNote}
 STRICT PROFESSIONAL REQUIREMENTS:
 1. ABSOLUTELY ZERO GENERIC SAAS FLUFF OR VAGUE FILLER:
    Every single recommendation, strength, weakness, individual instruction, and action plan MUST name and analyze the SPECIFIC players in this squad, their exact positions, playstyles, and live update conditions.
-2. BEST XI LINEUP:
+2. BEST XI LINEUP & POSITIONAL INTEGRITY:
+   - POSITIONAL INTEGRITY & REALISTIC ROLE ASSIGNMENT:
+     * Never place central midfielders (DMF/CMF/AMF like Vitinha, Mac Allister, Paul Scholes) on the wings (LWF/RWF). Vitinha plays AMF or CMF, NEVER LWF!
+     * Strikers (like Luis Suarez) must be deployed as CF in the central box, not wide.
+     * Fast wingers and inside forwards (like Cristiano Ronaldo, Darwin Nunez) occupy the wide attacking flanks (LWF/RWF) or CF.
+     * Every player in the Starting XI must be a UNIQUE squad member. ZERO duplicate players (e.g. never assign Paul Scholes or any player to two slots).
    - Must contain EXACTLY 11 players strictly from the audited squad above.
    - Must have exactly 1 GK.
    - Assign realistic pitchX (0-100) and pitchY (0-100) coordinates corresponding to the ${formation} shape.
@@ -2434,153 +3089,7 @@ function generateDeepAlgorithmicAnalysis(payload, audit) {
   return reEvaluateAndErrorProofResult(rawFallback, audit, payload);
 }
 function generatePitchCoordinatesForFormation(formation, players) {
-  const gk = players.find((p) => p.position === "GK") || players[0];
-  const others = players.filter((p) => p !== gk);
-  const cleanForm = (formation || "4-2-1-3").replace(/custom\s+gameplan:?/i, "").trim();
-  const coordsMap = {
-    "4-2-1-3": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "LB", x: 12, y: 73 },
-      { pos: "CB", x: 37, y: 76 },
-      { pos: "CB", x: 63, y: 76 },
-      { pos: "RB", x: 88, y: 73 },
-      { pos: "DMF", x: 38, y: 58 },
-      { pos: "CMF", x: 62, y: 58 },
-      { pos: "AMF", x: 50, y: 38 },
-      { pos: "LWF", x: 16, y: 22 },
-      { pos: "CF", x: 50, y: 15 },
-      { pos: "RWF", x: 84, y: 22 }
-    ],
-    "4-3-3": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "LB", x: 12, y: 73 },
-      { pos: "CB", x: 37, y: 76 },
-      { pos: "CB", x: 63, y: 76 },
-      { pos: "RB", x: 88, y: 73 },
-      { pos: "DMF", x: 50, y: 62 },
-      { pos: "CMF", x: 30, y: 48 },
-      { pos: "CMF", x: 70, y: 48 },
-      { pos: "LWF", x: 16, y: 22 },
-      { pos: "CF", x: 50, y: 15 },
-      { pos: "RWF", x: 84, y: 22 }
-    ],
-    "4-3-1-2": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "LB", x: 12, y: 73 },
-      { pos: "CB", x: 37, y: 76 },
-      { pos: "CB", x: 63, y: 76 },
-      { pos: "RB", x: 88, y: 73 },
-      { pos: "DMF", x: 50, y: 62 },
-      { pos: "CMF", x: 28, y: 50 },
-      { pos: "CMF", x: 72, y: 50 },
-      { pos: "AMF", x: 50, y: 35 },
-      { pos: "CF", x: 36, y: 17 },
-      { pos: "CF", x: 64, y: 17 }
-    ],
-    "3-4-3": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "CB", x: 25, y: 76 },
-      { pos: "CB", x: 50, y: 78 },
-      { pos: "CB", x: 75, y: 76 },
-      { pos: "LMF", x: 14, y: 50 },
-      { pos: "CMF", x: 38, y: 54 },
-      { pos: "CMF", x: 62, y: 54 },
-      { pos: "RMF", x: 86, y: 50 },
-      { pos: "LWF", x: 18, y: 22 },
-      { pos: "CF", x: 50, y: 15 },
-      { pos: "RWF", x: 82, y: 22 }
-    ],
-    "5-3-2": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "LWB", x: 12, y: 70 },
-      { pos: "CB", x: 31, y: 76 },
-      { pos: "CB", x: 50, y: 78 },
-      { pos: "CB", x: 69, y: 76 },
-      { pos: "RWB", x: 88, y: 70 },
-      { pos: "CMF", x: 32, y: 52 },
-      { pos: "DMF", x: 50, y: 58 },
-      { pos: "CMF", x: 68, y: 52 },
-      { pos: "CF", x: 38, y: 17 },
-      { pos: "CF", x: 62, y: 17 }
-    ],
-    "5-3-1-1": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "LWB", x: 12, y: 70 },
-      { pos: "CB", x: 31, y: 76 },
-      { pos: "CB", x: 50, y: 78 },
-      { pos: "CB", x: 69, y: 76 },
-      { pos: "RWB", x: 88, y: 70 },
-      { pos: "CMF", x: 32, y: 52 },
-      { pos: "DMF", x: 50, y: 58 },
-      { pos: "CMF", x: 68, y: 52 },
-      { pos: "AMF", x: 50, y: 35 },
-      { pos: "CF", x: 50, y: 15 }
-    ],
-    "4-2-1-1": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "LB", x: 12, y: 73 },
-      { pos: "CB", x: 37, y: 76 },
-      { pos: "CB", x: 63, y: 76 },
-      { pos: "RB", x: 88, y: 73 },
-      { pos: "DMF", x: 38, y: 60 },
-      { pos: "CMF", x: 62, y: 60 },
-      { pos: "AMF", x: 50, y: 40 },
-      { pos: "SS", x: 50, y: 26 },
-      { pos: "CF", x: 50, y: 15 }
-    ]
-  };
-  let layout = coordsMap[cleanForm];
-  if (!layout) {
-    const digits = cleanForm.match(/\d+/g);
-    if (digits && digits.length >= 2) {
-      layout = [{ pos: "GK", x: 50, y: 90 }];
-      const defs = parseInt(digits[0], 10) || 4;
-      const mids = parseInt(digits[1], 10) || 3;
-      const atts = parseInt(digits.slice(2).join(""), 10) || (digits.length > 2 ? 3 : 2);
-      for (let i = 0; i < defs; i++) {
-        const xStep = 80 / (defs + 1);
-        layout.push({ pos: defs >= 5 ? i === 0 ? "LWB" : i === defs - 1 ? "RWB" : "CB" : i === 0 ? "LB" : i === defs - 1 ? "RB" : "CB", x: Math.round(15 + (i + 1) * xStep), y: 76 });
-      }
-      for (let i = 0; i < mids; i++) {
-        const xStep = 80 / (mids + 1);
-        layout.push({ pos: i === 0 && mids > 2 ? "DMF" : i === mids - 1 && mids > 2 ? "AMF" : "CMF", x: Math.round(15 + (i + 1) * xStep), y: 52 });
-      }
-      for (let i = 0; i < atts; i++) {
-        const xStep = 80 / (atts + 1);
-        layout.push({ pos: atts >= 3 ? i === 0 ? "LWF" : i === atts - 1 ? "RWF" : "CF" : "CF", x: Math.round(15 + (i + 1) * xStep), y: 18 });
-      }
-    } else {
-      layout = coordsMap["4-2-1-3"];
-    }
-  }
-  const assigned = [];
-  const usedPlayerIds = /* @__PURE__ */ new Set();
-  if (gk) {
-    assigned.push({
-      ...gk,
-      pitchX: 50,
-      pitchY: 91,
-      selectionReason: gk.selectionReason || "Primary starting goalkeeper commanding the box."
-    });
-    usedPlayerIds.add(gk.id);
-  }
-  const outfieldSlots = layout.filter((s) => s.pos !== "GK").slice(0, 10);
-  for (const slot of outfieldSlots) {
-    let bestMatch = others.find((p) => !usedPlayerIds.has(p.id) && isPositionCompatible(p.position, slot.pos));
-    if (!bestMatch) {
-      bestMatch = others.find((p) => !usedPlayerIds.has(p.id));
-    }
-    if (bestMatch) {
-      usedPlayerIds.add(bestMatch.id);
-      assigned.push({
-        ...bestMatch,
-        pitchX: slot.x,
-        pitchY: slot.y,
-        selectionReason: bestMatch.selectionReason || `Tactical fit for ${slot.pos} in ${cleanForm}.`
-      });
-    }
-  }
-  return assigned;
+  return solveOptimalLineupPlacement(formation, players);
 }
 function generateSimulationScenarios(formation, playstyle, bestXI) {
   const cf = bestXI.find((p) => p && p.position === "CF") || bestXI[0] || { id: "cf_fallback", name: "Centre Forward", position: "CF", rating: 85, pitchX: 50, pitchY: 18 };
@@ -4066,157 +4575,7 @@ function createEvidenceBasedFallback(payload) {
   }
 }
 function generatePitchCoordinatesForFormation2(formation, players) {
-  const gk = players.find((p) => p.position === "GK") || players[0];
-  const others = players.filter((p) => p !== gk);
-  const cleanForm = (formation || "4-2-1-3").replace(/custom\s+gameplan:?/i, "").trim();
-  const coordsMap = {
-    "4-2-1-3": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "LB", x: 12, y: 73 },
-      { pos: "CB", x: 37, y: 76 },
-      { pos: "CB", x: 63, y: 76 },
-      { pos: "RB", x: 88, y: 73 },
-      { pos: "DMF", x: 38, y: 58 },
-      { pos: "CMF", x: 62, y: 58 },
-      { pos: "AMF", x: 50, y: 38 },
-      { pos: "LWF", x: 16, y: 22 },
-      { pos: "CF", x: 50, y: 15 },
-      { pos: "RWF", x: 84, y: 22 }
-    ],
-    "4-3-3": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "LB", x: 12, y: 73 },
-      { pos: "CB", x: 37, y: 76 },
-      { pos: "CB", x: 63, y: 76 },
-      { pos: "RB", x: 88, y: 73 },
-      { pos: "DMF", x: 50, y: 62 },
-      { pos: "CMF", x: 30, y: 48 },
-      { pos: "CMF", x: 70, y: 48 },
-      { pos: "LWF", x: 16, y: 22 },
-      { pos: "CF", x: 50, y: 15 },
-      { pos: "RWF", x: 84, y: 22 }
-    ],
-    "4-3-1-2": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "LB", x: 12, y: 73 },
-      { pos: "CB", x: 37, y: 76 },
-      { pos: "CB", x: 63, y: 76 },
-      { pos: "RB", x: 88, y: 73 },
-      { pos: "DMF", x: 50, y: 62 },
-      { pos: "CMF", x: 28, y: 50 },
-      { pos: "CMF", x: 72, y: 50 },
-      { pos: "AMF", x: 50, y: 35 },
-      { pos: "CF", x: 36, y: 17 },
-      { pos: "CF", x: 64, y: 17 }
-    ],
-    "3-4-3": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "CB", x: 25, y: 76 },
-      { pos: "CB", x: 50, y: 78 },
-      { pos: "CB", x: 75, y: 76 },
-      { pos: "LMF", x: 14, y: 50 },
-      { pos: "CMF", x: 38, y: 54 },
-      { pos: "CMF", x: 62, y: 54 },
-      { pos: "RMF", x: 86, y: 50 },
-      { pos: "LWF", x: 18, y: 22 },
-      { pos: "CF", x: 50, y: 15 },
-      { pos: "RWF", x: 82, y: 22 }
-    ],
-    "5-3-2": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "LWB", x: 12, y: 70 },
-      { pos: "CB", x: 31, y: 76 },
-      { pos: "CB", x: 50, y: 78 },
-      { pos: "CB", x: 69, y: 76 },
-      { pos: "RWB", x: 88, y: 70 },
-      { pos: "CMF", x: 32, y: 52 },
-      { pos: "DMF", x: 50, y: 58 },
-      { pos: "CMF", x: 68, y: 52 },
-      { pos: "CF", x: 38, y: 17 },
-      { pos: "CF", x: 62, y: 17 }
-    ],
-    "5-3-1-1": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "LWB", x: 12, y: 70 },
-      { pos: "CB", x: 31, y: 76 },
-      { pos: "CB", x: 50, y: 78 },
-      { pos: "CB", x: 69, y: 76 },
-      { pos: "RWB", x: 88, y: 70 },
-      { pos: "CMF", x: 32, y: 52 },
-      { pos: "DMF", x: 50, y: 58 },
-      { pos: "CMF", x: 68, y: 52 },
-      { pos: "AMF", x: 50, y: 35 },
-      { pos: "CF", x: 50, y: 15 }
-    ],
-    "4-2-1-1": [
-      { pos: "GK", x: 50, y: 91 },
-      { pos: "LB", x: 12, y: 73 },
-      { pos: "CB", x: 37, y: 76 },
-      { pos: "CB", x: 63, y: 76 },
-      { pos: "RB", x: 88, y: 73 },
-      { pos: "DMF", x: 38, y: 60 },
-      { pos: "CMF", x: 62, y: 60 },
-      { pos: "AMF", x: 50, y: 40 },
-      { pos: "SS", x: 50, y: 26 },
-      { pos: "CF", x: 50, y: 15 }
-    ]
-  };
-  let layout = coordsMap[cleanForm];
-  if (!layout) {
-    const digits = cleanForm.match(/\d+/g);
-    if (digits && digits.length >= 2) {
-      layout = [{ pos: "GK", x: 50, y: 90 }];
-      const defs = parseInt(digits[0], 10) || 4;
-      const mids = parseInt(digits[1], 10) || 3;
-      const atts = parseInt(digits.slice(2).join(""), 10) || (digits.length > 2 ? 3 : 2);
-      for (let i = 0; i < defs; i++) {
-        const xStep = 80 / (defs + 1);
-        layout.push({ pos: defs >= 5 ? i === 0 ? "LWB" : i === defs - 1 ? "RWB" : "CB" : i === 0 ? "LB" : i === defs - 1 ? "RB" : "CB", x: Math.round(15 + (i + 1) * xStep), y: 76 });
-      }
-      for (let i = 0; i < mids; i++) {
-        const xStep = 80 / (mids + 1);
-        layout.push({ pos: i === 0 ? "DMF" : "CMF", x: Math.round(15 + (i + 1) * xStep), y: 55 });
-      }
-      for (let i = 0; i < atts; i++) {
-        const xStep = 80 / (atts + 1);
-        layout.push({ pos: atts === 1 ? "CF" : i === 0 ? "LWF" : i === atts - 1 ? "RWF" : "AMF", x: Math.round(15 + (i + 1) * xStep), y: 24 });
-      }
-    } else {
-      layout = coordsMap["4-2-1-3"];
-    }
-  }
-  const result = [];
-  const unassigned = [...players];
-  for (let i = 0; i < layout.length; i++) {
-    const slot = layout[i];
-    let matchIdx = unassigned.findIndex((p2) => p2.position === slot.pos);
-    if (matchIdx === -1 && slot.pos.includes("MF")) {
-      matchIdx = unassigned.findIndex((p2) => p2.position.includes("MF"));
-    }
-    if (matchIdx === -1 && slot.pos.includes("B")) {
-      matchIdx = unassigned.findIndex((p2) => p2.position.includes("B"));
-    }
-    if (matchIdx === -1 && slot.pos.includes("F")) {
-      matchIdx = unassigned.findIndex((p2) => p2.position.includes("F") || p2.position.includes("SS") || p2.position.includes("WF"));
-    }
-    if (matchIdx === -1) {
-      matchIdx = 0;
-    }
-    const p = unassigned.splice(matchIdx >= 0 ? matchIdx : 0, 1)[0] || {
-      id: `slot_${i}`,
-      name: `Player ${i + 1}`,
-      position: slot.pos,
-      rating: 85,
-      confidence: "Medium"
-    };
-    result.push({
-      ...p,
-      pitchX: slot.x,
-      pitchY: slot.y,
-      selectionReason: `Optimal tactical fit for ${slot.pos} position`
-    });
-  }
-  return result;
+  return solveOptimalLineupPlacement(formation, players);
 }
 function generateSimulationScenarios2(formation, playstyle, bestXI) {
   const cf = bestXI.find((p) => p && p.position === "CF") || bestXI[0] || { id: "cf_fallback", name: "Centre Forward", position: "CF", rating: 85, pitchX: 50, pitchY: 18 };

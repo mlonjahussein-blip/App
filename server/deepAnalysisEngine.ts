@@ -1,3 +1,4 @@
+import { solveOptimalLineupPlacement } from "../src/lib/tacticalPlacement.ts";
 import type {
   AnalysisResult,
   PlayerData,
@@ -382,7 +383,12 @@ ${riskNotice}${fluidNote}${linkUpNote}
 STRICT PROFESSIONAL REQUIREMENTS:
 1. ABSOLUTELY ZERO GENERIC SAAS FLUFF OR VAGUE FILLER:
    Every single recommendation, strength, weakness, individual instruction, and action plan MUST name and analyze the SPECIFIC players in this squad, their exact positions, playstyles, and live update conditions.
-2. BEST XI LINEUP:
+2. BEST XI LINEUP & POSITIONAL INTEGRITY:
+   - POSITIONAL INTEGRITY & REALISTIC ROLE ASSIGNMENT:
+     * Never place central midfielders (DMF/CMF/AMF like Vitinha, Mac Allister, Paul Scholes) on the wings (LWF/RWF). Vitinha plays AMF or CMF, NEVER LWF!
+     * Strikers (like Luis Suarez) must be deployed as CF in the central box, not wide.
+     * Fast wingers and inside forwards (like Cristiano Ronaldo, Darwin Nunez) occupy the wide attacking flanks (LWF/RWF) or CF.
+     * Every player in the Starting XI must be a UNIQUE squad member. ZERO duplicate players (e.g. never assign Paul Scholes or any player to two slots).
    - Must contain EXACTLY 11 players strictly from the audited squad above.
    - Must have exactly 1 GK.
    - Assign realistic pitchX (0-100) and pitchY (0-100) coordinates corresponding to the ${formation} shape.
@@ -1004,162 +1010,7 @@ export function generatePitchCoordinatesForFormation(
   formation: string,
   players: PlayerData[]
 ): (PlayerData & { pitchX: number; pitchY: number; selectionReason: string })[] {
-  const gk = players.find(p => p.position === 'GK') || players[0];
-  const others = players.filter(p => p !== gk);
-
-  const cleanForm = (formation || '4-2-1-3').replace(/custom\s+gameplan:?/i, '').trim();
-
-  const coordsMap: Record<string, Array<{ pos: string; x: number; y: number }>> = {
-    '4-2-1-3': [
-      { pos: 'GK', x: 50, y: 91 },
-      { pos: 'LB', x: 12, y: 73 },
-      { pos: 'CB', x: 37, y: 76 },
-      { pos: 'CB', x: 63, y: 76 },
-      { pos: 'RB', x: 88, y: 73 },
-      { pos: 'DMF', x: 38, y: 58 },
-      { pos: 'CMF', x: 62, y: 58 },
-      { pos: 'AMF', x: 50, y: 38 },
-      { pos: 'LWF', x: 16, y: 22 },
-      { pos: 'CF', x: 50, y: 15 },
-      { pos: 'RWF', x: 84, y: 22 }
-    ],
-    '4-3-3': [
-      { pos: 'GK', x: 50, y: 91 },
-      { pos: 'LB', x: 12, y: 73 },
-      { pos: 'CB', x: 37, y: 76 },
-      { pos: 'CB', x: 63, y: 76 },
-      { pos: 'RB', x: 88, y: 73 },
-      { pos: 'DMF', x: 50, y: 62 },
-      { pos: 'CMF', x: 30, y: 48 },
-      { pos: 'CMF', x: 70, y: 48 },
-      { pos: 'LWF', x: 16, y: 22 },
-      { pos: 'CF', x: 50, y: 15 },
-      { pos: 'RWF', x: 84, y: 22 }
-    ],
-    '4-3-1-2': [
-      { pos: 'GK', x: 50, y: 91 },
-      { pos: 'LB', x: 12, y: 73 },
-      { pos: 'CB', x: 37, y: 76 },
-      { pos: 'CB', x: 63, y: 76 },
-      { pos: 'RB', x: 88, y: 73 },
-      { pos: 'DMF', x: 50, y: 62 },
-      { pos: 'CMF', x: 28, y: 50 },
-      { pos: 'CMF', x: 72, y: 50 },
-      { pos: 'AMF', x: 50, y: 35 },
-      { pos: 'CF', x: 36, y: 17 },
-      { pos: 'CF', x: 64, y: 17 }
-    ],
-    '3-4-3': [
-      { pos: 'GK', x: 50, y: 91 },
-      { pos: 'CB', x: 25, y: 76 },
-      { pos: 'CB', x: 50, y: 78 },
-      { pos: 'CB', x: 75, y: 76 },
-      { pos: 'LMF', x: 14, y: 50 },
-      { pos: 'CMF', x: 38, y: 54 },
-      { pos: 'CMF', x: 62, y: 54 },
-      { pos: 'RMF', x: 86, y: 50 },
-      { pos: 'LWF', x: 18, y: 22 },
-      { pos: 'CF', x: 50, y: 15 },
-      { pos: 'RWF', x: 82, y: 22 }
-    ],
-    '5-3-2': [
-      { pos: 'GK', x: 50, y: 91 },
-      { pos: 'LWB', x: 12, y: 70 },
-      { pos: 'CB', x: 31, y: 76 },
-      { pos: 'CB', x: 50, y: 78 },
-      { pos: 'CB', x: 69, y: 76 },
-      { pos: 'RWB', x: 88, y: 70 },
-      { pos: 'CMF', x: 32, y: 52 },
-      { pos: 'DMF', x: 50, y: 58 },
-      { pos: 'CMF', x: 68, y: 52 },
-      { pos: 'CF', x: 38, y: 17 },
-      { pos: 'CF', x: 62, y: 17 }
-    ],
-    '5-3-1-1': [
-      { pos: 'GK', x: 50, y: 91 },
-      { pos: 'LWB', x: 12, y: 70 },
-      { pos: 'CB', x: 31, y: 76 },
-      { pos: 'CB', x: 50, y: 78 },
-      { pos: 'CB', x: 69, y: 76 },
-      { pos: 'RWB', x: 88, y: 70 },
-      { pos: 'CMF', x: 32, y: 52 },
-      { pos: 'DMF', x: 50, y: 58 },
-      { pos: 'CMF', x: 68, y: 52 },
-      { pos: 'AMF', x: 50, y: 35 },
-      { pos: 'CF', x: 50, y: 15 }
-    ],
-    '4-2-1-1': [
-      { pos: 'GK', x: 50, y: 91 },
-      { pos: 'LB', x: 12, y: 73 },
-      { pos: 'CB', x: 37, y: 76 },
-      { pos: 'CB', x: 63, y: 76 },
-      { pos: 'RB', x: 88, y: 73 },
-      { pos: 'DMF', x: 38, y: 60 },
-      { pos: 'CMF', x: 62, y: 60 },
-      { pos: 'AMF', x: 50, y: 40 },
-      { pos: 'SS', x: 50, y: 26 },
-      { pos: 'CF', x: 50, y: 15 }
-    ]
-  };
-
-  let layout = coordsMap[cleanForm];
-  if (!layout) {
-    const digits = cleanForm.match(/\d+/g);
-    if (digits && digits.length >= 2) {
-      layout = [{ pos: 'GK', x: 50, y: 90 }];
-      const defs = parseInt(digits[0], 10) || 4;
-      const mids = parseInt(digits[1], 10) || 3;
-      const atts = parseInt(digits.slice(2).join(''), 10) || (digits.length > 2 ? 3 : 2);
-
-      for (let i = 0; i < defs; i++) {
-        const xStep = 80 / (defs + 1);
-        layout.push({ pos: defs >= 5 ? (i === 0 ? 'LWB' : i === defs - 1 ? 'RWB' : 'CB') : (i === 0 ? 'LB' : i === defs - 1 ? 'RB' : 'CB'), x: Math.round(15 + (i + 1) * xStep), y: 76 });
-      }
-      for (let i = 0; i < mids; i++) {
-        const xStep = 80 / (mids + 1);
-        layout.push({ pos: i === 0 && mids > 2 ? 'DMF' : i === mids - 1 && mids > 2 ? 'AMF' : 'CMF', x: Math.round(15 + (i + 1) * xStep), y: 52 });
-      }
-      for (let i = 0; i < atts; i++) {
-        const xStep = 80 / (atts + 1);
-        layout.push({ pos: atts >= 3 ? (i === 0 ? 'LWF' : i === atts - 1 ? 'RWF' : 'CF') : 'CF', x: Math.round(15 + (i + 1) * xStep), y: 18 });
-      }
-    } else {
-      layout = coordsMap['4-2-1-3'];
-    }
-  }
-
-  const assigned: (PlayerData & { pitchX: number; pitchY: number; selectionReason: string })[] = [];
-  const usedPlayerIds = new Set<string>();
-
-  if (gk) {
-    assigned.push({
-      ...gk,
-      pitchX: 50,
-      pitchY: 91,
-      selectionReason: (gk as any).selectionReason || 'Primary starting goalkeeper commanding the box.'
-    });
-    usedPlayerIds.add(gk.id);
-  }
-
-  const outfieldSlots = layout.filter(s => s.pos !== 'GK').slice(0, 10);
-
-  for (const slot of outfieldSlots) {
-    let bestMatch = others.find(p => !usedPlayerIds.has(p.id) && isPositionCompatible(p.position, slot.pos));
-    if (!bestMatch) {
-      bestMatch = others.find(p => !usedPlayerIds.has(p.id));
-    }
-    if (bestMatch) {
-      usedPlayerIds.add(bestMatch.id);
-      assigned.push({
-        ...bestMatch,
-        pitchX: slot.x,
-        pitchY: slot.y,
-        selectionReason: (bestMatch as any).selectionReason || `Tactical fit for ${slot.pos} in ${cleanForm}.`
-      });
-    }
-  }
-
-  return assigned;
+  return solveOptimalLineupPlacement(formation, players);
 }
 
 export function generateSimulationScenarios(
