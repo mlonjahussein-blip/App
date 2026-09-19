@@ -59,6 +59,7 @@ export interface PlayerData {
   ocrRawText?: string;
   userConfirmed?: boolean;
   userCorrected?: boolean;
+  liveUpdate?: 'A' | 'B' | 'C' | 'D' | 'E' | string;
 }
 
 export interface CoachData {
@@ -410,6 +411,7 @@ export interface TypedPlayerInput {
   nationality?: string;
   skills?: string[];
   role?: 'starting_xi' | 'substitute';
+  liveUpdate?: 'A' | 'B' | 'C' | 'D' | 'E' | string;
 }
 
 export interface AnalyzeSquadRequestPayload {

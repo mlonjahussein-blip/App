@@ -167,7 +167,9 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
           playstyle: p.playstyle,
           club: p.club,
           nationality: p.nationality,
-          skills: p.skills
+          skills: p.skills,
+          role: p.role,
+          liveUpdate: p.liveUpdate
         })),
         managerDetails: managerDetails.name.trim() ? {
           ...managerDetails,

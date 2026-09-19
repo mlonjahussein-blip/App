@@ -59,6 +59,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const [xiPlaystyle, setXiPlaystyle] = useState('Goal Poacher');
   const [xiRating, setXiRating] = useState<number | string>(95);
   const [xiTeam, setXiTeam] = useState('');
+  const [xiLiveUpdate, setXiLiveUpdate] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('C');
 
   // Substitute Form State
   const [subName, setSubName] = useState('');
@@ -67,6 +68,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const [subPlaystyle, setSubPlaystyle] = useState('Goal Poacher');
   const [subRating, setSubRating] = useState<number | string>(92);
   const [subTeam, setSubTeam] = useState('');
+  const [subLiveUpdate, setSubLiveUpdate] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('C');
+
+  const liveUpdateOptions = ['A', 'B', 'C', 'D', 'E'] as const;
 
   const positions = ['CF', 'SS', 'LWF', 'RWF', 'AMF', 'CMF', 'DMF', 'LMF', 'RMF', 'LB', 'CB', 'RB', 'GK'];
   const cardTypes = [
@@ -142,12 +146,14 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       playstyle: xiPlaystyle,
       rating: Math.min(110, Math.max(20, Number(xiRating) || 90)),
       club: xiTeam.trim() || undefined,
-      role: 'starting_xi'
+      role: 'starting_xi',
+      liveUpdate: xiLiveUpdate
     };
 
     onChange([...typedPlayers, newPlayer]);
     setXiName('');
     setXiTeam('');
+    setXiLiveUpdate('C');
   };
 
   const addSubstitutePlayer = () => {
@@ -162,12 +168,14 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       playstyle: subPlaystyle,
       rating: Math.min(110, Math.max(20, Number(subRating) || 90)),
       club: subTeam.trim() || undefined,
-      role: 'substitute'
+      role: 'substitute',
+      liveUpdate: subLiveUpdate
     };
 
     onChange([...typedPlayers, newPlayer]);
     setSubName('');
     setSubTeam('');
+    setSubLiveUpdate('C');
   };
 
   const removePlayer = (id: string) => {
@@ -190,8 +198,29 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     onChange(typedPlayers.map(p => p.id === id ? { ...p, cardType: newCardType } : p));
   };
 
+  const updatePlayerLiveUpdate = (id: string, newLiveUpdate: string) => {
+    onChange(typedPlayers.map(p => p.id === id ? { ...p, liveUpdate: newLiveUpdate } : p));
+  };
+
   const clearAllSquad = () => {
     onChange([]);
+  };
+
+  const getLiveUpdateBadgeStyle = (rating?: string) => {
+    switch (rating) {
+      case 'A':
+        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+      case 'B':
+        return 'bg-teal-500/20 text-teal-300 border-teal-500/40';
+      case 'C':
+        return 'bg-neutral-800 text-neutral-300 border-neutral-700';
+      case 'D':
+        return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'E':
+        return 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+      default:
+        return 'bg-neutral-800 text-neutral-300 border-neutral-700';
+    }
   };
 
   const getPositionColor = (pos: string) => {
@@ -264,9 +293,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-13 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-12 gap-2.5 items-end">
           {/* Player Name */}
-          <div className="sm:col-span-3">
+          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2">
             <label className="text-[10px] font-bold text-neutral-400 block mb-1">Player Name</label>
             <input
               type="text"
@@ -279,7 +308,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Team / Club */}
-          <div className="sm:col-span-2">
+          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2">
             <label className="text-[10px] font-bold text-neutral-400 block mb-1">Team / Club</label>
             <input
               type="text"
@@ -292,12 +321,12 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Position */}
-          <div className="sm:col-span-1">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Pos</label>
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1">
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">Pos</label>
             <select
               value={xiPos}
               onChange={(e) => setXiPos(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 text-center"
             >
               {positions.map(p => (
                 <option key={p} value={p}>{p}</option>
@@ -306,7 +335,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Card Type */}
-          <div className="sm:col-span-2">
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-2">
             <label className="text-[10px] font-bold text-neutral-400 block mb-1">Card Type</label>
             <select
               value={xiCardType}
@@ -320,7 +349,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Player Playing Style */}
-          <div className="sm:col-span-2">
+          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2">
             <label className="text-[10px] font-bold text-neutral-400 block mb-1">Playing Style</label>
             <select
               value={xiPlaystyle}
@@ -334,7 +363,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Rating (OVR) */}
-          <div className="sm:col-span-1">
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1">
             <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR</label>
             <input
               type="number"
@@ -359,8 +388,27 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             />
           </div>
 
+          {/* Live Update */}
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1">
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center" title="Live Update Rating (A - E)">
+              Live Update
+            </label>
+            <select
+              value={xiLiveUpdate}
+              onChange={(e) => setXiLiveUpdate(e.target.value as 'A' | 'B' | 'C' | 'D' | 'E')}
+              className={`w-full bg-neutral-900 border rounded-lg px-2 py-2 text-xs font-black text-center focus:outline-none focus:border-emerald-500 cursor-pointer ${getLiveUpdateBadgeStyle(xiLiveUpdate)}`}
+              title="Live Update: A (Top), B (Good), C (Normal), D (Poor), E (Terrible)"
+            >
+              {liveUpdateOptions.map(opt => (
+                <option key={opt} value={opt} className="bg-neutral-900 text-white font-bold">
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Add XI Button */}
-          <div className="sm:col-span-2 flex items-end">
+          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-1">
             <button
               type="button"
               onClick={addStartingXIPlayer}
@@ -397,9 +445,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-13 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-12 gap-2.5 items-end">
           {/* Player Name */}
-          <div className="sm:col-span-3">
+          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2">
             <label className="text-[10px] font-bold text-neutral-400 block mb-1">Player Name</label>
             <input
               type="text"
@@ -412,7 +460,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Team / Club */}
-          <div className="sm:col-span-2">
+          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2">
             <label className="text-[10px] font-bold text-neutral-400 block mb-1">Team / Club</label>
             <input
               type="text"
@@ -425,12 +473,12 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Position */}
-          <div className="sm:col-span-1">
-            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Pos</label>
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1">
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">Pos</label>
             <select
               value={subPos}
               onChange={(e) => setSubPos(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 text-center"
             >
               {positions.map(p => (
                 <option key={p} value={p}>{p}</option>
@@ -439,7 +487,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Card Type */}
-          <div className="sm:col-span-2">
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-2">
             <label className="text-[10px] font-bold text-neutral-400 block mb-1">Card Type</label>
             <select
               value={subCardType}
@@ -453,7 +501,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Player Playing Style */}
-          <div className="sm:col-span-2">
+          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2">
             <label className="text-[10px] font-bold text-neutral-400 block mb-1">Playing Style</label>
             <select
               value={subPlaystyle}
@@ -467,7 +515,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
 
           {/* Rating (OVR) */}
-          <div className="sm:col-span-1">
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1">
             <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center">OVR</label>
             <input
               type="number"
@@ -492,8 +540,27 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             />
           </div>
 
+          {/* Live Update */}
+          <div className="col-span-1 sm:col-span-1 md:col-span-1 lg:col-span-1">
+            <label className="text-[10px] font-bold text-neutral-400 block mb-1 text-center" title="Live Update Rating (A - E)">
+              Live Update
+            </label>
+            <select
+              value={subLiveUpdate}
+              onChange={(e) => setSubLiveUpdate(e.target.value as 'A' | 'B' | 'C' | 'D' | 'E')}
+              className={`w-full bg-neutral-900 border rounded-lg px-2 py-2 text-xs font-black text-center focus:outline-none focus:border-cyan-500 cursor-pointer ${getLiveUpdateBadgeStyle(subLiveUpdate)}`}
+              title="Live Update: A (Top), B (Good), C (Normal), D (Poor), E (Terrible)"
+            >
+              {liveUpdateOptions.map(opt => (
+                <option key={opt} value={opt} className="bg-neutral-900 text-white font-bold">
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Add Substitute Button */}
-          <div className="sm:col-span-2 flex items-end">
+          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-1">
             <button
               type="button"
               onClick={addSubstitutePlayer}
@@ -545,7 +612,8 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                       club: p.club,
                       nationality: p.nationality,
                       skills: p.skills,
-                      role: p.role || (i < 11 ? 'starting_xi' : 'substitute')
+                      role: p.role || (i < 11 ? 'starting_xi' : 'substitute'),
+                      liveUpdate: p.liveUpdate || 'C'
                     }));
                     onChange(mapped);
                     if (found.managerDetails && onManagerChange) {
@@ -640,7 +708,21 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Live Update Condition */}
+                          <select
+                            value={player.liveUpdate || 'C'}
+                            onChange={(e) => updatePlayerLiveUpdate(player.id, e.target.value)}
+                            className={`px-1.5 py-1 rounded text-[10px] font-black border cursor-pointer ${getLiveUpdateBadgeStyle(player.liveUpdate)}`}
+                            title="Live Update Condition (A to E)"
+                          >
+                            {liveUpdateOptions.map(lu => (
+                              <option key={lu} value={lu} className="bg-neutral-900 text-white font-bold">
+                                {lu}
+                              </option>
+                            ))}
+                          </select>
+
                           {/* Rating Input */}
                           <div className="flex items-center gap-1 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
                             <input
@@ -755,7 +837,21 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Live Update Condition */}
+                          <select
+                            value={player.liveUpdate || 'C'}
+                            onChange={(e) => updatePlayerLiveUpdate(player.id, e.target.value)}
+                            className={`px-1.5 py-1 rounded text-[10px] font-black border cursor-pointer ${getLiveUpdateBadgeStyle(player.liveUpdate)}`}
+                            title="Live Update Condition (A to E)"
+                          >
+                            {liveUpdateOptions.map(lu => (
+                              <option key={lu} value={lu} className="bg-neutral-900 text-white font-bold">
+                                {lu}
+                              </option>
+                            ))}
+                          </select>
+
                           {/* Rating Input */}
                           <div className="flex items-center gap-1 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
                             <input

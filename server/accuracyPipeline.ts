@@ -210,6 +210,7 @@ export interface TypedPlayerInput {
   club?: string;
   nationality?: string;
   skills?: string[];
+  liveUpdate?: 'A' | 'B' | 'C' | 'D' | 'E' | string;
 }
 
 export interface ManagerInputDetails {
@@ -1199,12 +1200,14 @@ export function createEvidenceBasedFallback(payload: AnalyzeSquadPayload): Analy
           confidenceLevel: 'VERIFIED',
           status: 'verified',
           playerType: tp.cardType || masterMatch?.cardType || 'Highlight',
+          liveUpdate: tp.liveUpdate || 'C',
           skills: (tp.skills && tp.skills.length > 0) ? tp.skills : (masterMatch?.skills && masterMatch.skills.length > 0) ? masterMatch.skills : getRealisticSkills(tp.position || masterMatch?.primaryPosition || 'CMF'),
           sourceScreenshots: images.length > 0 ? [1] : [],
           evidence: [
             `Player selected: '${tp.name}'`,
             `Position: ${(tp.position || masterMatch?.primaryPosition || 'CMF').toUpperCase()}`,
             `Card Type: ${tp.cardType || masterMatch?.cardType || 'Highlight'} (${tp.rating || masterMatch?.maxRating || 90} OVR)`,
+            tp.liveUpdate ? `Live Update Rating: ${tp.liveUpdate}` : '',
             tp.team ? `Team/Club: ${tp.team}` : '',
             `Role: ${isStartingXI ? 'Starting XI' : 'Substitute'} Lineup`
           ].filter(Boolean),
