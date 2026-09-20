@@ -184,12 +184,12 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
             overload: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.overload) || 86))
           } : undefined
         } : undefined,
-        preferredPlaystyle,
-        preferredFormation: finalFormation,
+        preferredPlaystyle: analysisMode === 'pure23' ? 'Auto-Detect / AI Optimal Recommendation' : preferredPlaystyle,
+        preferredFormation: analysisMode === 'pure23' ? 'Auto-Detect / Balanced' : finalFormation,
         analysisMode: analysisMode === 'pure23' ? 'auto23' : 'guided',
-        fluidFormations: fluidFormations.enabled ? fluidFormations : undefined,
-        linkUpPlay: linkUpPlay.enabled ? linkUpPlay : undefined,
-        tacticalPreference,
+        fluidFormations: analysisMode === 'guided' && fluidFormations.enabled ? fluidFormations : undefined,
+        linkUpPlay: analysisMode === 'guided' && linkUpPlay.enabled ? linkUpPlay : undefined,
+        tacticalPreference: analysisMode === 'pure23' ? 'AI Recommended & Optimal eFootball 2027 Balance' : tacticalPreference,
         hasCoachScreenshot: false
       };
 
@@ -482,260 +482,262 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
             />
           </div>
 
-          {/* Tactical Preferences & Advanced System Controls */}
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
-            <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
-              <div className="flex items-center gap-2">
-                <Info className="w-5 h-5 text-cyan-400" />
-                <h2 className="text-lg font-bold text-white">
-                  Tactical Preferences & Gameplan Setup
-                </h2>
-              </div>
-              <span className="text-xs text-neutral-400 font-medium">
-                eFootball 2027 Supported
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              {/* Preferred Playstyle */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">
-                    Preferred Playstyle
-                  </label>
-                  {preferredPlaystyle === 'Auto-Detect / AI Optimal Recommendation' && (
-                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold">
-                      AI Auto
-                    </span>
-                  )}
-                  {preferredPlaystyle === 'Overload' && (
-                    <span className="text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.2 rounded font-bold">
-                      2027 New
-                    </span>
-                  )}
+          {/* Tactical Preferences & Advanced System Controls - Only shown in Guided Mode */}
+          {analysisMode === 'guided' && (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6 animate-fade-in">
+              <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
+                <div className="flex items-center gap-2">
+                  <Info className="w-5 h-5 text-cyan-400" />
+                  <h2 className="text-lg font-bold text-white">
+                    Tactical Preferences & Gameplan Setup
+                  </h2>
                 </div>
-                <select
-                  value={preferredPlaystyle}
-                  onChange={(e) => setPreferredPlaystyle(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="Auto-Detect / AI Optimal Recommendation">Auto-Detect / AI Optimal Recommendation</option>
-                  <option value="Quick Counter">Quick Counter (Gegenpress & fast vertical breakout)</option>
-                  <option value="Possession Game">Possession Game (Patient short passing build-up)</option>
-                  <option value="Long Ball Counter">Long Ball Counter (Deep low block & direct outlet balls)</option>
-                  <option value="Out Wide">Out Wide (Wing overlaps & high-percentage crosses)</option>
-                  <option value="Long Ball">Long Ball (Target man flick-ons & second balls)</option>
-                  <option value="Overload">Overload (eFootball 2027 • Half-space channel overload & numerical superiority)</option>
-                </select>
+                <span className="text-xs text-neutral-400 font-medium">
+                  eFootball 2027 Supported
+                </span>
               </div>
 
-              {/* Preferred Formation */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
-                  Formation Preference
-                </label>
-                <select
-                  value={preferredFormation}
-                  onChange={(e) => setPreferredFormation(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-                >
-                  {EFOOTBALL_FORMATIONS.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.label}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Custom Gameplan Input Area */}
-                {preferredFormation === 'Custom Gameplan' && (
-                  <div className="mt-3 animate-fade-in">
-                    <label className="text-[11px] font-bold text-emerald-400 block mb-1">
-                      Enter Your Custom Gameplan / Shape:
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Preferred Playstyle */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+                      Preferred Playstyle
                     </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 3-1-3-3 Asymmetrical Build-up with Floating AMF"
-                      value={customGameplan}
-                      onChange={(e) => setCustomGameplan(e.target.value)}
-                      className="w-full bg-neutral-950 border border-emerald-500/60 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-400"
-                    />
+                    {preferredPlaystyle === 'Auto-Detect / AI Optimal Recommendation' && (
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold">
+                        AI Auto
+                      </span>
+                    )}
+                    {preferredPlaystyle === 'Overload' && (
+                      <span className="text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.2 rounded font-bold">
+                        2027 New
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
-
-              {/* Fluid Formations Toggle & Configuration Block */}
-              <div className="md:col-span-2 bg-neutral-950/70 border border-neutral-800 rounded-xl p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
-                      <Sliders className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-white">Fluid Formations</span>
-                        <span className="text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2 py-0.5 rounded-full font-bold">
-                          In-Game Dynamic Shape
-                        </span>
-                      </div>
-                      <p className="text-xs text-neutral-400">
-                        Automatically transform formation shape across match phases (Kick-Off, Attacking in Possession, Defending out of Possession).
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Toggle Switch */}
-                  <button
-                    type="button"
-                    onClick={() => setFluidFormations(prev => ({ ...prev, enabled: !prev.enabled }))}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      fluidFormations.enabled ? 'bg-cyan-500' : 'bg-neutral-800'
-                    }`}
+                  <select
+                    value={preferredPlaystyle}
+                    onChange={(e) => setPreferredPlaystyle(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
                   >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        fluidFormations.enabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
+                    <option value="Auto-Detect / AI Optimal Recommendation">Auto-Detect / AI Optimal Recommendation</option>
+                    <option value="Quick Counter">Quick Counter (Gegenpress & fast vertical breakout)</option>
+                    <option value="Possession Game">Possession Game (Patient short passing build-up)</option>
+                    <option value="Long Ball Counter">Long Ball Counter (Deep low block & direct outlet balls)</option>
+                    <option value="Out Wide">Out Wide (Wing overlaps & high-percentage crosses)</option>
+                    <option value="Long Ball">Long Ball (Target man flick-ons & second balls)</option>
+                    <option value="Overload">Overload (eFootball 2027 • Half-space channel overload & numerical superiority)</option>
+                  </select>
                 </div>
 
-                {fluidFormations.enabled && (
-                  <div className="pt-3 border-t border-neutral-800/80 grid grid-cols-1 sm:grid-cols-3 gap-3 animate-fade-in">
-                    <div>
-                      <label className="text-[11px] font-bold text-cyan-400 block mb-1">
-                        1. When Kick-Off Formation
-                      </label>
-                      <select
-                        value={fluidFormations.kickoffFormation || '4-2-1-3'}
-                        onChange={(e) => setFluidFormations(prev => ({ ...prev, kickoffFormation: e.target.value }))}
-                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-                      >
-                        {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced' && f.value !== 'Custom Gameplan').map(f => (
-                          <option key={f.value} value={f.value}>{f.label.split(' ')[0]}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-cyan-400 block mb-1">
-                        2. In Possession (Attacking)
-                      </label>
-                      <select
-                        value={fluidFormations.inPossessionFormation || '3-2-4-1'}
-                        onChange={(e) => setFluidFormations(prev => ({ ...prev, inPossessionFormation: e.target.value }))}
-                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-                      >
-                        {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced' && f.value !== 'Custom Gameplan').map(f => (
-                          <option key={f.value} value={f.value}>{f.label.split(' ')[0]}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-cyan-400 block mb-1">
-                        3. Out of Possession (Defending)
-                      </label>
-                      <select
-                        value={fluidFormations.outOfPossessionFormation || '5-3-2'}
-                        onChange={(e) => setFluidFormations(prev => ({ ...prev, outOfPossessionFormation: e.target.value }))}
-                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-                      >
-                        {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced' && f.value !== 'Custom Gameplan').map(f => (
-                          <option key={f.value} value={f.value}>{f.label.split(' ')[0]}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Linked-Up Play Style Configuration Block */}
-              <div className="md:col-span-2 bg-neutral-950/70 border border-neutral-800 rounded-xl p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-white">Linked-Up Play Style</span>
-                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
-                          Synergy Combo
-                        </span>
-                      </div>
-                      <p className="text-xs text-neutral-400">
-                        Designate specific passing triangles or combination play between two key players (e.g. AMF to CF Give & Go).
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Toggle Switch */}
-                  <button
-                    type="button"
-                    onClick={() => setLinkUpPlay(prev => ({ ...prev, enabled: !prev.enabled }))}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      linkUpPlay.enabled ? 'bg-emerald-500' : 'bg-neutral-800'
-                    }`}
+                {/* Preferred Formation */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
+                    Formation Preference
+                  </label>
+                  <select
+                    value={preferredFormation}
+                    onChange={(e) => setPreferredFormation(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
                   >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        linkUpPlay.enabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
+                    {EFOOTBALL_FORMATIONS.map((f) => (
+                      <option key={f.value} value={f.value}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
 
-                {linkUpPlay.enabled && (
-                  <div className="pt-3 border-t border-neutral-800/80 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
-                    <div>
+                  {/* Custom Gameplan Input Area */}
+                  {preferredFormation === 'Custom Gameplan' && (
+                    <div className="mt-3 animate-fade-in">
                       <label className="text-[11px] font-bold text-emerald-400 block mb-1">
-                        Player A (Initiator)
+                        Enter Your Custom Gameplan / Shape:
                       </label>
                       <input
                         type="text"
-                        placeholder="e.g. Wirtz or De Bruyne"
-                        value={linkUpPlay.fromPlayer}
-                        onChange={(e) => setLinkUpPlay(prev => ({ ...prev, fromPlayer: e.target.value }))}
-                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        placeholder="e.g. 3-1-3-3 Asymmetrical Build-up with Floating AMF"
+                        value={customGameplan}
+                        onChange={(e) => setCustomGameplan(e.target.value)}
+                        className="w-full bg-neutral-950 border border-emerald-500/60 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-400"
                       />
                     </div>
+                  )}
+                </div>
 
-                    <div>
-                      <label className="text-[11px] font-bold text-emerald-400 block mb-1">
-                        Player B (Receiver / Target)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Mbappé or Haaland"
-                        value={linkUpPlay.toPlayer}
-                        onChange={(e) => setLinkUpPlay(prev => ({ ...prev, toPlayer: e.target.value }))}
-                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                {/* Fluid Formations Toggle & Configuration Block */}
+                <div className="md:col-span-2 bg-neutral-950/70 border border-neutral-800 rounded-xl p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
+                        <Sliders className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-white">Fluid Formations</span>
+                          <span className="text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2 py-0.5 rounded-full font-bold">
+                            In-Game Dynamic Shape
+                          </span>
+                        </div>
+                        <p className="text-xs text-neutral-400">
+                          Automatically transform formation shape across match phases (Kick-Off, Attacking in Possession, Defending out of Possession).
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Toggle Switch */}
+                    <button
+                      type="button"
+                      onClick={() => setFluidFormations(prev => ({ ...prev, enabled: !prev.enabled }))}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        fluidFormations.enabled ? 'bg-cyan-500' : 'bg-neutral-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          fluidFormations.enabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
                       />
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="text-[11px] font-bold text-emerald-400 block mb-1">
-                        Link Pattern & Coach Instruction
-                      </label>
-                      <select
-                        value={linkUpPlay.linkPattern}
-                        onChange={(e) => setLinkUpPlay(prev => ({ ...prev, linkPattern: e.target.value }))}
-                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                      >
-                        <option value="Give & Go (1-2 Quick Return Pass)">Give & Go (1-2 Quick Return Pass)</option>
-                        <option value="Overlapping Fullback & Winger Combination">Overlapping Fullback & Winger Combination</option>
-                        <option value="Third-Man Run through Half-Space">Third-Man Run through Half-Space</option>
-                        <option value="Target Man Hold-Up & Runner Off-Ball">Target Man Hold-Up & Runner Off-Ball</option>
-                        <option value="Inverted Winger Cut Inside & AMF Late Surge">Inverted Winger Cut Inside & AMF Late Surge</option>
-                      </select>
-                    </div>
+                    </button>
                   </div>
-                )}
-              </div>
 
+                  {fluidFormations.enabled && (
+                    <div className="pt-3 border-t border-neutral-800/80 grid grid-cols-1 sm:grid-cols-3 gap-3 animate-fade-in">
+                      <div>
+                        <label className="text-[11px] font-bold text-cyan-400 block mb-1">
+                          1. When Kick-Off Formation
+                        </label>
+                        <select
+                          value={fluidFormations.kickoffFormation || '4-2-1-3'}
+                          onChange={(e) => setFluidFormations(prev => ({ ...prev, kickoffFormation: e.target.value }))}
+                          className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                        >
+                          {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced' && f.value !== 'Custom Gameplan').map(f => (
+                            <option key={f.value} value={f.value}>{f.label.split(' ')[0]}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-cyan-400 block mb-1">
+                          2. In Possession (Attacking)
+                        </label>
+                        <select
+                          value={fluidFormations.inPossessionFormation || '3-2-4-1'}
+                          onChange={(e) => setFluidFormations(prev => ({ ...prev, inPossessionFormation: e.target.value }))}
+                          className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                        >
+                          {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced' && f.value !== 'Custom Gameplan').map(f => (
+                            <option key={f.value} value={f.value}>{f.label.split(' ')[0]}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-cyan-400 block mb-1">
+                          3. Out of Possession (Defending)
+                        </label>
+                        <select
+                          value={fluidFormations.outOfPossessionFormation || '5-3-2'}
+                          onChange={(e) => setFluidFormations(prev => ({ ...prev, outOfPossessionFormation: e.target.value }))}
+                          className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                        >
+                          {EFOOTBALL_FORMATIONS.filter(f => f.value !== 'Auto-Detect / Balanced' && f.value !== 'Custom Gameplan').map(f => (
+                            <option key={f.value} value={f.value}>{f.label.split(' ')[0]}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Linked-Up Play Style Configuration Block */}
+                <div className="md:col-span-2 bg-neutral-950/70 border border-neutral-800 rounded-xl p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-white">Linked-Up Play Style</span>
+                          <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
+                            Synergy Combo
+                          </span>
+                        </div>
+                        <p className="text-xs text-neutral-400">
+                          Designate specific passing triangles or combination play between two key players (e.g. AMF to CF Give & Go).
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Toggle Switch */}
+                    <button
+                      type="button"
+                      onClick={() => setLinkUpPlay(prev => ({ ...prev, enabled: !prev.enabled }))}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        linkUpPlay.enabled ? 'bg-emerald-500' : 'bg-neutral-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          linkUpPlay.enabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {linkUpPlay.enabled && (
+                    <div className="pt-3 border-t border-neutral-800/80 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
+                      <div>
+                        <label className="text-[11px] font-bold text-emerald-400 block mb-1">
+                          Player A (Initiator)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Wirtz or De Bruyne"
+                          value={linkUpPlay.fromPlayer}
+                          onChange={(e) => setLinkUpPlay(prev => ({ ...prev, fromPlayer: e.target.value }))}
+                          className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-emerald-400 block mb-1">
+                          Player B (Receiver / Target)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Mbappé or Haaland"
+                          value={linkUpPlay.toPlayer}
+                          onChange={(e) => setLinkUpPlay(prev => ({ ...prev, toPlayer: e.target.value }))}
+                          className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="text-[11px] font-bold text-emerald-400 block mb-1">
+                          Link Pattern & Coach Instruction
+                        </label>
+                        <select
+                          value={linkUpPlay.linkPattern}
+                          onChange={(e) => setLinkUpPlay(prev => ({ ...prev, linkPattern: e.target.value }))}
+                          className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="Give & Go (1-2 Quick Return Pass)">Give & Go (1-2 Quick Return Pass)</option>
+                          <option value="Overlapping Fullback & Winger Combination">Overlapping Fullback & Winger Combination</option>
+                          <option value="Third-Man Run through Half-Space">Third-Man Run through Half-Space</option>
+                          <option value="Target Man Hold-Up & Runner Off-Ball">Target Man Hold-Up & Runner Off-Ball</option>
+                          <option value="Inverted Winger Cut Inside & AMF Late Surge">Inverted Winger Cut Inside & AMF Late Surge</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Bottom Analysis Action Bar */}
           <div className="flex justify-end pt-2">

@@ -310,6 +310,8 @@ export interface AnalysisResult {
   isDeveloperModeAvailable?: boolean;
   managerDetails?: ManagerInputDetails;
   analysisMode?: 'guided_tactics' | 'auto_tactics_23';
+  fluidFormations?: FluidFormationSettings;
+  linkUpPlay?: LinkUpPlaySettings;
 }
 
 export interface UserProfile {
@@ -398,6 +400,7 @@ export interface FluidFormationSettings {
   kickoffFormation?: string;
   inPossessionFormation?: string;
   outOfPossessionFormation?: string;
+  explanation?: string;
 }
 
 export interface LinkUpPlaySettings {
@@ -406,6 +409,7 @@ export interface LinkUpPlaySettings {
   toPlayer?: string;
   linkPattern?: string; // e.g. '1-2 Pass & Go', 'Third-Man Overload Run', 'Target Man Wall Pass', 'Inverted Underlap', 'Custom Link'
   coachInstructionNote?: string;
+  coachCompatibilityScore?: number;
 }
 
 export interface TypedPlayerInput {

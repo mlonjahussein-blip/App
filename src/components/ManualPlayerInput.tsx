@@ -367,6 +367,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       {/* 1. Manager Details Section */}
       <ManagerDetailsInput
         managerDetails={managerDetails}
+        onManagerChange={onManagerChange}
         onChange={onManagerChange}
       />
 

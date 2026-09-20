@@ -4,15 +4,21 @@ import { ManagerInputDetails } from '../types.ts';
 
 interface ManagerDetailsInputProps {
   managerDetails: ManagerInputDetails;
-  onManagerChange: (manager: ManagerInputDetails) => void;
+  onManagerChange?: (manager: ManagerInputDetails) => void;
+  onChange?: (manager: ManagerInputDetails) => void;
   subtitle?: string;
 }
 
 export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
   managerDetails,
   onManagerChange,
+  onChange,
   subtitle = "Enter your manager's identity and tactical playstyle proficiency ratings."
 }) => {
+  const updateManager = (updated: ManagerInputDetails) => {
+    if (onManagerChange) onManagerChange(updated);
+    if (onChange) onChange(updated);
+  };
   return (
     <div className="bg-neutral-950/70 border border-neutral-800 rounded-2xl p-5 sm:p-6 space-y-5">
       <div className="flex items-center gap-2.5 pb-2 border-b border-neutral-800">
@@ -37,7 +43,7 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
             type="text"
             placeholder="e.g. Pep Guardiola, X. Alonso, C. Ancelotti"
             value={managerDetails.name}
-            onChange={(e) => onManagerChange({ ...managerDetails, name: e.target.value })}
+            onChange={(e) => updateManager({ ...managerDetails, name: e.target.value })}
             className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
           />
         </div>
@@ -50,7 +56,7 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
             type="text"
             placeholder="e.g. Spain, Germany, Italy, England"
             value={managerDetails.nationality || ''}
-            onChange={(e) => onManagerChange({ ...managerDetails, nationality: e.target.value })}
+            onChange={(e) => updateManager({ ...managerDetails, nationality: e.target.value })}
             className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
           />
         </div>
@@ -63,7 +69,7 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
             type="text"
             placeholder="e.g. Manchester City, Real Madrid, Leverkusen"
             value={managerDetails.team || ''}
-            onChange={(e) => onManagerChange({ ...managerDetails, team: e.target.value })}
+            onChange={(e) => updateManager({ ...managerDetails, team: e.target.value })}
             className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
           />
         </div>
@@ -110,52 +116,49 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
                     onChange={(e) => {
                       const valStr = e.target.value;
                       if (valStr === '') {
-                        onManagerChange({
+                        updateManager({
                           ...managerDetails,
                           playstyleProficiencies: {
-                            ...(managerDetails.playstyleProficiencies || {
-                              possessionGame: 85,
-                              quickCounter: 87,
-                              longBallCounter: 85,
-                              outWide: 80,
-                              longBall: 75,
-                              overload: 86
-                            }),
+                            possessionGame: 85,
+                            quickCounter: 87,
+                            longBallCounter: 85,
+                            outWide: 80,
+                            longBall: 75,
+                            overload: 86,
+                            ...(managerDetails.playstyleProficiencies || {}),
                             [key]: ''
                           }
                         });
                         return;
                       }
                       const num = parseInt(valStr, 10);
-                      onManagerChange({
+                      updateManager({
                         ...managerDetails,
                         playstyleProficiencies: {
-                          ...(managerDetails.playstyleProficiencies || {
-                            possessionGame: 85,
-                            quickCounter: 87,
-                            longBallCounter: 85,
-                            outWide: 80,
-                            longBall: 75,
-                            overload: 86
-                          }),
+                          possessionGame: 85,
+                          quickCounter: 87,
+                          longBallCounter: 85,
+                          outWide: 80,
+                          longBall: 75,
+                          overload: 86,
+                          ...(managerDetails.playstyleProficiencies || {}),
                           [key]: isNaN(num) ? valStr : num
                         }
                       });
                     }}
                     onBlur={(e) => {
                       const num = parseInt(e.target.value, 10);
-                      const clamped = isNaN(num) ? 0 : Math.min(90, Math.max(0, num));
-                      onManagerChange({
+                      const clamped = isNaN(num) ? 75 : Math.min(90, Math.max(0, num));
+                      updateManager({
                         ...managerDetails,
                         playstyleProficiencies: {
-                          ...(managerDetails.playstyleProficiencies || {
-                            possessionGame: 85,
-                            quickCounter: 87,
-                            longBallCounter: 85,
-                            outWide: 80,
-                            longBall: 75,
-                            overload: 86
-                          }),
+                          possessionGame: 85,
+                          quickCounter: 87,
+                          longBallCounter: 85,
+                          outWide: 80,
+                          longBall: 75,
+                          overload: 86,
+                          ...(managerDetails.playstyleProficiencies || {}),
                           [key]: clamped
                         }
                       });

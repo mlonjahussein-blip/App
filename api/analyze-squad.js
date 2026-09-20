@@ -3146,6 +3146,8 @@ function reEvaluateAndErrorProofResult(rawResult, audit, payload) {
     playerTrainingReport: generatePlayerTrainingReport(positionedBestXI, playstyle),
     tacticalPreferences: generateTacticalPreferences(playstyle, finalFormation),
     gamePlanRecommendations: generateGamePlanRecommendations(playstyle, finalFormation, verifiedPlayers),
+    fluidFormations: payload.fluidFormations && payload.fluidFormations.enabled ? payload.fluidFormations : computeOptimalFluidFormations(finalFormation, playstyle, positionedBestXI),
+    linkUpPlay: payload.linkUpPlay && payload.linkUpPlay.enabled ? payload.linkUpPlay : computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI),
     freeOrPaidStatus: "free",
     paymentStatus: "free",
     analysisQuality,
@@ -3349,6 +3351,64 @@ function isPositionCompatible(pos1, pos2) {
   if (p1 === "CB" && p2 === "CB") return true;
   if (p1 === "GK" && p2 === "GK") return true;
   return false;
+}
+function computeOptimalFluidFormations(formation, playstyle, players) {
+  let kickoff = formation || "4-2-1-3";
+  let inPossession = "3-2-4-1";
+  let outOfPossession = "5-3-2";
+  if (formation.includes("4-3-3") || formation.includes("4-2-1-3") || formation.includes("4-1-2-3")) {
+    inPossession = "3-2-4-1";
+    outOfPossession = "5-3-2";
+  } else if (formation.includes("4-2-2-2") || formation.includes("4-4-2")) {
+    inPossession = "3-1-4-2";
+    outOfPossession = "4-4-2";
+  } else if (formation.includes("4-3-1-2")) {
+    inPossession = "3-2-3-2";
+    outOfPossession = "5-3-2";
+  } else if (formation.startsWith("5-")) {
+    inPossession = "3-4-3";
+    outOfPossession = "5-4-1";
+  } else if (formation.startsWith("3-")) {
+    inPossession = "3-2-4-1";
+    outOfPossession = "5-3-2";
+  }
+  return {
+    enabled: true,
+    kickoffFormation: kickoff,
+    inPossessionFormation: inPossession,
+    outOfPossessionFormation: outOfPossession
+  };
+}
+function computeOptimalLinkUpPlay(coachName, playstyle, formation, bestXI) {
+  const amf = bestXI.find((p) => p.position === "AMF");
+  const cmf = bestXI.find((p) => p.position === "CMF");
+  const lwf = bestXI.find((p) => p.position === "LWF" || p.position === "LMF");
+  const rwf = bestXI.find((p) => p.position === "RWF" || p.position === "RMF");
+  const fb = bestXI.find((p) => p.position === "LB" || p.position === "RB");
+  const cf = bestXI.find((p) => p.position === "CF") || bestXI.find((p) => p.position === "SS") || bestXI[0];
+  let fromPlayer = amf?.name || cmf?.name || lwf?.name || rwf?.name || fb?.name || (bestXI[1]?.name ?? "Playmaker");
+  let toPlayer = cf?.name || (bestXI[0]?.name ?? "Striker");
+  if (fromPlayer === toPlayer) {
+    const alternate = bestXI.find((p) => p.name !== toPlayer);
+    fromPlayer = alternate?.name || "Playmaker";
+  }
+  let pattern = "Give & Go (1-2 Quick Return Pass)";
+  const styleLower = (playstyle || "").toLowerCase();
+  if (styleLower.includes("possession") || styleLower.includes("overload")) {
+    pattern = "Third-Man Run through Half-Space";
+  } else if (styleLower.includes("wide")) {
+    pattern = "Overlapping Fullback & Winger Combination";
+  } else if (styleLower.includes("long ball")) {
+    pattern = "Target Man Hold-Up & Runner Off-Ball";
+  } else if (styleLower.includes("counter")) {
+    pattern = "Give & Go (1-2 Quick Return Pass)";
+  }
+  return {
+    enabled: true,
+    fromPlayer,
+    toPlayer,
+    linkPattern: pattern
+  };
 }
 
 // server/accuracyPipeline.ts

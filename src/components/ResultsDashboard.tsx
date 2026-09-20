@@ -933,6 +933,71 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
               <p className="leading-relaxed">{squadAnalysis.coachRecommendation.explanation}</p>
             </div>
           </div>
+
+          {/* Dynamic Fluid Formations & Linked-Up Play Cards */}
+          {(squadAnalysis.fluidFormations?.enabled || squadAnalysis.linkUpPlay?.enabled) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              {/* Fluid Formation Card */}
+              {squadAnalysis.fluidFormations?.enabled && (
+                <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400">
+                        <SlidersHorizontal className="w-4 h-4" />
+                      </span>
+                      <h4 className="text-sm font-bold text-white">Fluid Formations (In-Game Dynamic Shapes)</h4>
+                    </div>
+                    <span className="text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2 py-0.5 rounded-full font-bold">
+                      eFootball Dynamic
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                    <div className="bg-neutral-900 p-2.5 rounded-xl border border-neutral-800">
+                      <span className="text-[10px] uppercase font-bold text-neutral-400 block mb-0.5">Kick-Off</span>
+                      <span className="text-xs font-black text-white">{squadAnalysis.fluidFormations.kickoffFormation || squadAnalysis.recommendedFormation}</span>
+                    </div>
+                    <div className="bg-neutral-900 p-2.5 rounded-xl border border-neutral-800">
+                      <span className="text-[10px] uppercase font-bold text-cyan-400 block mb-0.5">In Possession</span>
+                      <span className="text-xs font-black text-cyan-300">{squadAnalysis.fluidFormations.inPossessionFormation || '3-2-4-1'}</span>
+                    </div>
+                    <div className="bg-neutral-900 p-2.5 rounded-xl border border-neutral-800">
+                      <span className="text-[10px] uppercase font-bold text-rose-400 block mb-0.5">Out of Possession</span>
+                      <span className="text-xs font-black text-rose-300">{squadAnalysis.fluidFormations.outOfPossessionFormation || '5-3-2'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Linked-Up Play Card */}
+              {squadAnalysis.linkUpPlay?.enabled && (
+                <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                        <Sparkles className="w-4 h-4" />
+                      </span>
+                      <h4 className="text-sm font-bold text-white">Linked-Up Play Synergy Combo</h4>
+                    </div>
+                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
+                      Coach Combination
+                    </span>
+                  </div>
+                  <div className="bg-neutral-900 p-3 rounded-xl border border-neutral-800 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-neutral-400">Link Duo:</span>
+                      <span className="font-bold text-white">
+                        <strong className="text-emerald-400">{squadAnalysis.linkUpPlay.fromPlayer}</strong> ➔ <strong className="text-emerald-400">{squadAnalysis.linkUpPlay.toPlayer}</strong>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-neutral-400">Pattern:</span>
+                      <span className="font-bold text-cyan-400">{squadAnalysis.linkUpPlay.linkPattern}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </section>
       )}
 
