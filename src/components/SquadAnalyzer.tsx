@@ -69,17 +69,6 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
       outWide: 80,
       longBall: 75,
       overload: 86
-    },
-    linkedUpPlaystyle: {
-      enabled: false,
-      centrepiece: {
-        position: 'CF',
-        playstyle: 'Goal Poacher'
-      },
-      keyMan: {
-        position: 'AMF',
-        playstyle: 'Hole Player'
-      }
     }
   });
   const [preferredPlaystyle, setPreferredPlaystyle] = useState('Auto-Detect / AI Optimal Recommendation');
@@ -184,7 +173,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
           role: p.role,
           liveUpdate: p.liveUpdate
         })),
-        managerDetails: (managerDetails.name.trim() || managerDetails.linkedUpPlaystyle?.enabled) ? {
+        managerDetails: managerDetails.name.trim() ? {
           ...managerDetails,
           playstyleProficiencies: managerDetails.playstyleProficiencies ? {
             possessionGame: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.possessionGame) || 85)),
@@ -193,8 +182,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
             outWide: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.outWide) || 80)),
             longBall: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.longBall) || 75)),
             overload: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.overload) || 86))
-          } : undefined,
-          linkedUpPlaystyle: managerDetails.linkedUpPlaystyle?.enabled ? managerDetails.linkedUpPlaystyle : undefined
+          } : undefined
         } : undefined,
         preferredPlaystyle: analysisMode === 'pure23' ? 'Auto-Detect / AI Optimal Recommendation' : preferredPlaystyle,
         preferredFormation: analysisMode === 'pure23' ? 'Auto-Detect / Balanced' : finalFormation,
