@@ -1026,24 +1026,48 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                       <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
                         <Sparkles className="w-4 h-4" />
                       </span>
-                      <h4 className="text-sm font-bold text-white">Linked-Up Play Synergy Combo</h4>
+                      <h4 className="text-sm font-bold text-white">Manager's Linked-Up Play Synergy</h4>
                     </div>
                     <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
-                      Coach Combination
+                      {squadAnalysis.linkUpPlay.centrepiece ? 'Manager Linked-Up' : 'Coach Combination'}
                     </span>
                   </div>
-                  <div className="bg-neutral-900 p-3 rounded-xl border border-neutral-800 space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-neutral-400">Link Duo:</span>
-                      <span className="font-bold text-white">
-                        <strong className="text-emerald-400">{squadAnalysis.linkUpPlay.fromPlayer}</strong> ➔ <strong className="text-emerald-400">{squadAnalysis.linkUpPlay.toPlayer}</strong>
-                      </span>
+                  
+                  {squadAnalysis.linkUpPlay.centrepiece && squadAnalysis.linkUpPlay.keyMan ? (
+                    <div className="space-y-2 text-xs">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-neutral-900 p-2.5 rounded-xl border border-emerald-500/30">
+                          <span className="text-[10px] uppercase font-bold text-emerald-400 block mb-0.5">Centrepiece</span>
+                          <span className="font-black text-white block truncate">{squadAnalysis.linkUpPlay.centrepiece.playerName || squadAnalysis.linkUpPlay.toPlayer}</span>
+                          <span className="text-[11px] text-neutral-400">{squadAnalysis.linkUpPlay.centrepiece.position} · {squadAnalysis.linkUpPlay.centrepiece.playstyle}</span>
+                        </div>
+                        <div className="bg-neutral-900 p-2.5 rounded-xl border border-cyan-500/30">
+                          <span className="text-[10px] uppercase font-bold text-cyan-400 block mb-0.5">Key Man</span>
+                          <span className="font-black text-white block truncate">{squadAnalysis.linkUpPlay.keyMan.playerName || squadAnalysis.linkUpPlay.fromPlayer}</span>
+                          <span className="text-[11px] text-neutral-400">{squadAnalysis.linkUpPlay.keyMan.position} · {squadAnalysis.linkUpPlay.keyMan.playstyle}</span>
+                        </div>
+                      </div>
+                      <div className="bg-neutral-900 p-2.5 rounded-xl border border-neutral-800">
+                        <span className="text-[10px] uppercase font-bold text-neutral-400 block mb-0.5">Tactical Synergy</span>
+                        <p className="text-neutral-300 text-[11px] leading-relaxed">
+                          {squadAnalysis.linkUpPlay.coachInstructionNote || squadAnalysis.linkUpPlay.linkPattern}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-neutral-400">Pattern:</span>
-                      <span className="font-bold text-cyan-400">{squadAnalysis.linkUpPlay.linkPattern}</span>
+                  ) : (
+                    <div className="bg-neutral-900 p-3 rounded-xl border border-neutral-800 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-neutral-400">Link Duo:</span>
+                        <span className="font-bold text-white">
+                          <strong className="text-emerald-400">{squadAnalysis.linkUpPlay.fromPlayer}</strong> ➔ <strong className="text-emerald-400">{squadAnalysis.linkUpPlay.toPlayer}</strong>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-neutral-400">Pattern:</span>
+                        <span className="font-bold text-cyan-400">{squadAnalysis.linkUpPlay.linkPattern}</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>

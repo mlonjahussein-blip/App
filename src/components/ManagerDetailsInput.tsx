@@ -1,5 +1,5 @@
 import React from 'react';
-import { Briefcase } from 'lucide-react';
+import { Briefcase, Link2, Sparkles, UserCheck, ShieldCheck } from 'lucide-react';
 import { ManagerInputDetails } from '../types.ts';
 
 interface ManagerDetailsInputProps {
@@ -8,6 +8,40 @@ interface ManagerDetailsInputProps {
   onChange?: (manager: ManagerInputDetails) => void;
   subtitle?: string;
 }
+
+const POSITIONS = [
+  'CF', 'SS', 'LWF', 'RWF', 'AMF', 'CMF', 'DMF', 'LMF', 'RMF', 'LB', 'CB', 'RB', 'GK'
+];
+
+const PLAYSTYLES = [
+  'Goal Poacher',
+  'Adv. Striker',
+  'Fox in the Box',
+  'Target Man',
+  'Deep-Lying Forward',
+  'Dummy Runner',
+  'Creative Playmaker',
+  'Hole Player',
+  'Box-to-Box',
+  'Anchor Man',
+  'Orchestrator',
+  'The Destroyer',
+  'Build Up',
+  'Extra Frontman',
+  'Offensive Fullback',
+  'Defensive Fullback',
+  'Full-back Finisher',
+  'Roaming Flank',
+  'Prolific Winger',
+  'Cross Specialist',
+  'Classic No. 10',
+  'Offensive Goalkeeper',
+  'Defensive Goalkeeper',
+  'All-Action Defender',
+  'Pass Disruptor',
+  'Front Line Pressure',
+  'Shadow Marker'
+];
 
 export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
   managerDetails,
@@ -19,6 +53,65 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
     if (onManagerChange) onManagerChange(updated);
     if (onChange) onChange(updated);
   };
+
+  const isLinkUpEnabled = Boolean(managerDetails.linkedUpPlaystyle?.enabled);
+  const centrepiecePos = managerDetails.linkedUpPlaystyle?.centrepiece?.position || 'CF';
+  const centrepieceStyle = managerDetails.linkedUpPlaystyle?.centrepiece?.playstyle || 'Goal Poacher';
+  const keyManPos = managerDetails.linkedUpPlaystyle?.keyMan?.position || 'AMF';
+  const keyManStyle = managerDetails.linkedUpPlaystyle?.keyMan?.playstyle || 'Hole Player';
+
+  const toggleLinkUpPlaystyle = () => {
+    const nextEnabled = !isLinkUpEnabled;
+    updateManager({
+      ...managerDetails,
+      linkedUpPlaystyle: {
+        enabled: nextEnabled,
+        centrepiece: {
+          position: centrepiecePos,
+          playstyle: centrepieceStyle
+        },
+        keyMan: {
+          position: keyManPos,
+          playstyle: keyManStyle
+        }
+      }
+    });
+  };
+
+  const updateCentrepiece = (field: 'position' | 'playstyle', value: string) => {
+    updateManager({
+      ...managerDetails,
+      linkedUpPlaystyle: {
+        enabled: true,
+        centrepiece: {
+          position: field === 'position' ? value : centrepiecePos,
+          playstyle: field === 'playstyle' ? value : centrepieceStyle
+        },
+        keyMan: {
+          position: keyManPos,
+          playstyle: keyManStyle
+        }
+      }
+    });
+  };
+
+  const updateKeyMan = (field: 'position' | 'playstyle', value: string) => {
+    updateManager({
+      ...managerDetails,
+      linkedUpPlaystyle: {
+        enabled: true,
+        centrepiece: {
+          position: centrepiecePos,
+          playstyle: centrepieceStyle
+        },
+        keyMan: {
+          position: field === 'position' ? value : keyManPos,
+          playstyle: field === 'playstyle' ? value : keyManStyle
+        }
+      }
+    });
+  };
+
   return (
     <div className="bg-neutral-950/70 border border-neutral-800 rounded-2xl p-5 sm:p-6 space-y-5">
       <div className="flex items-center gap-2.5 pb-2 border-b border-neutral-800">
@@ -76,8 +169,8 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
       </div>
 
       {/* Manager Playstyle Strengths */}
-      <div className="pt-2">
-        <div className="flex items-center justify-between mb-2.5">
+      <div className="pt-2 space-y-2.5">
+        <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-white block">
             Manager Playing Style Strengths (Proficiency):
           </label>
@@ -172,6 +265,171 @@ export const ManagerDetailsInput: React.FC<ManagerDetailsInputProps> = ({
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Manager's Linked-Up Playstyle Area */}
+      <div className="pt-2 border-t border-neutral-800/80">
+        <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 sm:p-5 space-y-4">
+          
+          {/* Header & Activation Switch */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl border transition-colors ${
+                isLinkUpEnabled 
+                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-sm shadow-emerald-500/20' 
+                  : 'bg-neutral-800/80 border-neutral-700 text-neutral-400'
+              }`}>
+                <Link2 className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-bold text-white">
+                    Manager's Linked-Up Playstyle
+                  </h4>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                    isLinkUpEnabled
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      : 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                  }`}>
+                    {isLinkUpEnabled ? 'Active' : 'Optional'}
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Activate tactical linked-up synergy between your manager's designated Centrepiece and Key Man.
+                </p>
+              </div>
+            </div>
+
+            {/* Toggle Switch */}
+            <button
+              type="button"
+              id="toggle-manager-linked-up-playstyle"
+              onClick={toggleLinkUpPlaystyle}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                isLinkUpEnabled ? 'bg-emerald-500' : 'bg-neutral-800'
+              }`}
+              title={isLinkUpEnabled ? 'Disable Manager Linked-Up Playstyle' : 'Enable Manager Linked-Up Playstyle'}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  isLinkUpEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Expanded Configuration when Activated */}
+          {isLinkUpEnabled && (
+            <div className="pt-3 border-t border-neutral-800/80 space-y-4 animate-fade-in">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* 1. Centrepiece Player Details */}
+                <div className="bg-neutral-950/80 border border-emerald-500/30 rounded-xl p-4 space-y-3 shadow-sm">
+                  <div className="flex items-center justify-between pb-1 border-b border-neutral-800">
+                    <div className="flex items-center gap-2">
+                      <UserCheck className="w-4 h-4 text-emerald-400" />
+                      <span className="text-xs font-bold text-white">Centrepiece Player Details</span>
+                    </div>
+                    <span className="text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold">
+                      Primary Anchor
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-bold text-neutral-400 block mb-1">
+                        Position
+                      </label>
+                      <select
+                        value={centrepiecePos}
+                        onChange={(e) => updateCentrepiece('position', e.target.value)}
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                      >
+                        {POSITIONS.map((pos) => (
+                          <option key={pos} value={pos}>{pos}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-neutral-400 block mb-1">
+                        Playing Style
+                      </label>
+                      <select
+                        value={centrepieceStyle}
+                        onChange={(e) => updateCentrepiece('playstyle', e.target.value)}
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                      >
+                        {PLAYSTYLES.map((ps) => (
+                          <option key={ps} value={ps}>{ps}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Key Man Player Details */}
+                <div className="bg-neutral-950/80 border border-cyan-500/30 rounded-xl p-4 space-y-3 shadow-sm">
+                  <div className="flex items-center justify-between pb-1 border-b border-neutral-800">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                      <span className="text-xs font-bold text-white">Key Man Player Details</span>
+                    </div>
+                    <span className="text-[10px] bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded font-bold">
+                      Synergy Trigger
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-bold text-neutral-400 block mb-1">
+                        Position
+                      </label>
+                      <select
+                        value={keyManPos}
+                        onChange={(e) => updateKeyMan('position', e.target.value)}
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                      >
+                        {POSITIONS.map((pos) => (
+                          <option key={pos} value={pos}>{pos}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-neutral-400 block mb-1">
+                        Playing Style
+                      </label>
+                      <select
+                        value={keyManStyle}
+                        onChange={(e) => updateKeyMan('playstyle', e.target.value)}
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                      >
+                        {PLAYSTYLES.map((ps) => (
+                          <option key={ps} value={ps}>{ps}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Dynamic Synergy Preview Card */}
+              <div className="bg-neutral-950/60 border border-neutral-800/80 rounded-xl p-3 flex items-start gap-2.5 text-xs text-neutral-300">
+                <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-bold text-white block">Manager Link-Up Tactical Effect:</span>
+                  <p className="text-neutral-400 leading-relaxed">
+                    The engine will synchronize your squad’s <span className="text-emerald-400 font-bold">{centrepiecePos} ({centrepieceStyle})</span> with your <span className="text-cyan-400 font-bold">{keyManPos} ({keyManStyle})</span> to trigger coordinated pass combinations, rapid off-the-ball runs, and enhanced AI synergy.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          )}
+
         </div>
       </div>
     </div>

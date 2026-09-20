@@ -3351,7 +3351,7 @@ function reEvaluateAndErrorProofResult(rawResult, audit, payload) {
     tacticalPreferences: generateTacticalPreferences(playstyle, finalFormation),
     gamePlanRecommendations: generateGamePlanRecommendations(playstyle, finalFormation, verifiedPlayers),
     fluidFormations: payload.fluidFormations && payload.fluidFormations.enabled ? payload.fluidFormations : computeOptimalFluidFormations(finalFormation, playstyle, positionedBestXI),
-    linkUpPlay: payload.linkUpPlay && payload.linkUpPlay.enabled ? payload.linkUpPlay : computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI),
+    linkUpPlay: payload.managerDetails?.linkedUpPlaystyle?.enabled ? computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI, payload.managerDetails.linkedUpPlaystyle) : payload.linkUpPlay && payload.linkUpPlay.enabled ? payload.linkUpPlay : computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI),
     freeOrPaidStatus: "free",
     paymentStatus: "free",
     analysisQuality,
@@ -3583,7 +3583,40 @@ function computeOptimalFluidFormations(formation, playstyle, players) {
     outOfPossessionFormation: outOfPossession
   };
 }
-function computeOptimalLinkUpPlay(coachName, playstyle, formation, bestXI) {
+function computeOptimalLinkUpPlay(coachName, playstyle, formation, bestXI, managerLinkedUp) {
+  if (managerLinkedUp?.enabled && managerLinkedUp.centrepiece && managerLinkedUp.keyMan) {
+    const cp = managerLinkedUp.centrepiece;
+    const km = managerLinkedUp.keyMan;
+    const cpExact = bestXI.find((p) => p.position === cp.position && (p.playstyle || "").toLowerCase() === (cp.playstyle || "").toLowerCase());
+    const cpPosMatch = bestXI.find((p) => p.position === cp.position);
+    const cpPlaystyleMatch = bestXI.find((p) => (p.playstyle || "").toLowerCase() === (cp.playstyle || "").toLowerCase());
+    const centrepiecePlayer = cpExact || cpPosMatch || cpPlaystyleMatch || bestXI[0] || { name: `${cp.position} (${cp.playstyle})`, position: cp.position, playstyle: cp.playstyle };
+    const availableForKm = bestXI.filter((p) => p.name !== centrepiecePlayer.name);
+    const kmExact = availableForKm.find((p) => p.position === km.position && (p.playstyle || "").toLowerCase() === (km.playstyle || "").toLowerCase());
+    const kmPosMatch = availableForKm.find((p) => p.position === km.position);
+    const kmPlaystyleMatch = availableForKm.find((p) => (p.playstyle || "").toLowerCase() === (km.playstyle || "").toLowerCase());
+    const keyManPlayer = kmExact || kmPosMatch || kmPlaystyleMatch || availableForKm[0] || bestXI[1] || { name: `${km.position} (${km.playstyle})`, position: km.position, playstyle: km.playstyle };
+    const pattern2 = `${cp.position} (${cp.playstyle}) \u2794 ${km.position} (${km.playstyle}) Dynamic Combination`;
+    const note = `Manager's Linked-Up Playstyle Active: Synchronizes ${centrepiecePlayer.name} as Centrepiece (${cp.position} \xB7 ${cp.playstyle}) with ${keyManPlayer.name} as Key Man (${km.position} \xB7 ${km.playstyle}) for offensive combination synergy.`;
+    return {
+      enabled: true,
+      fromPlayer: keyManPlayer.name,
+      toPlayer: centrepiecePlayer.name,
+      linkPattern: pattern2,
+      coachInstructionNote: note,
+      coachCompatibilityScore: 97,
+      centrepiece: {
+        position: cp.position,
+        playstyle: cp.playstyle,
+        playerName: centrepiecePlayer.name
+      },
+      keyMan: {
+        position: km.position,
+        playstyle: km.playstyle,
+        playerName: keyManPlayer.name
+      }
+    };
+  }
   const amf = bestXI.find((p) => p.position === "AMF");
   const cmf = bestXI.find((p) => p.position === "CMF");
   const lwf = bestXI.find((p) => p.position === "LWF" || p.position === "LMF");

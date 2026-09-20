@@ -382,6 +382,19 @@ export interface SavedSquad {
   sourceCollection?: 'userSquads' | 'savedAnalyses';
 }
 
+export interface ManagerLinkedUpPlaystyle {
+  enabled: boolean;
+  centrepiece?: {
+    position: string;
+    playstyle: string;
+  };
+  keyMan?: {
+    position: string;
+    playstyle: string;
+  };
+  customNotes?: string;
+}
+
 export interface ManagerInputDetails {
   name: string;
   nationality?: string;
@@ -394,6 +407,7 @@ export interface ManagerInputDetails {
     longBall?: number | string;
     overload?: number | string; // eFootball 2027 new Overload playstyle
   };
+  linkedUpPlaystyle?: ManagerLinkedUpPlaystyle;
 }
 
 export interface FluidFormationSettings {
@@ -411,6 +425,16 @@ export interface LinkUpPlaySettings {
   linkPattern?: string; // e.g. '1-2 Pass & Go', 'Third-Man Overload Run', 'Target Man Wall Pass', 'Inverted Underlap', 'Custom Link'
   coachInstructionNote?: string;
   coachCompatibilityScore?: number;
+  centrepiece?: {
+    position: string;
+    playstyle: string;
+    playerName?: string;
+  };
+  keyMan?: {
+    position: string;
+    playstyle: string;
+    playerName?: string;
+  };
 }
 
 export interface TypedPlayerInput {
