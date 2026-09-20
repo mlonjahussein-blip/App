@@ -1539,6 +1539,19 @@ function getFormationSlots(formation) {
       { slotId: "cf", pos: "CF", x: 50, y: 15, roleCategory: "ATT" },
       { slotId: "rwf", pos: "RWF", x: 84, y: 22, roleCategory: "ATT" }
     ],
+    "4-1-2-3": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lb", pos: "LB", x: 12, y: 73, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 37, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 63, y: 76, roleCategory: "DEF" },
+      { slotId: "rb", pos: "RB", x: 88, y: 73, roleCategory: "DEF" },
+      { slotId: "dmf", pos: "DMF", x: 50, y: 62, roleCategory: "MID" },
+      { slotId: "amf_l", pos: "AMF", x: 32, y: 42, roleCategory: "MID" },
+      { slotId: "amf_r", pos: "AMF", x: 68, y: 42, roleCategory: "MID" },
+      { slotId: "lwf", pos: "LWF", x: 16, y: 22, roleCategory: "ATT" },
+      { slotId: "cf", pos: "CF", x: 50, y: 15, roleCategory: "ATT" },
+      { slotId: "rwf", pos: "RWF", x: 84, y: 22, roleCategory: "ATT" }
+    ],
     "4-3-3": [
       { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
       { slotId: "lb", pos: "LB", x: 12, y: 73, roleCategory: "DEF" },
@@ -1551,6 +1564,19 @@ function getFormationSlots(formation) {
       { slotId: "lwf", pos: "LWF", x: 16, y: 22, roleCategory: "ATT" },
       { slotId: "cf", pos: "CF", x: 50, y: 15, roleCategory: "ATT" },
       { slotId: "rwf", pos: "RWF", x: 84, y: 22, roleCategory: "ATT" }
+    ],
+    "4-2-3-1": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lb", pos: "LB", x: 12, y: 73, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 37, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 63, y: 76, roleCategory: "DEF" },
+      { slotId: "rb", pos: "RB", x: 88, y: 73, roleCategory: "DEF" },
+      { slotId: "dmf_l", pos: "DMF", x: 38, y: 60, roleCategory: "MID" },
+      { slotId: "dmf_r", pos: "DMF", x: 62, y: 60, roleCategory: "MID" },
+      { slotId: "lmf", pos: "LMF", x: 16, y: 38, roleCategory: "MID" },
+      { slotId: "amf", pos: "AMF", x: 50, y: 36, roleCategory: "MID" },
+      { slotId: "rmf", pos: "RMF", x: 84, y: 38, roleCategory: "MID" },
+      { slotId: "cf", pos: "CF", x: 50, y: 15, roleCategory: "ATT" }
     ],
     "4-3-1-2": [
       { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
@@ -1591,6 +1617,58 @@ function getFormationSlots(formation) {
       { slotId: "cf_l", pos: "CF", x: 38, y: 17, roleCategory: "ATT" },
       { slotId: "cf_r", pos: "CF", x: 62, y: 17, roleCategory: "ATT" }
     ],
+    "4-1-4-1": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lb", pos: "LB", x: 12, y: 73, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 37, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 63, y: 76, roleCategory: "DEF" },
+      { slotId: "rb", pos: "RB", x: 88, y: 73, roleCategory: "DEF" },
+      { slotId: "dmf", pos: "DMF", x: 50, y: 62, roleCategory: "MID" },
+      { slotId: "lmf", pos: "LMF", x: 15, y: 42, roleCategory: "MID" },
+      { slotId: "cmf_l", pos: "CMF", x: 36, y: 44, roleCategory: "MID" },
+      { slotId: "cmf_r", pos: "CMF", x: 64, y: 44, roleCategory: "MID" },
+      { slotId: "rmf", pos: "RMF", x: 85, y: 42, roleCategory: "MID" },
+      { slotId: "cf", pos: "CF", x: 50, y: 15, roleCategory: "ATT" }
+    ],
+    "4-1-3-2": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lb", pos: "LB", x: 12, y: 73, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 37, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 63, y: 76, roleCategory: "DEF" },
+      { slotId: "rb", pos: "RB", x: 88, y: 73, roleCategory: "DEF" },
+      { slotId: "dmf", pos: "DMF", x: 50, y: 62, roleCategory: "MID" },
+      { slotId: "lmf", pos: "LMF", x: 16, y: 40, roleCategory: "MID" },
+      { slotId: "amf", pos: "AMF", x: 50, y: 38, roleCategory: "MID" },
+      { slotId: "rmf", pos: "RMF", x: 84, y: 40, roleCategory: "MID" },
+      { slotId: "cf_l", pos: "CF", x: 38, y: 17, roleCategory: "ATT" },
+      { slotId: "cf_r", pos: "CF", x: 62, y: 17, roleCategory: "ATT" }
+    ],
+    "4-2-4": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lb", pos: "LB", x: 12, y: 73, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 37, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 63, y: 76, roleCategory: "DEF" },
+      { slotId: "rb", pos: "RB", x: 88, y: 73, roleCategory: "DEF" },
+      { slotId: "cmf_l", pos: "CMF", x: 36, y: 54, roleCategory: "MID" },
+      { slotId: "cmf_r", pos: "CMF", x: 64, y: 54, roleCategory: "MID" },
+      { slotId: "lwf", pos: "LWF", x: 14, y: 22, roleCategory: "ATT" },
+      { slotId: "cf_l", pos: "CF", x: 38, y: 16, roleCategory: "ATT" },
+      { slotId: "cf_r", pos: "CF", x: 62, y: 16, roleCategory: "ATT" },
+      { slotId: "rwf", pos: "RWF", x: 86, y: 22, roleCategory: "ATT" }
+    ],
+    "3-2-4-1": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "cb_l", pos: "CB", x: 25, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_c", pos: "CB", x: 50, y: 78, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 75, y: 76, roleCategory: "DEF" },
+      { slotId: "dmf_l", pos: "DMF", x: 38, y: 60, roleCategory: "MID" },
+      { slotId: "dmf_r", pos: "DMF", x: 62, y: 60, roleCategory: "MID" },
+      { slotId: "lmf", pos: "LMF", x: 14, y: 40, roleCategory: "MID" },
+      { slotId: "amf_l", pos: "AMF", x: 36, y: 36, roleCategory: "MID" },
+      { slotId: "amf_r", pos: "AMF", x: 64, y: 36, roleCategory: "MID" },
+      { slotId: "rmf", pos: "RMF", x: 86, y: 40, roleCategory: "MID" },
+      { slotId: "cf", pos: "CF", x: 50, y: 15, roleCategory: "ATT" }
+    ],
     "3-4-3": [
       { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
       { slotId: "cb_l", pos: "CB", x: 25, y: 76, roleCategory: "DEF" },
@@ -1604,6 +1682,32 @@ function getFormationSlots(formation) {
       { slotId: "cf", pos: "CF", x: 50, y: 15, roleCategory: "ATT" },
       { slotId: "rwf", pos: "RWF", x: 82, y: 22, roleCategory: "ATT" }
     ],
+    "3-5-2": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "cb_l", pos: "CB", x: 25, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_c", pos: "CB", x: 50, y: 78, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 75, y: 76, roleCategory: "DEF" },
+      { slotId: "dmf", pos: "DMF", x: 50, y: 62, roleCategory: "MID" },
+      { slotId: "lmf", pos: "LMF", x: 14, y: 48, roleCategory: "MID" },
+      { slotId: "cmf_l", pos: "CMF", x: 34, y: 50, roleCategory: "MID" },
+      { slotId: "cmf_r", pos: "CMF", x: 66, y: 50, roleCategory: "MID" },
+      { slotId: "rmf", pos: "RMF", x: 86, y: 48, roleCategory: "MID" },
+      { slotId: "cf_l", pos: "CF", x: 38, y: 17, roleCategory: "ATT" },
+      { slotId: "cf_r", pos: "CF", x: 62, y: 17, roleCategory: "ATT" }
+    ],
+    "3-4-1-2": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "cb_l", pos: "CB", x: 25, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_c", pos: "CB", x: 50, y: 78, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 75, y: 76, roleCategory: "DEF" },
+      { slotId: "lmf", pos: "LMF", x: 14, y: 50, roleCategory: "MID" },
+      { slotId: "cmf_l", pos: "CMF", x: 38, y: 56, roleCategory: "MID" },
+      { slotId: "cmf_r", pos: "CMF", x: 62, y: 56, roleCategory: "MID" },
+      { slotId: "rmf", pos: "RMF", x: 86, y: 50, roleCategory: "MID" },
+      { slotId: "amf", pos: "AMF", x: 50, y: 36, roleCategory: "MID" },
+      { slotId: "cf_l", pos: "CF", x: 38, y: 17, roleCategory: "ATT" },
+      { slotId: "cf_r", pos: "CF", x: 62, y: 17, roleCategory: "ATT" }
+    ],
     "5-3-2": [
       { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
       { slotId: "lwb", pos: "LWB", x: 12, y: 70, roleCategory: "DEF" },
@@ -1616,49 +1720,102 @@ function getFormationSlots(formation) {
       { slotId: "cmf_r", pos: "CMF", x: 68, y: 52, roleCategory: "MID" },
       { slotId: "cf_l", pos: "CF", x: 38, y: 17, roleCategory: "ATT" },
       { slotId: "cf_r", pos: "CF", x: 62, y: 17, roleCategory: "ATT" }
+    ],
+    "5-2-1-2": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lwb", pos: "LWB", x: 12, y: 70, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 31, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_c", pos: "CB", x: 50, y: 78, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 69, y: 76, roleCategory: "DEF" },
+      { slotId: "rwb", pos: "RWB", x: 88, y: 70, roleCategory: "DEF" },
+      { slotId: "dmf_l", pos: "DMF", x: 38, y: 56, roleCategory: "MID" },
+      { slotId: "cmf_r", pos: "CMF", x: 62, y: 56, roleCategory: "MID" },
+      { slotId: "amf", pos: "AMF", x: 50, y: 38, roleCategory: "MID" },
+      { slotId: "cf_l", pos: "CF", x: 38, y: 17, roleCategory: "ATT" },
+      { slotId: "cf_r", pos: "CF", x: 62, y: 17, roleCategory: "ATT" }
+    ],
+    "5-2-3": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lwb", pos: "LWB", x: 12, y: 70, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 31, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_c", pos: "CB", x: 50, y: 78, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 69, y: 76, roleCategory: "DEF" },
+      { slotId: "rwb", pos: "RWB", x: 88, y: 70, roleCategory: "DEF" },
+      { slotId: "dmf", pos: "DMF", x: 40, y: 54, roleCategory: "MID" },
+      { slotId: "cmf", pos: "CMF", x: 60, y: 54, roleCategory: "MID" },
+      { slotId: "lwf", pos: "LWF", x: 18, y: 22, roleCategory: "ATT" },
+      { slotId: "cf", pos: "CF", x: 50, y: 15, roleCategory: "ATT" },
+      { slotId: "rwf", pos: "RWF", x: 82, y: 22, roleCategory: "ATT" }
+    ],
+    "5-4-1": [
+      { slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" },
+      { slotId: "lwb", pos: "LWB", x: 12, y: 70, roleCategory: "DEF" },
+      { slotId: "cb_l", pos: "CB", x: 31, y: 76, roleCategory: "DEF" },
+      { slotId: "cb_c", pos: "CB", x: 50, y: 78, roleCategory: "DEF" },
+      { slotId: "cb_r", pos: "CB", x: 69, y: 76, roleCategory: "DEF" },
+      { slotId: "rwb", pos: "RWB", x: 88, y: 70, roleCategory: "DEF" },
+      { slotId: "lmf", pos: "LMF", x: 14, y: 46, roleCategory: "MID" },
+      { slotId: "cmf_l", pos: "CMF", x: 38, y: 52, roleCategory: "MID" },
+      { slotId: "cmf_r", pos: "CMF", x: 62, y: 52, roleCategory: "MID" },
+      { slotId: "rmf", pos: "RMF", x: 86, y: 46, roleCategory: "MID" },
+      { slotId: "cf", pos: "CF", x: 50, y: 15, roleCategory: "ATT" }
     ]
   };
   if (library[clean]) {
     return library[clean];
   }
-  const digits = clean.match(/\d+/g);
+  const digits = clean.match(/\d/g);
+  if (digits) {
+    const key = digits.join("-");
+    if (library[key]) {
+      return library[key];
+    }
+  }
   if (digits && digits.length >= 2) {
     const slots = [{ slotId: "gk", pos: "GK", x: 50, y: 91, roleCategory: "GK" }];
-    const defs = parseInt(digits[0], 10) || 4;
-    const mids = parseInt(digits[1], 10) || 3;
-    const atts = parseInt(digits.slice(2).join(""), 10) || (digits.length > 2 ? 3 : 2);
-    for (let i = 0; i < defs; i++) {
-      const xStep = 80 / (defs + 1);
-      const pos = defs >= 5 ? i === 0 ? "LWB" : i === defs - 1 ? "RWB" : "CB" : i === 0 ? "LB" : i === defs - 1 ? "RB" : "CB";
-      slots.push({
-        slotId: `def_${i}`,
-        pos,
-        x: Math.round(15 + (i + 1) * xStep),
-        y: 75,
-        roleCategory: "DEF"
-      });
-    }
-    for (let i = 0; i < mids; i++) {
-      const xStep = 80 / (mids + 1);
-      const pos = i === 0 && mids > 2 ? "DMF" : i === mids - 1 && mids > 2 ? "AMF" : "CMF";
-      slots.push({
-        slotId: `mid_${i}`,
-        pos,
-        x: Math.round(15 + (i + 1) * xStep),
-        y: 52,
-        roleCategory: "MID"
-      });
-    }
-    for (let i = 0; i < atts; i++) {
-      const xStep = 80 / (atts + 1);
-      const pos = atts >= 3 ? i === 0 ? "LWF" : i === atts - 1 ? "RWF" : "CF" : "CF";
-      slots.push({
-        slotId: `att_${i}`,
-        pos,
-        x: Math.round(15 + (i + 1) * xStep),
-        y: 18,
-        roleCategory: "ATT"
-      });
+    if (digits.length === 4) {
+      const dDefs = parseInt(digits[0], 10) || 4;
+      const dMidDeep = parseInt(digits[1], 10) || 2;
+      const dMidAtt = parseInt(digits[2], 10) || 1;
+      const dAtt = parseInt(digits[3], 10) || 3;
+      for (let i = 0; i < dDefs; i++) {
+        const xStep = 76 / (dDefs + 1);
+        const pos = dDefs >= 5 ? i === 0 ? "LWB" : i === dDefs - 1 ? "RWB" : "CB" : dDefs === 4 ? i === 0 ? "LB" : i === dDefs - 1 ? "RB" : "CB" : "CB";
+        slots.push({ slotId: `def_${i}`, pos, x: Math.round(12 + (i + 1) * xStep), y: 75, roleCategory: "DEF" });
+      }
+      for (let i = 0; i < dMidDeep; i++) {
+        const xStep = 60 / (dMidDeep + 1);
+        slots.push({ slotId: `dmf_${i}`, pos: "DMF", x: Math.round(20 + (i + 1) * xStep), y: 58, roleCategory: "MID" });
+      }
+      for (let i = 0; i < dMidAtt; i++) {
+        const xStep = 70 / (dMidAtt + 1);
+        const pos = dMidAtt >= 3 ? i === 0 ? "LMF" : i === dMidAtt - 1 ? "RMF" : "AMF" : "AMF";
+        slots.push({ slotId: `amf_${i}`, pos, x: Math.round(15 + (i + 1) * xStep), y: 38, roleCategory: "MID" });
+      }
+      for (let i = 0; i < dAtt; i++) {
+        const xStep = 74 / (dAtt + 1);
+        const pos = dAtt >= 3 ? i === 0 ? "LWF" : i === dAtt - 1 ? "RWF" : "CF" : "CF";
+        slots.push({ slotId: `att_${i}`, pos, x: Math.round(13 + (i + 1) * xStep), y: 17, roleCategory: "ATT" });
+      }
+    } else {
+      const dDefs = parseInt(digits[0], 10) || 4;
+      const dMids = parseInt(digits[1], 10) || 3;
+      const dAtts = parseInt(digits[2], 10) || (10 - dDefs - dMids > 0 ? 10 - dDefs - dMids : 3);
+      for (let i = 0; i < dDefs; i++) {
+        const xStep = 76 / (dDefs + 1);
+        const pos = dDefs >= 5 ? i === 0 ? "LWB" : i === dDefs - 1 ? "RWB" : "CB" : dDefs === 4 ? i === 0 ? "LB" : i === dDefs - 1 ? "RB" : "CB" : "CB";
+        slots.push({ slotId: `def_${i}`, pos, x: Math.round(12 + (i + 1) * xStep), y: 75, roleCategory: "DEF" });
+      }
+      for (let i = 0; i < dMids; i++) {
+        const xStep = 74 / (dMids + 1);
+        const pos = i === 0 && dMids > 2 ? "DMF" : i === dMids - 1 && dMids > 2 ? "AMF" : "CMF";
+        slots.push({ slotId: `mid_${i}`, pos, x: Math.round(13 + (i + 1) * xStep), y: 52, roleCategory: "MID" });
+      }
+      for (let i = 0; i < dAtts; i++) {
+        const xStep = 74 / (dAtts + 1);
+        const pos = dAtts >= 3 ? i === 0 ? "LWF" : i === dAtts - 1 ? "RWF" : "CF" : "CF";
+        slots.push({ slotId: `att_${i}`, pos, x: Math.round(13 + (i + 1) * xStep), y: 17, roleCategory: "ATT" });
+      }
     }
     return slots.slice(0, 11);
   }
@@ -1666,11 +1823,11 @@ function getFormationSlots(formation) {
 }
 function calculatePlayerSlotSuitability(player, slot) {
   const normName = normalizeString(player.name);
-  const registeredPos = (player.position || "").toUpperCase().trim();
+  const registeredPos = (player.position || player.registeredPosition || "").toUpperCase().trim();
   const slotPos = slot.pos.toUpperCase().trim();
   if (slotPos === "GK") {
-    if (registeredPos === "GK" || normName.includes("PERUZZI") || normName.includes("ALISSON") || normName.includes("COURTOIS") || normName.includes("NEUER") || normName.includes("CASILLAS") || normName.includes("BUFFON")) {
-      return 1e3 + (player.rating || 90);
+    if (registeredPos === "GK" || normName.includes("PERUZZI") || normName.includes("ALISSON") || normName.includes("COURTOIS") || normName.includes("NEUER") || normName.includes("CASILLAS") || normName.includes("BUFFON") || normName.includes("OBLAK") || normName.includes("DONNARUMMA") || normName.includes("EDERSON") || normName.includes("CECH") || normName.includes("KAHN") || normName.includes("SCHMEICHEL") || normName.includes("DIDA") || normName.includes("TER STEGEN") || normName.includes("DE GEA") || normName.includes("MAIGNAN") || normName.includes("MARTINEZ")) {
+      return 1e3 + (Number(player.rating) || 90);
     }
     return -2e3;
   }
@@ -1685,149 +1842,187 @@ function calculatePlayerSlotSuitability(player, slot) {
   const primaryPos = masterEntry?.primaryPosition || registeredPos;
   const secondaryPositions = masterEntry?.secondaryPositions || [];
   let score = 0;
-  const isPureCenterForward = normName.includes("SUAREZ") || normName.includes("SU\xC1REZ") || normName.includes("HAALAND") || normName.includes("OSIMHEN") || normName.includes("LEWANDOWSKI") || normName.includes("BENZEMA");
+  const isPureCenterForward = normName.includes("SUAREZ") || normName.includes("SU\xC1REZ") || normName.includes("HAALAND") || normName.includes("OSIMHEN") || normName.includes("LEWANDOWSKI") || normName.includes("BENZEMA") || normName.includes("KANE");
   if (isPureCenterForward) {
-    if (slotPos === "CF") return 220 + (player.rating || 90);
-    if (slotPos === "SS") return 140 + (player.rating || 90);
+    if (slotPos === "CF") return 230 + (Number(player.rating) || 90);
+    if (slotPos === "SS") return 160 + (Number(player.rating) || 90);
     if (slotPos === "LWF" || slotPos === "RWF") return 30;
     return -1e3;
   }
-  const isEliteWingForward = normName.includes("RONALDO") || normName.includes("NUNEZ") || normName.includes("N\xDA\xD1EZ") || normName.includes("MBAPPE") || normName.includes("MBAPP\xC9") || normName.includes("VINICIUS") || normName.includes("LEAO");
+  const isEliteWingForward = normName.includes("RONALDO") || normName.includes("NUNEZ") || normName.includes("N\xDA\xD1EZ") || normName.includes("MBAPPE") || normName.includes("MBAPP\xC9") || normName.includes("VINICIUS") || normName.includes("LEAO") || normName.includes("SALAH") || normName.includes("SAKA") || normName.includes("MESSI") || normName.includes("NEYMAR");
   if (isEliteWingForward) {
     if (normName.includes("RONALDO")) {
-      if (slotPos === "LWF") return 215 + (player.rating || 90);
-      if (slotPos === "CF") return 205 + (player.rating || 90);
-      if (slotPos === "SS") return 195 + (player.rating || 90);
-      if (slotPos === "RWF") return 160 + (player.rating || 90);
+      if (slotPos === "LWF") return 225 + (Number(player.rating) || 90);
+      if (slotPos === "CF") return 215 + (Number(player.rating) || 90);
+      if (slotPos === "SS") return 205 + (Number(player.rating) || 90);
+      if (slotPos === "RWF") return 180 + (Number(player.rating) || 90);
       if (slotPos === "AMF") return 40;
       return -1e3;
     }
     if (normName.includes("NUNEZ") || normName.includes("N\xDA\xD1EZ")) {
-      if (slotPos === "CF") return 205 + (player.rating || 90);
-      if (slotPos === "LWF") return 200 + (player.rating || 90);
-      if (slotPos === "RWF") return 195 + (player.rating || 90);
-      if (slotPos === "SS") return 190 + (player.rating || 90);
+      if (slotPos === "CF") return 215 + (Number(player.rating) || 90);
+      if (slotPos === "LWF") return 210 + (Number(player.rating) || 90);
+      if (slotPos === "RWF") return 205 + (Number(player.rating) || 90);
+      if (slotPos === "SS") return 195 + (Number(player.rating) || 90);
+      return -1e3;
+    }
+    if (normName.includes("MESSI")) {
+      if (slotPos === "RWF") return 225 + (Number(player.rating) || 90);
+      if (slotPos === "SS") return 220 + (Number(player.rating) || 90);
+      if (slotPos === "AMF") return 215 + (Number(player.rating) || 90);
+      if (slotPos === "CF") return 200 + (Number(player.rating) || 90);
+      return -1e3;
+    }
+    if (normName.includes("SALAH") || normName.includes("SAKA")) {
+      if (slotPos === "RWF") return 225 + (Number(player.rating) || 90);
+      if (slotPos === "SS") return 190 + (Number(player.rating) || 90);
+      if (slotPos === "CF") return 180 + (Number(player.rating) || 90);
+      if (slotPos === "RMF") return 175 + (Number(player.rating) || 90);
       return -1e3;
     }
     if (slotPos === "LWF" || slotPos === "RWF" || slotPos === "CF" || slotPos === "SS") {
-      return 200 + (player.rating || 90);
+      return 210 + (Number(player.rating) || 90);
     }
     return -1e3;
   }
-  const isCentralMidfieldMaestro = normName.includes("VITINHA") || normName.includes("SCHOLES") || normName.includes("ALLISTER") || normName.includes("PEDRI") || normName.includes("MODRIC") || normName.includes("KROOS");
+  const isCentralMidfieldMaestro = normName.includes("VITINHA") || normName.includes("SCHOLES") || normName.includes("ALLISTER") || normName.includes("PEDRI") || normName.includes("MODRIC") || normName.includes("KROOS") || normName.includes("DE BRUYNE") || normName.includes("BELLINGHAM");
   if (isCentralMidfieldMaestro) {
     if (normName.includes("VITINHA")) {
-      if (slotPos === "AMF") return 210 + (player.rating || 90);
-      if (slotPos === "CMF") return 210 + (player.rating || 90);
-      if (slotPos === "DMF") return 170 + (player.rating || 90);
+      if (slotPos === "AMF") return 220 + (Number(player.rating) || 90);
+      if (slotPos === "CMF") return 215 + (Number(player.rating) || 90);
+      if (slotPos === "DMF") return 170 + (Number(player.rating) || 90);
       return -1e3;
     }
     if (normName.includes("SCHOLES")) {
-      if (slotPos === "CMF") return 220 + (player.rating || 90);
-      if (slotPos === "DMF") return 180 + (player.rating || 90);
-      if (slotPos === "AMF") return 180 + (player.rating || 90);
+      if (slotPos === "CMF") return 225 + (Number(player.rating) || 90);
+      if (slotPos === "DMF") return 190 + (Number(player.rating) || 90);
+      if (slotPos === "AMF") return 190 + (Number(player.rating) || 90);
       return -1e3;
     }
     if (normName.includes("ALLISTER")) {
-      if (slotPos === "CMF") return 210 + (player.rating || 90);
-      if (slotPos === "DMF") return 200 + (player.rating || 90);
-      if (slotPos === "AMF") return 195 + (player.rating || 90);
+      if (slotPos === "CMF") return 215 + (Number(player.rating) || 90);
+      if (slotPos === "DMF") return 210 + (Number(player.rating) || 90);
+      if (slotPos === "AMF") return 200 + (Number(player.rating) || 90);
       return -1e3;
     }
+    if (slotPos === "AMF" || slotPos === "CMF" || slotPos === "DMF") {
+      return 210 + (Number(player.rating) || 90);
+    }
+    return -1e3;
   }
-  if (normName.includes("RIJKAARD")) {
-    if (slotPos === "DMF") return 215 + (player.rating || 90);
-    if (slotPos === "CB") return 210 + (player.rating || 90);
-    if (slotPos === "CMF") return 140;
+  if (normName.includes("RIJKAARD") || normName.includes("RODRI") || normName.includes("RICE") || normName.includes("CASEMIRO")) {
+    if (slotPos === "DMF") return 225 + (Number(player.rating) || 90);
+    if (slotPos === "CB") return 210 + (Number(player.rating) || 90);
+    if (slotPos === "CMF") return 170 + (Number(player.rating) || 90);
     return -1e3;
   }
   if (normName.includes("MARQUEZ") || normName.includes("M\xC1RQUEZ")) {
-    if (slotPos === "CB") return 210 + (player.rating || 90);
-    if (slotPos === "DMF") return 180 + (player.rating || 90);
+    if (slotPos === "CB") return 220 + (Number(player.rating) || 90);
+    if (slotPos === "DMF") return 195 + (Number(player.rating) || 90);
     return -1e3;
   }
   if (normName.includes("ALABA")) {
-    if (slotPos === "CB") return 205 + (player.rating || 90);
-    if (slotPos === "LB") return 205 + (player.rating || 90);
-    if (slotPos === "DMF") return 175 + (player.rating || 90);
+    if (slotPos === "CB") return 215 + (Number(player.rating) || 90);
+    if (slotPos === "LB" || slotPos === "LWB") return 215 + (Number(player.rating) || 90);
+    if (slotPos === "DMF") return 185 + (Number(player.rating) || 90);
     return -1e3;
   }
-  if (normName.includes("MENDES")) {
-    if (slotPos === "LB" || slotPos === "LWB") return 220 + (player.rating || 90);
-    if (slotPos === "LMF") return 150;
+  if (normName.includes("MENDES") || normName.includes("ROBERTO CARLOS") || normName.includes("DAVIES") || normName.includes("THEO")) {
+    if (slotPos === "LB" || slotPos === "LWB") return 225 + (Number(player.rating) || 90);
+    if (slotPos === "LMF") return 160 + (Number(player.rating) || 90);
+    if (slotPos === "CB") return 110;
     return -1e3;
   }
-  if (normName.includes("HAKIMI")) {
-    if (slotPos === "RB" || slotPos === "RWB") return 220 + (player.rating || 90);
-    if (slotPos === "RMF") return 150;
+  if (normName.includes("HAKIMI") || normName.includes("CAFU") || normName.includes("ALEXANDER-ARNOLD") || normName.includes("WALKER")) {
+    if (slotPos === "RB" || slotPos === "RWB") return 225 + (Number(player.rating) || 90);
+    if (slotPos === "RMF") return 160 + (Number(player.rating) || 90);
+    if (slotPos === "CB") return 110;
     return -1e3;
   }
   if (registeredPos === slotPos || primaryPos === slotPos) {
-    score = 180 + (player.rating || 90);
+    score = 200 + (Number(player.rating) || 90);
   } else if (secondaryPositions.includes(slotPos)) {
-    score = 150 + (player.rating || 90);
+    score = 170 + (Number(player.rating) || 90);
   } else {
     switch (slotPos) {
       case "CF":
-        if (registeredPos === "SS") score = 140;
-        else if (registeredPos === "LWF" || registeredPos === "RWF") score = 110;
-        else score = -500;
+        if (registeredPos === "SS") score = 170;
+        else if (registeredPos === "LWF" || registeredPos === "RWF") score = 130;
+        else score = -600;
+        break;
+      case "SS":
+        if (registeredPos === "CF") score = 180;
+        else if (registeredPos === "AMF") score = 170;
+        else if (registeredPos === "LWF" || registeredPos === "RWF") score = 160;
+        else score = -600;
         break;
       case "LWF":
-        if (registeredPos === "LMF") score = 150;
-        else if (registeredPos === "SS") score = 140;
-        else if (registeredPos === "CF") score = 110;
-        else if (registeredPos === "RWF") score = 120;
-        else score = -600;
+        if (registeredPos === "LMF") score = 175;
+        else if (registeredPos === "SS") score = 160;
+        else if (registeredPos === "RWF") score = 150;
+        else if (registeredPos === "CF") score = 130;
+        else score = -700;
         break;
       case "RWF":
-        if (registeredPos === "RMF") score = 150;
-        else if (registeredPos === "SS") score = 140;
-        else if (registeredPos === "CF") score = 110;
-        else if (registeredPos === "LWF") score = 120;
-        else score = -600;
+        if (registeredPos === "RMF") score = 175;
+        else if (registeredPos === "SS") score = 160;
+        else if (registeredPos === "LWF") score = 150;
+        else if (registeredPos === "CF") score = 130;
+        else score = -700;
         break;
       case "AMF":
-        if (registeredPos === "CMF") score = 160;
-        else if (registeredPos === "SS") score = 145;
-        else if (registeredPos === "LMF" || registeredPos === "RMF") score = 130;
-        else if (registeredPos === "DMF") score = 110;
-        else score = -400;
-        break;
-      case "CMF":
-        if (registeredPos === "AMF") score = 155;
-        else if (registeredPos === "DMF") score = 155;
-        else if (registeredPos === "LMF" || registeredPos === "RMF") score = 135;
-        else score = -400;
-        break;
-      case "DMF":
-        if (registeredPos === "CMF") score = 150;
-        else if (registeredPos === "CB") score = 140;
+        if (registeredPos === "CMF") score = 180;
+        else if (registeredPos === "SS") score = 170;
+        else if (registeredPos === "LMF" || registeredPos === "RMF") score = 150;
+        else if (registeredPos === "DMF") score = 120;
         else score = -500;
         break;
+      case "CMF":
+        if (registeredPos === "AMF") score = 175;
+        else if (registeredPos === "DMF") score = 175;
+        else if (registeredPos === "LMF" || registeredPos === "RMF") score = 150;
+        else score = -500;
+        break;
+      case "DMF":
+        if (registeredPos === "CMF") score = 170;
+        else if (registeredPos === "CB") score = 150;
+        else score = -600;
+        break;
       case "CB":
-        if (registeredPos === "DMF") score = 140;
-        else if (registeredPos === "LB" || registeredPos === "RB") score = 120;
-        else score = -700;
+        if (registeredPos === "DMF") score = 160;
+        else if (registeredPos === "LB" || registeredPos === "RB") score = 130;
+        else score = -800;
         break;
       case "LB":
       case "LWB":
-        if (registeredPos === "LMF") score = 140;
-        else if (registeredPos === "CB") score = 110;
-        else if (registeredPos === "RB") score = 100;
-        else score = -700;
+        if (registeredPos === "LMF") score = 160;
+        else if (registeredPos === "CB") score = 120;
+        else if (registeredPos === "RB") score = 120;
+        else score = -800;
         break;
       case "RB":
       case "RWB":
-        if (registeredPos === "RMF") score = 140;
-        else if (registeredPos === "CB") score = 110;
-        else if (registeredPos === "LB") score = 100;
-        else score = -700;
+        if (registeredPos === "RMF") score = 160;
+        else if (registeredPos === "CB") score = 120;
+        else if (registeredPos === "LB") score = 120;
+        else score = -800;
+        break;
+      case "LMF":
+        if (registeredPos === "LWF") score = 170;
+        else if (registeredPos === "LB") score = 150;
+        else if (registeredPos === "CMF") score = 140;
+        else score = -600;
+        break;
+      case "RMF":
+        if (registeredPos === "RWF") score = 170;
+        else if (registeredPos === "RB") score = 150;
+        else if (registeredPos === "CMF") score = 140;
+        else score = -600;
         break;
       default:
-        score = -200;
+        score = -300;
     }
-    score += player.rating || 85;
+    score += Number(player.rating) || 85;
   }
   return score;
 }
@@ -1835,20 +2030,24 @@ function solveHungarianMaximumWeight(costMatrix) {
   const n = costMatrix.length;
   if (n === 0) return [];
   const m = costMatrix[0].length;
+  if (m === 0) return [];
+  if (n > m) {
+    return Array.from({ length: n }, (_, i) => i < m ? i : -1);
+  }
   let maxWeight = -Infinity;
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < m; j++) {
       if (costMatrix[i][j] > maxWeight) maxWeight = costMatrix[i][j];
     }
   }
-  const size = Math.max(n, m);
+  const size = m;
   const matrix = Array.from(
     { length: size },
     (_, i) => Array.from({ length: size }, (_2, j) => {
       if (i < n && j < m) {
-        return maxWeight - costMatrix[i][j];
+        return Math.max(0, maxWeight - costMatrix[i][j]);
       }
-      return 1e5;
+      return 0;
     })
   );
   const u = new Array(size + 1).fill(0);
@@ -1895,9 +2094,11 @@ function solveHungarianMaximumWeight(costMatrix) {
     } while (j0 !== 0);
   }
   const assignment = new Array(n).fill(-1);
-  for (let j = 1; j <= m; j++) {
-    if (p[j] <= n && p[j] > 0) {
-      assignment[p[j] - 1] = j - 1;
+  for (let j = 1; j <= size; j++) {
+    const row = p[j] - 1;
+    const col = j - 1;
+    if (row >= 0 && row < n && col >= 0 && col < m) {
+      assignment[row] = col;
     }
   }
   return assignment;
@@ -1958,9 +2159,12 @@ function solveOptimalLineupPlacement(formation, candidatePlayers) {
   });
   const slots = getFormationSlots(formation);
   const gkSlot = slots.find((s) => s.pos === "GK") || slots[0];
-  let chosenGK = uniquePool.find((p) => (p.position || "").toUpperCase() === "GK" || normalizeString(p.name).includes("PERUZZI"));
+  const gkCandidates = uniquePool.filter(
+    (p) => (p.position || "").toUpperCase() === "GK" || (p.registeredPosition || "").toUpperCase() === "GK" || normalizeString(p.name).includes("PERUZZI") || normalizeString(p.name).includes("COURTOIS") || normalizeString(p.name).includes("NEUER") || normalizeString(p.name).includes("ALISSON") || normalizeString(p.name).includes("CASILLAS") || normalizeString(p.name).includes("BUFFON") || normalizeString(p.name).includes("OBLAK") || normalizeString(p.name).includes("DONNARUMMA") || normalizeString(p.name).includes("EDERSON") || normalizeString(p.name).includes("CECH") || normalizeString(p.name).includes("KAHN") || normalizeString(p.name).includes("SCHMEICHEL") || normalizeString(p.name).includes("DIDA") || normalizeString(p.name).includes("TER STEGEN") || normalizeString(p.name).includes("DE GEA") || normalizeString(p.name).includes("MAIGNAN") || normalizeString(p.name).includes("MARTINEZ")
+  );
+  let chosenGK = gkCandidates.sort((a, b) => (Number(b.rating) || 85) - (Number(a.rating) || 85))[0];
   if (!chosenGK) {
-    chosenGK = uniquePool[0];
+    chosenGK = uniquePool.find((p) => (p.position || "").toUpperCase().includes("GK")) || uniquePool[0];
   }
   const assignedGK = {
     ...chosenGK,
