@@ -270,6 +270,18 @@ function AppContent() {
         {currentTab === 'results' && activeAnalysis && (
           <ResultsDashboard
             analysis={activeAnalysis}
+            onUpdateAnalysis={(updatedAnalysis) => {
+              setActiveAnalysis(updatedAnalysis);
+              if (user) {
+                const cacheKey = `ef_saved_reports_${user.uid}`;
+                const existing = JSON.parse(localStorage.getItem(cacheKey) || '[]');
+                const idx = existing.findIndex((r: any) => r.id === updatedAnalysis.id);
+                if (idx >= 0) {
+                  existing[idx] = updatedAnalysis;
+                  localStorage.setItem(cacheKey, JSON.stringify(existing));
+                }
+              }
+            }}
             onSaveReport={handleSaveReport}
             onShareToCommunity={handleShareToCommunity}
             onPlayerBuilderSelect={(p) => setSelectedBuilderPlayer(p)}

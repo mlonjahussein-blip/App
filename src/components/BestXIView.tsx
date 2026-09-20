@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PlayerData } from '../types.ts';
 import { UserCheck, HelpCircle, Shield, Zap, Sparkles, Award } from 'lucide-react';
 
@@ -11,6 +11,19 @@ interface BestXIProps {
 export const BestXIView: React.FC<BestXIProps> = ({ formation, players, onPlayerClick }) => {
   const [filterMode, setFilterMode] = useState<'overall' | 'playstyle' | 'formation'>('overall');
   const [selectedPlayer, setSelectedPlayer] = useState<(PlayerData & { selectionReason: string }) | null>(players[0] || null);
+
+  useEffect(() => {
+    if (selectedPlayer) {
+      const match = players.find(p => p.id === selectedPlayer.id || p.name === selectedPlayer.name);
+      if (match) {
+        setSelectedPlayer(match);
+      } else {
+        setSelectedPlayer(players[0] || null);
+      }
+    } else {
+      setSelectedPlayer(players[0] || null);
+    }
+  }, [players]);
 
   return (
     <div id="best-xi-section" className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6">

@@ -58,6 +58,7 @@ interface ResultsDashboardProps {
   onShareToCommunity: (analysis: AnalysisResult) => void;
   onPlayerBuilderSelect: (player: PlayerData) => void;
   onComparePlayersSelect: (p1: PlayerData, p2: PlayerData, initialMode?: 'battles' | 'startingXI') => void;
+  onUpdateAnalysis?: (analysis: AnalysisResult) => void;
   isSaved?: boolean;
 }
 
@@ -67,6 +68,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   onShareToCommunity,
   onPlayerBuilderSelect,
   onComparePlayersSelect,
+  onUpdateAnalysis,
   isSaved = false
 }) => {
   // Single Source of Truth: Canonical Verified Squad Dataset
@@ -75,6 +77,14 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   useEffect(() => {
     setSquadAnalysis(initialAnalysis);
   }, [initialAnalysis]);
+
+  // Check if current analysis originates from the "23-Player Squad & AI Auto-Tactics" option
+  const isAuto23Mode = Boolean(
+    squadAnalysis.analysisMode === 'auto23' ||
+    squadAnalysis.analysisMode === 'auto_tactics_23' ||
+    squadAnalysis.analysisMode === 'pure23' ||
+    (squadAnalysis.title && (squadAnalysis.title.toLowerCase().includes('23-player') || squadAnalysis.title.toLowerCase().includes('auto-tactics')))
+  );
   const [activeTab, setActiveTab] = useState<'all' | 'verifiedSquad' | 'bestXI' | 'tactics' | 'training' | 'gamePlan' | 'simulation' | 'players'>('all');
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(isSaved);
@@ -189,6 +199,9 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
     };
 
     setSquadAnalysis(newAnalysis);
+    if (onUpdateAnalysis) {
+      onUpdateAnalysis(newAnalysis);
+    }
     showToast(`✓ Confirmed identity for ${player.name}`);
   };
 
@@ -196,18 +209,23 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   const handleSavePlayerCorrection = (correctedPlayer: PlayerData) => {
     const oldName = selectedPlayerForCorrection?.name || '';
     const newName = correctedPlayer.name;
+    const oldId = selectedPlayerForCorrection?.id || correctedPlayer.id;
 
     // 1. Update identified players list
     const updatedPlayers = squadAnalysis.identifiedPlayers.map((p) => {
-      if (p.id === correctedPlayer.id || p.name === oldName) {
-        return correctedPlayer;
+      if (p.id === correctedPlayer.id || p.id === oldId || p.name === oldName) {
+        return {
+          ...p,
+          ...correctedPlayer,
+          id: p.id || correctedPlayer.id
+        };
       }
       return p;
     });
 
     // 2. Update Best XI
     const updatedBestXIPlayers = squadAnalysis.bestXI.players.map((p) => {
-      if (p.id === correctedPlayer.id || p.name === oldName) {
+      if (p.id === correctedPlayer.id || p.id === oldId || p.name === oldName) {
         return {
           ...p,
           ...correctedPlayer,
@@ -221,7 +239,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
 
     // 3. Update Individual Instructions
     const updatedInstructions = squadAnalysis.individualInstructions.map((ins) => {
-      if (ins.player === oldName) {
+      if (ins.player === oldName || ins.player === correctedPlayer.name) {
         return {
           ...ins,
           player: newName,
@@ -233,7 +251,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
 
     // 4. Update Player Action Plan
     const updatedActionPlan = squadAnalysis.playerActionPlan.map((act) => {
-      if (act.player === oldName) {
+      if (act.player === oldName || act.player === correctedPlayer.name) {
         return {
           ...act,
           player: newName,
@@ -253,13 +271,37 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
       })),
       keyFrames: sc.keyFrames.map((kf) => ({
         ...kf,
-        ourTeam: kf.ourTeam.map((ot) => (ot.name === oldName ? { ...ot, name: newName, position: correctedPlayer.position } : ot))
+        ourTeam: kf.ourTeam.map((ot) => (ot.name === oldName || ot.id === oldId ? { ...ot, name: newName, position: correctedPlayer.position } : ot))
       }))
     }));
 
-    // 6. Recalculate Quality Score
+    // 6. Update Link-Up Play if old player was linked
+    const updatedLinkUpPlay = squadAnalysis.linkUpPlay ? {
+      ...squadAnalysis.linkUpPlay,
+      fromPlayer: squadAnalysis.linkUpPlay.fromPlayer === oldName ? newName : squadAnalysis.linkUpPlay.fromPlayer,
+      toPlayer: squadAnalysis.linkUpPlay.toPlayer === oldName ? newName : squadAnalysis.linkUpPlay.toPlayer
+    } : undefined;
+
+    // 7. Update Action Recommendations
+    const updatedActionRecommendations = (squadAnalysis.actionRecommendations || []).map((rec) => 
+      oldName ? rec.replaceAll(oldName, newName) : rec
+    );
+
+    // 8. Regenerate / update Player Training Report & Game Plan Recommendations
+    const playstyle = squadAnalysis.coachRecommendation?.tacticalStyle || 'Quick Counter';
+    const updatedTrainingReport = generatePlayerTrainingReport(updatedBestXIPlayers, playstyle);
+    const updatedGamePlan = generateGamePlanRecommendations(playstyle, squadAnalysis.recommendedFormation || '4-2-1-3', updatedPlayers);
+
+    // 9. Recalculate Quality Score
     const confirmedCount = updatedPlayers.filter((p) => p.identityStatus === 'user_confirmed' || p.identityStatus === 'user_corrected' || (p.confidenceScore && p.confidenceScore >= 85)).length;
     const newQualityScore = Math.min(100, Math.round((confirmedCount / Math.max(updatedPlayers.length, 1)) * 100));
+
+    // 10. Recalculate ratings
+    const avgOvr = Math.round(updatedBestXIPlayers.reduce((sum, p) => sum + (Number(p.rating) || 85), 0) / Math.max(updatedBestXIPlayers.length, 1));
+    const updatedSquadRatings = {
+      ...squadAnalysis.squadRatings,
+      overall: avgOvr
+    };
 
     const newAnalysis: AnalysisResult = {
       ...squadAnalysis,
@@ -268,9 +310,14 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
         ...squadAnalysis.bestXI,
         players: updatedBestXIPlayers
       },
+      squadRatings: updatedSquadRatings,
       individualInstructions: updatedInstructions,
       playerActionPlan: updatedActionPlan,
       simulationScenarios: updatedScenarios,
+      linkUpPlay: updatedLinkUpPlay,
+      actionRecommendations: updatedActionRecommendations,
+      playerTrainingReport: updatedTrainingReport,
+      gamePlanRecommendations: updatedGamePlan,
       qualityScore: squadAnalysis.qualityScore ? {
         ...squadAnalysis.qualityScore,
         score: newQualityScore,
@@ -280,6 +327,9 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
     };
 
     setSquadAnalysis(newAnalysis);
+    if (onUpdateAnalysis) {
+      onUpdateAnalysis(newAnalysis);
+    }
     showToast(`✓ Squad re-synced with ${correctedPlayer.name}`);
     confetti({ particleCount: 35, spread: 50, origin: { y: 0.7 } });
   };
@@ -1775,19 +1825,22 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
               )}
               <span>→</span>
             </button>
-            <button
-              onClick={() => {
-                const players = squadAnalysis.identifiedPlayers;
-                const firstBattle = detectedComparisonBattles[0];
-                const p1 = firstBattle?.playerA || players[0];
-                const p2 = firstBattle?.playerB || players[1];
-                onComparePlayersSelect(p1, p2, 'startingXI');
-              }}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-neutral-950 font-black text-xs transition-all shadow-md whitespace-nowrap cursor-pointer flex items-center gap-2"
-            >
-              <Trophy className="w-4 h-4 text-neutral-950" />
-              <span>Recommended Starting XI</span>
-            </button>
+            {!isAuto23Mode && (
+              <button
+                id="btn-recommended-starting-xi-dashboard"
+                onClick={() => {
+                  const players = squadAnalysis.identifiedPlayers;
+                  const firstBattle = detectedComparisonBattles[0];
+                  const p1 = firstBattle?.playerA || players[0];
+                  const p2 = firstBattle?.playerB || players[1];
+                  onComparePlayersSelect(p1, p2, 'startingXI');
+                }}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-neutral-950 font-black text-xs transition-all shadow-md whitespace-nowrap cursor-pointer flex items-center gap-2"
+              >
+                <Trophy className="w-4 h-4 text-neutral-950" />
+                <span>Recommended Starting XI</span>
+              </button>
+            )}
           </div>
         </div>
       )}

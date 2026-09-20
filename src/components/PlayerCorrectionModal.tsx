@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { PlayerData } from '../types.ts';
 import { EFOOTBALL_MASTER_PLAYERS, searchMasterPlayers } from '../lib/efootballDatabase.ts';
 import { X, Search, Check, AlertTriangle, ShieldCheck, Sparkles, User, Sliders } from 'lucide-react';
@@ -77,15 +77,28 @@ export const PlayerCorrectionModal: React.FC<PlayerCorrectionModalProps> = ({
   onClose,
   onSaveCorrection
 }) => {
-  if (!isOpen || !player) return null;
-
   const [searchQuery, setSearchQuery] = useState('');
-  const [name, setName] = useState(player.name.replace(/^Unidentified Player.*$/, ''));
-  const [position, setPosition] = useState(player.position || 'CMF');
-  const [rating, setRating] = useState(player.rating || 90);
-  const [playstyle, setPlaystyle] = useState(player.playstyle || 'Box-to-Box');
-  const [playerType, setPlayerType] = useState(player.playerType || 'Highlight');
-  const [notes, setNotes] = useState(player.roleExplanation || '');
+  const [name, setName] = useState(player?.name ? player.name.replace(/^Unidentified Player.*$/, '') : '');
+  const [position, setPosition] = useState(player?.position || 'CMF');
+  const [rating, setRating] = useState(player?.rating || 90);
+  const [playstyle, setPlaystyle] = useState(player?.playstyle || 'Box-to-Box');
+  const [playerType, setPlayerType] = useState(player?.playerType || 'Highlight');
+  const [notes, setNotes] = useState(player?.roleExplanation || '');
+  const [selectedMasterPlayer, setSelectedMasterPlayer] = useState<typeof EFOOTBALL_MASTER_PLAYERS[0] | null>(null);
+
+  // Sync state whenever selected player changes
+  useEffect(() => {
+    if (player) {
+      setName(player.name ? player.name.replace(/^Unidentified Player.*$/, '') : '');
+      setPosition(player.position || 'CMF');
+      setRating(player.rating || 90);
+      setPlaystyle(player.playstyle || 'Box-to-Box');
+      setPlayerType(player.playerType || 'Highlight');
+      setNotes(player.roleExplanation || '');
+      setSelectedMasterPlayer(null);
+      setSearchQuery('');
+    }
+  }, [player, isOpen]);
 
   // Instant fuzzy suggestions from eFootball master database
   const searchResults = useMemo(() => {
@@ -96,7 +109,10 @@ export const PlayerCorrectionModal: React.FC<PlayerCorrectionModalProps> = ({
     return searchMasterPlayers(searchQuery, 8);
   }, [searchQuery, position]);
 
+  if (!isOpen || !player) return null;
+
   const handleSelectMasterPlayer = (p: typeof EFOOTBALL_MASTER_PLAYERS[0]) => {
+    setSelectedMasterPlayer(p);
     setName(p.commonName);
     setPosition(p.primaryPosition);
     setRating(p.maxRating);
@@ -113,11 +129,18 @@ export const PlayerCorrectionModal: React.FC<PlayerCorrectionModalProps> = ({
       rating: Number(rating) || 85,
       playstyle,
       playerType,
+      cardType: playerType,
+      club: selectedMasterPlayer?.club || player.club,
+      nationality: selectedMasterPlayer?.nationality || player.nationality,
+      skills: selectedMasterPlayer?.skills || player.skills,
+      keyAttributes: selectedMasterPlayer?.keyAttributes || player.keyAttributes,
+      matchedDatabaseName: selectedMasterPlayer?.commonName || finalName,
       confidence: 'High',
       confidenceScore: 100,
       identityStatus: 'user_corrected',
       isUnidentified: false,
       userConfirmed: true,
+      userCorrected: true,
       roleExplanation: notes.trim() || `User manually verified and confirmed identity as ${finalName}.`,
       evidence: [
         ...(player.evidence || []),

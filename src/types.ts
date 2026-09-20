@@ -33,6 +33,7 @@ export interface PlayerData {
   status?: 'verified' | 'high_confidence' | 'needs_confirmation' | 'unverified';
   playerType?: string; // e.g. Epic, Highlight, Standard, POTW, Show Time
   cardType?: string;
+  registeredPosition?: string;
   club?: string;
   team?: string;
   nationality?: string;
@@ -309,7 +310,7 @@ export interface AnalysisResult {
   actionRecommendations?: string[];
   isDeveloperModeAvailable?: boolean;
   managerDetails?: ManagerInputDetails;
-  analysisMode?: 'guided_tactics' | 'auto_tactics_23';
+  analysisMode?: 'guided_tactics' | 'auto_tactics_23' | 'auto23' | 'guided' | 'pure23' | string;
   fluidFormations?: FluidFormationSettings;
   linkUpPlay?: LinkUpPlaySettings;
 }
@@ -386,11 +387,11 @@ export interface ManagerInputDetails {
   nationality?: string;
   team?: string;
   playstyleProficiencies?: {
-    possessionGame: number | string;
-    quickCounter: number | string;
-    longBallCounter: number | string;
-    outWide: number | string;
-    longBall: number | string;
+    possessionGame?: number | string;
+    quickCounter?: number | string;
+    longBallCounter?: number | string;
+    outWide?: number | string;
+    longBall?: number | string;
     overload?: number | string; // eFootball 2027 new Overload playstyle
   };
 }

@@ -10,7 +10,8 @@ import type {
   SquadRatingsBreakdown,
   AnalysisQualityScore,
   FluidFormationSettings,
-  LinkUpPlaySettings
+  LinkUpPlaySettings,
+  ManagerInputDetails
 } from '../src/types.ts';
 import {
   generatePlayerTrainingReport,
@@ -38,20 +39,6 @@ export interface TypedPlayerInput {
   liveUpdate?: 'A' | 'B' | 'C' | 'D' | 'E' | string;
 }
 
-export interface ManagerInputDetails {
-  name: string;
-  nationality?: string;
-  team?: string;
-  playstyleProficiencies?: {
-    possessionGame?: number;
-    quickCounter?: number;
-    longBallCounter?: number;
-    outWide?: number;
-    longBall?: number;
-    overload?: number;
-  };
-}
-
 export interface AnalyzeSquadPayload {
   images?: Array<{
     base64Data: string;
@@ -65,6 +52,7 @@ export interface AnalyzeSquadPayload {
   managerDetails?: ManagerInputDetails;
   preferredPlaystyle?: string;
   preferredFormation?: string;
+  analysisMode?: string;
   fluidFormations?: {
     enabled: boolean;
     kickoffFormation?: string;

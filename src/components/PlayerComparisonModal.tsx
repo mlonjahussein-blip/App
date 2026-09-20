@@ -172,6 +172,14 @@ export const PlayerComparisonModal: React.FC<PlayerComparisonModalProps> = ({
     return detectedBattles;
   }, [isSingleComparison, detectedBattles, selectedBattleId, customBattle]);
 
+  // Check if analysis is from 23-player squad mode
+  const isAuto23Mode = Boolean(
+    analysis?.analysisMode === 'auto23' ||
+    analysis?.analysisMode === 'auto_tactics_23' ||
+    analysis?.analysisMode === 'pure23' ||
+    (analysis?.title && (analysis.title.toLowerCase().includes('23-player') || analysis.title.toLowerCase().includes('auto-tactics')))
+  );
+
   // Metrics for quick summary
   const starterVsSubCount = detectedBattles.filter(b => b.category === 'starter_vs_sub').length;
   const samePositionCount = detectedBattles.filter(b => b.category === 'same_position').length;
@@ -224,7 +232,7 @@ export const PlayerComparisonModal: React.FC<PlayerComparisonModalProps> = ({
 
           <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
             {/* Primary Action: Toggle between Head-to-Head Comparisons and Recommended Starting XI */}
-            {viewMode === 'battles' ? (
+            {!isAuto23Mode && viewMode === 'battles' ? (
               <button
                 type="button"
                 id="btn-switch-to-starting-xi-header"
@@ -235,7 +243,7 @@ export const PlayerComparisonModal: React.FC<PlayerComparisonModalProps> = ({
                 <span>Show Recommended Starting XI from Comparison</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
-            ) : (
+            ) : viewMode === 'startingXI' ? (
               <button
                 type="button"
                 id="btn-switch-to-battles-header"
@@ -245,7 +253,7 @@ export const PlayerComparisonModal: React.FC<PlayerComparisonModalProps> = ({
                 <ChevronLeft className="w-4 h-4" />
                 <span>Back to Comparisons</span>
               </button>
-            )}
+            ) : null}
 
             <button 
               type="button"
