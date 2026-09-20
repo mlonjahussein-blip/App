@@ -16,6 +16,7 @@ import {
   Layers,
   CreditCard
 } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton.tsx';
 
 interface NavbarProps {
   currentTab: string;
@@ -115,6 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                   <UserPlus className="w-4 h-4" />
                   Sign Up
                 </button>
+                <PWAInstallButton compact className="ml-1" />
               </>
             ) : (
               <>
@@ -209,6 +211,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                   >
                     <LogOut className="w-4 h-4" />
                   </button>
+                  <PWAInstallButton compact className="ml-1" />
                 </div>
               </>
             )}
@@ -244,19 +247,22 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               >
                 Community
               </button>
-              <div className="pt-2 border-t border-neutral-800 flex gap-2">
-                <button
-                  onClick={() => handleNav('login')}
-                  className="flex-1 py-2.5 rounded-lg text-center text-sm font-medium bg-neutral-900 text-white"
-                >
-                  Login
-                </button>
-                <button
-                  onClick={() => handleNav('signup')}
-                  className="flex-1 py-2.5 rounded-lg text-center text-sm font-semibold bg-emerald-500 text-neutral-950"
-                >
-                  Sign Up
-                </button>
+              <div className="pt-2 border-t border-neutral-800 flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleNav('login')}
+                    className="flex-1 py-2.5 rounded-lg text-center text-sm font-medium bg-neutral-900 text-white"
+                  >
+                    Login
+                  </button>
+                  <button
+                    onClick={() => handleNav('signup')}
+                    className="flex-1 py-2.5 rounded-lg text-center text-sm font-semibold bg-emerald-500 text-neutral-950"
+                  >
+                    Sign Up
+                  </button>
+                </div>
+                <PWAInstallButton className="w-full justify-center py-2.5 text-xs" />
               </div>
             </>
           ) : (
@@ -303,6 +309,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               >
                 Profile & Settings
               </button>
+              <PWAInstallButton className="w-full justify-center my-2 py-2.5 text-xs" />
               <button
                 onClick={handleLogout}
                 className="w-full text-left px-3 py-2 rounded-lg text-sm text-rose-400 font-medium hover:bg-rose-500/10"

@@ -16,6 +16,7 @@ import { db } from './lib/firebase.ts';
 import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
 import { ShieldAlert, Sparkles, Heart } from 'lucide-react';
 import { MaintenanceView } from './components/MaintenanceView.tsx';
+import { OfflineIndicator } from './components/OfflineIndicator.tsx';
 
 // Temporary maintenance mode flag (set to false to reactivate)
 export const IS_MAINTENANCE_MODE = false;
@@ -412,6 +413,7 @@ function AppContent() {
         </p>
       </footer>
 
+      <OfflineIndicator />
     </div>
   );
 }
