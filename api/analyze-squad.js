@@ -3357,7 +3357,7 @@ function reEvaluateAndErrorProofResult(rawResult, audit, payload) {
     tacticalPreferences: generateTacticalPreferences(playstyle, finalFormation),
     gamePlanRecommendations: generateGamePlanRecommendations(playstyle, finalFormation, verifiedPlayers),
     fluidFormations: payload.fluidFormations && payload.fluidFormations.enabled ? payload.fluidFormations : computeOptimalFluidFormations(finalFormation, playstyle, positionedBestXI),
-    linkUpPlay: payload.linkUpPlay && payload.linkUpPlay.enabled ? payload.linkUpPlay : computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI),
+    linkUpPlay: payload.managerDetails?.linkedUpPlaystyle && payload.managerDetails.linkedUpPlaystyle.enabled ? computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI, payload.managerDetails.linkedUpPlaystyle, verifiedPlayers) : payload.linkUpPlay && payload.linkUpPlay.enabled ? payload.linkUpPlay : computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI, void 0, verifiedPlayers),
     freeOrPaidStatus: "free",
     paymentStatus: "free",
     analysisQuality,
@@ -3589,7 +3589,40 @@ function computeOptimalFluidFormations(formation, playstyle, players) {
     outOfPossessionFormation: outOfPossession
   };
 }
-function computeOptimalLinkUpPlay(coachName, playstyle, formation, bestXI) {
+function computeOptimalLinkUpPlay(coachName, playstyle, formation, bestXI, managerLinkedUpPlaystyle, allPlayers) {
+  if (managerLinkedUpPlaystyle && managerLinkedUpPlaystyle.enabled) {
+    const cpPos = managerLinkedUpPlaystyle.centrepiece?.position || "CF";
+    const cpStyle = managerLinkedUpPlaystyle.centrepiece?.playstyle || "Goal Poacher";
+    const kmPos = managerLinkedUpPlaystyle.keyMan?.position || "AMF";
+    const kmStyle = managerLinkedUpPlaystyle.keyMan?.playstyle || "Creative Playmaker";
+    const pool = allPlayers && allPlayers.length > 0 ? allPlayers : bestXI;
+    const findMatchingPlayer = (pos, style, excludeId) => {
+      let found = bestXI.find((p) => p.id !== excludeId && p.position === pos && p.playstyle === style);
+      if (found) return found;
+      found = pool.find((p) => p.id !== excludeId && p.position === pos && p.playstyle === style);
+      if (found) return found;
+      found = bestXI.find((p) => p.id !== excludeId && p.position === pos);
+      if (found) return found;
+      found = pool.find((p) => p.id !== excludeId && p.position === pos);
+      if (found) return found;
+      found = bestXI.find((p) => p.id !== excludeId && isPositionCompatible(p.position, pos));
+      if (found) return found;
+      found = pool.find((p) => p.id !== excludeId && isPositionCompatible(p.position, pos));
+      if (found) return found;
+      return void 0;
+    };
+    const cpPlayer = findMatchingPlayer(cpPos, cpStyle);
+    const kmPlayer = findMatchingPlayer(kmPos, kmStyle, cpPlayer?.id);
+    const fromPlayer2 = kmPlayer ? `${kmPlayer.name} (${kmPos} \xB7 ${kmStyle})` : `Key Man (${kmPos} \xB7 ${kmStyle})`;
+    const toPlayer2 = cpPlayer ? `${cpPlayer.name} (${cpPos} \xB7 ${cpStyle})` : `Centrepiece (${cpPos} \xB7 ${cpStyle})`;
+    const pattern2 = `${kmStyle} (${kmPos}) \u2794 ${cpStyle} (${cpPos}) Linked Synergy`;
+    return {
+      enabled: true,
+      fromPlayer: fromPlayer2,
+      toPlayer: toPlayer2,
+      linkPattern: pattern2
+    };
+  }
   const amf = bestXI.find((p) => p.position === "AMF");
   const cmf = bestXI.find((p) => p.position === "CMF");
   const lwf = bestXI.find((p) => p.position === "LWF" || p.position === "LMF");

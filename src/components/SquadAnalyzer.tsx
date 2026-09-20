@@ -173,7 +173,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
           role: p.role,
           liveUpdate: p.liveUpdate
         })),
-        managerDetails: managerDetails.name.trim() ? {
+        managerDetails: (managerDetails.name.trim() || managerDetails.linkedUpPlaystyle?.enabled) ? {
           ...managerDetails,
           playstyleProficiencies: managerDetails.playstyleProficiencies ? {
             possessionGame: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.possessionGame) || 85)),
@@ -188,7 +188,12 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
         preferredFormation: analysisMode === 'pure23' ? 'Auto-Detect / Balanced' : finalFormation,
         analysisMode: analysisMode === 'pure23' ? 'auto23' : 'guided',
         fluidFormations: analysisMode === 'guided' && fluidFormations.enabled ? fluidFormations : undefined,
-        linkUpPlay: analysisMode === 'guided' && linkUpPlay.enabled ? linkUpPlay : undefined,
+        linkUpPlay: managerDetails.linkedUpPlaystyle?.enabled ? {
+          enabled: true,
+          fromPlayer: `Key Man (${managerDetails.linkedUpPlaystyle.keyMan.position} · ${managerDetails.linkedUpPlaystyle.keyMan.playstyle})`,
+          toPlayer: `Centrepiece (${managerDetails.linkedUpPlaystyle.centrepiece.position} · ${managerDetails.linkedUpPlaystyle.centrepiece.playstyle})`,
+          linkPattern: `${managerDetails.linkedUpPlaystyle.keyMan.playstyle} (${managerDetails.linkedUpPlaystyle.keyMan.position}) ➔ ${managerDetails.linkedUpPlaystyle.centrepiece.playstyle} (${managerDetails.linkedUpPlaystyle.centrepiece.position}) Synergy`
+        } : (analysisMode === 'guided' && linkUpPlay.enabled) ? linkUpPlay : undefined,
         tacticalPreference: analysisMode === 'pure23' ? 'AI Recommended & Optimal eFootball 2027 Balance' : tacticalPreference,
         hasCoachScreenshot: false
       };

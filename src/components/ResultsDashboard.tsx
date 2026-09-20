@@ -1026,7 +1026,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                       <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
                         <Sparkles className="w-4 h-4" />
                       </span>
-                      <h4 className="text-sm font-bold text-white">Linked-Up Play Synergy Combo</h4>
+                      <h4 className="text-sm font-bold text-white">Manager's Linked-Up Play Synergy</h4>
                     </div>
                     <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
                       Coach Combination
