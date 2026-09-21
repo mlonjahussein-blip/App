@@ -11,8 +11,14 @@ import {
   FileText,
   AlertCircle,
   Lock,
-  CreditCard
+  CreditCard,
+  Play,
+  Bot,
+  Video,
+  Eye
 } from 'lucide-react';
+import { useAuth } from '../lib/AuthContext.tsx';
+import { AiAnalysisDemoModal } from './AiAnalysisDemoModal.tsx';
 
 interface HomePageProps {
   onStartAnalysis: () => void;
@@ -20,7 +26,21 @@ interface HomePageProps {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCommunity }) => {
+  const { user, profile } = useAuth();
   const [activeModal, setActiveModal] = useState<'privacy' | 'disclaimer' | 'terms' | null>(null);
+  const [showDemoModal, setShowDemoModal] = useState<boolean>(false);
+
+  // Private gate check: Only visible to user Mr. Who (or mlonjahussein@gmail.com / admin)
+  const isAuthorizedViewer = Boolean(
+    user && (
+      profile?.role === 'admin' ||
+      profile?.displayName?.toLowerCase().includes('mr. who') ||
+      profile?.displayName?.toLowerCase().includes('mr who') ||
+      user.displayName?.toLowerCase().includes('mr. who') ||
+      user.displayName?.toLowerCase().includes('mr who') ||
+      user.email?.toLowerCase() === 'mlonjahussein@gmail.com'
+    )
+  );
 
   return (
     <div className="space-y-16 py-6 sm:py-10">
@@ -72,6 +92,51 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
           </p>
         </div>
       </section>
+
+      {/* Private Admin / Mr. Who Exclusive Preview Area */}
+      {isAuthorizedViewer && (
+        <section className="relative overflow-hidden rounded-3xl bg-neutral-900 border-2 border-emerald-500/40 p-6 sm:p-8 shadow-2xl">
+          <div className="absolute top-0 right-0 px-4 py-1.5 bg-amber-500/20 border-b border-l border-amber-500/30 text-amber-300 font-bold text-xs rounded-bl-2xl flex items-center gap-1.5">
+            <Eye className="w-3.5 h-3.5" />
+            <span>Private Preview Mode • Visible only to Mr. Who</span>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pt-2">
+            <div className="space-y-2 max-w-2xl">
+              <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-wider">
+                <Bot className="w-4 h-4" />
+                <span>AI Character Guided Walkthrough Video</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-white">
+                Squad Analysis Interactive Demo Video
+              </h3>
+              <p className="text-sm text-neutral-300 leading-relaxed">
+                Watch an AI-voiced coach character (Coach Marcus with an English accent) walk through each stage of the analysis workflow: selecting analysis modes, entering starting eleven and substitutes, setting up manager proficiencies, and reviewing the tactical report and 2D simulation pitch.
+              </p>
+              <div className="flex items-center gap-3 text-xs text-neutral-400 pt-1">
+                <span className="flex items-center gap-1 text-emerald-400">
+                  <Sparkles className="w-3.5 h-3.5" /> 5 Interactive Stages
+                </span>
+                <span>•</span>
+                <span>AI Voiceover & Live Captions</span>
+                <span>•</span>
+                <span>Ready for your inspection</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0 w-full md:w-auto">
+              <button
+                id="btn-play-admin-demo-video"
+                onClick={() => setShowDemoModal(true)}
+                className="px-6 py-4 rounded-xl text-sm font-black bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-neutral-950 flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-500/20 transition-all transform hover:-translate-y-0.5 cursor-pointer"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                Play AI Coach Demo Video
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Feature Cards Grid */}
       <section className="space-y-6">
@@ -286,6 +351,15 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartAnalysis, onExploreCo
             </div>
           </div>
         </div>
+      )}
+
+      {/* Private AI Analysis Demo Modal (Visible exclusively to Mr. Who) */}
+      {isAuthorizedViewer && (
+        <AiAnalysisDemoModal
+          isOpen={showDemoModal}
+          onClose={() => setShowDemoModal(false)}
+          onNavigateToAnalyzer={onStartAnalysis}
+        />
       )}
 
     </div>

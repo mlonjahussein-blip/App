@@ -11,7 +11,8 @@ import type {
   AnalysisQualityScore,
   FluidFormationSettings,
   LinkUpPlaySettings,
-  ManagerInputDetails
+  ManagerInputDetails,
+  ManagerLinkedUpPlaystyle
 } from '../src/types.ts';
 import {
   generatePlayerTrainingReport,
