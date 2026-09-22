@@ -16,7 +16,11 @@ import { db } from './lib/firebase.ts';
 import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
 import { ShieldAlert, Sparkles, Heart } from 'lucide-react';
 import { MaintenanceView } from './components/MaintenanceView.tsx';
+import { NetworkErrorShutdownView } from './components/NetworkErrorShutdownView.tsx';
 import { OfflineIndicator } from './components/OfflineIndicator.tsx';
+
+// Temporary shutdown flag: shows authentic network connection error to visitors
+export const IS_SYSTEM_SHUTDOWN = true;
 
 // Temporary maintenance mode flag (set to false to reactivate)
 export const IS_MAINTENANCE_MODE = false;
@@ -420,10 +424,16 @@ function AppContent() {
 
 export default function App() {
   useEffect(() => {
-    if (IS_MAINTENANCE_MODE) {
+    if (IS_SYSTEM_SHUTDOWN) {
+      document.title = 'This site can’t be reached';
+    } else if (IS_MAINTENANCE_MODE) {
       document.title = 'eFootball AI Hub — Scheduled Maintenance';
     }
   }, []);
+
+  if (IS_SYSTEM_SHUTDOWN) {
+    return <NetworkErrorShutdownView />;
+  }
 
   if (IS_MAINTENANCE_MODE) {
     return <MaintenanceView />;
