@@ -90,3 +90,13 @@ export interface PaymentProvider {
   getPaymentStatus(paymentId: string): Promise<PaymentStatus>;
   refundPayment?(paymentId: string, reason?: string): Promise<{ success: boolean; message: string }>;
 }
+
+// Runtime fallbacks to guarantee ESM import safety
+export const PaymentProvider = {};
+export const CreatePaymentParams = {};
+export const CreatePaymentResult = {};
+export const VerifyPaymentResult = {};
+export const WebhookResult = {};
+export const PaymentRecord = {};
+export const UserEntitlements = {};
+

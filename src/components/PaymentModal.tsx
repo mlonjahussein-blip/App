@@ -332,11 +332,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setActivePaymentId(order.paymentId);
       setProviderTxId(order.providerTransactionId);
 
-      // Open Pesapal Checkout
+      // Open Pesapal Checkout if URL returned
       if (order.checkoutUrl) {
         setCheckoutUrl(order.checkoutUrl);
-        // Attempt to open in a secure new window
-        window.open(order.checkoutUrl, '_blank', 'noopener,noreferrer');
+        // Attempt to open in a secure new window (gracefully catch if blocked by popup blocker)
+        try {
+          window.open(order.checkoutUrl, '_blank', 'noopener,noreferrer');
+        } catch (popupErr) {
+          console.warn('Popup blocked, using embedded view:', popupErr);
+        }
       }
 
       setStep('awaiting_payment');
@@ -874,7 +878,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
 
             {/* Embedded Payment Iframe if available */}
-            {checkoutUrl && (
+            {checkoutUrl ? (
               <div className="space-y-2">
                 <div className="w-full h-80 rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950 shadow-inner">
                   <iframe
@@ -893,6 +897,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <span>Open Checkout in New Tab</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 text-xs text-neutral-300 space-y-2">
+                <div className="font-bold text-neutral-200 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Secure Payment Submitted</span>
+                </div>
+                <p className="text-neutral-400 leading-relaxed">
+                  {selectedOption === 'card'
+                    ? 'Your card transaction has been securely initialized. Once your bank 3D-Secure confirmation completes, click the button below to verify and activate your squad analysis credit immediately.'
+                    : 'A mobile money payment prompt has been sent to your phone. Approve the prompt by entering your PIN, then click Verify Now below.'}
+                </p>
               </div>
             )}
 

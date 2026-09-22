@@ -1,4 +1,4 @@
-import { PaymentProvider, PaymentProviderType } from '../types.ts';
+import type { PaymentProvider, PaymentProviderType } from '../types.ts';
 import { PesapalPaymentProvider } from './pesapal.ts';
 
 const pesapalInstance = new PesapalPaymentProvider();
