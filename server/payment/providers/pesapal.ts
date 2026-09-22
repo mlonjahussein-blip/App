@@ -20,6 +20,7 @@ let cachedIpnId: string | null = null;
 export class PesapalPaymentProvider implements PaymentProvider {
   readonly name: PaymentProviderType = 'pesapal';
   readonly displayName: string = 'Pesapal (Card & Mobile Money)';
+  private lastAuthError: string | null = null;
 
   private getBaseUrl(): string {
     const config = getPaymentConfig();
@@ -37,6 +38,7 @@ export class PesapalPaymentProvider implements PaymentProvider {
     const consumerSecret = (config.pesapal.consumerSecret || '').trim();
 
     if (!consumerKey || !consumerSecret) {
+      this.lastAuthError = 'Pesapal Consumer Key or Consumer Secret is missing.';
       return null;
     }
 
@@ -60,12 +62,9 @@ export class PesapalPaymentProvider implements PaymentProvider {
         })
       });
 
-      if (!response.ok) {
-        return null;
-      }
-
       const data = await response.json();
       if (data && data.token) {
+        this.lastAuthError = null;
         const expiryMs = data.expiryDate ? new Date(data.expiryDate).getTime() : now + 50 * 60 * 1000;
         tokenCache = {
           token: data.token,
@@ -75,8 +74,12 @@ export class PesapalPaymentProvider implements PaymentProvider {
         return data.token;
       }
 
+      const errCode = data?.error?.code || data?.error?.message || (response.status !== 200 ? `HTTP ${response.status}` : 'Authentication failed');
+      this.lastAuthError = errCode;
+      console.warn(`[Pesapal Auth Rejected] ${errCode}`);
       return null;
-    } catch (err) {
+    } catch (err: any) {
+      this.lastAuthError = err?.message || 'Network exception connecting to Pesapal';
       console.warn('[Pesapal Auth Exception]', err);
       return null;
     }
@@ -148,84 +151,103 @@ export class PesapalPaymentProvider implements PaymentProvider {
 
     // Live Pesapal API order submission
     const token = await this.getAuthToken();
-    if (token) {
-      try {
-        const ipnId = await this.getIpnId(token);
-        const appUrl = process.env.APP_URL || 'https://efootballaihub.com';
-        const returnUrl = params.callbackUrl || `${appUrl}?tab=settings&payment_callback=pesapal`;
-
-        const nameParts = (params.displayName || 'Manager User').split(' ');
-        const firstName = nameParts[0] || 'Manager';
-        const lastName = nameParts.slice(1).join(' ') || 'User';
-
-        let cleanCountryCode = (params.countryCode || '').trim().toUpperCase();
-        if (!cleanCountryCode || cleanCountryCode.length < 2 || cleanCountryCode.length > 3 || cleanCountryCode === 'OTHER') {
-          cleanCountryCode = 'US';
-        }
-
-        const submitOrderUrl = `${this.getBaseUrl()}/Transactions/SubmitOrderRequest`;
-        const orderPayload: any = {
-          id: paymentId,
-          currency: params.currency || 'USD',
-          amount: params.amount || config.priceUsd,
-          description: '1 eFootball AI Hub Squad Analysis Credit',
-          callback_url: returnUrl,
-          billing_address: {
-            email_address: params.userEmail || 'manager@efootballaihub.com',
-            phone_number: params.phoneNumber || '000000000',
-            country_code: cleanCountryCode,
-            first_name: firstName,
-            last_name: lastName
-          }
-        };
-
-        if (ipnId) {
-          orderPayload.notification_id = ipnId;
-        }
-
-        const submitResponse = await fetch(submitOrderUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(orderPayload)
-        });
-
-        if (submitResponse.ok) {
-          const orderData = await submitResponse.json();
-          if (orderData && orderData.order_tracking_id && orderData.redirect_url) {
-            return {
-              paymentId,
-              provider: this.name,
-              providerTransactionId: orderData.order_tracking_id,
-              checkoutUrl: orderData.redirect_url,
-              amount: params.amount,
-              currency: params.currency,
-              status: 'PENDING',
-              isTestMode: false
-            };
-          }
-        } else {
-          const errBody = await submitResponse.text();
-          console.warn(`[Pesapal SubmitOrder Notice] ${submitResponse.status}: ${errBody}`);
-        }
-      } catch (orderErr) {
-        console.warn('[Pesapal Order Submission Notice]', orderErr);
-      }
+    if (!token) {
+      const reason = this.lastAuthError
+        ? `Pesapal authentication error (${this.lastAuthError}). Please verify your Pesapal Merchant API 3.0 Consumer Key & Secret.`
+        : 'Failed to authenticate with Pesapal API 3.0.';
+      return {
+        paymentId,
+        provider: this.name,
+        amount: params.amount,
+        currency: params.currency,
+        status: 'FAILED',
+        isTestMode: false,
+        failureReason: reason
+      };
     }
 
-    // Direct gateway processing: Create pending order ready for instant verification
-    return {
-      paymentId,
-      provider: this.name,
-      providerTransactionId,
-      amount: params.amount,
-      currency: params.currency,
-      status: 'PENDING',
-      isTestMode: false
-    };
+    try {
+      const ipnId = await this.getIpnId(token);
+      const appUrl = process.env.APP_URL || 'https://efootballaihub.com';
+      const returnUrl = params.callbackUrl || `${appUrl}?tab=settings&payment_callback=pesapal`;
+
+      const nameParts = (params.displayName || 'Manager User').split(' ');
+      const firstName = nameParts[0] || 'Manager';
+      const lastName = nameParts.slice(1).join(' ') || 'User';
+
+      let cleanCountryCode = (params.countryCode || '').trim().toUpperCase();
+      if (!cleanCountryCode || cleanCountryCode.length < 2 || cleanCountryCode.length > 3 || cleanCountryCode === 'OTHER') {
+        cleanCountryCode = 'US';
+      }
+
+      const submitOrderUrl = `${this.getBaseUrl()}/Transactions/SubmitOrderRequest`;
+      const orderPayload: any = {
+        id: paymentId,
+        currency: params.currency || 'USD',
+        amount: params.amount || config.priceUsd,
+        description: '1 eFootball AI Hub Squad Analysis Credit',
+        callback_url: returnUrl,
+        billing_address: {
+          email_address: params.userEmail || 'manager@efootballaihub.com',
+          phone_number: params.phoneNumber || '000000000',
+          country_code: cleanCountryCode,
+          first_name: firstName,
+          last_name: lastName
+        }
+      };
+
+      if (ipnId) {
+        orderPayload.notification_id = ipnId;
+      }
+
+      const submitResponse = await fetch(submitOrderUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(orderPayload)
+      });
+
+      if (submitResponse.ok) {
+        const orderData = await submitResponse.json();
+        if (orderData && orderData.order_tracking_id && orderData.redirect_url) {
+          return {
+            paymentId,
+            provider: this.name,
+            providerTransactionId: orderData.order_tracking_id,
+            checkoutUrl: orderData.redirect_url,
+            amount: params.amount,
+            currency: params.currency,
+            status: 'PENDING',
+            isTestMode: false
+          };
+        }
+      }
+      const errBody = await submitResponse.text();
+      console.warn(`[Pesapal SubmitOrder Error] ${submitResponse.status}: ${errBody}`);
+      return {
+        paymentId,
+        provider: this.name,
+        amount: params.amount,
+        currency: params.currency,
+        status: 'FAILED',
+        isTestMode: false,
+        failureReason: `Pesapal SubmitOrder failed (${submitResponse.status}): ${errBody}`
+      };
+    } catch (orderErr: any) {
+      console.warn('[Pesapal Order Submission Notice]', orderErr);
+      return {
+        paymentId,
+        provider: this.name,
+        amount: params.amount,
+        currency: params.currency,
+        status: 'FAILED',
+        isTestMode: false,
+        failureReason: `Order submission failed: ${orderErr?.message || 'Network error'}`
+      };
+    }
   }
 
   async verifyPayment(
@@ -270,95 +292,93 @@ export class PesapalPaymentProvider implements PaymentProvider {
       };
     }
 
-    // Live Pesapal API verification when active auth token and real Pesapal tracking ID exist
+    // Live Pesapal API verification strictly requiring authenticated token and valid tracking ID
     const token = await this.getAuthToken();
-    if (token && providerTransactionId && !providerTransactionId.startsWith('TEST-') && !providerTransactionId.startsWith('PESAPAL-')) {
-      try {
-        const statusUrl = `${this.getBaseUrl()}/Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(providerTransactionId)}`;
-        const res = await fetch(statusUrl, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json'
-          }
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const statusDesc = (data.payment_status_description || '').toUpperCase();
-          const isCompleted = data.status_code === 1 || statusDesc === 'COMPLETED';
-          const isFailed = data.status_code === 2 || statusDesc === 'FAILED';
-
-          if (isCompleted) {
-            return {
-              paymentId,
-              providerTransactionId,
-              status: 'SUCCESS',
-              creditGranted: true,
-              amount: data.amount || config.priceUsd,
-              currency: data.currency || config.currency
-            };
-          }
-
-          if (isFailed) {
-            return {
-              paymentId,
-              providerTransactionId,
-              status: 'FAILED',
-              creditGranted: false,
-              amount: data.amount || config.priceUsd,
-              currency: data.currency || config.currency,
-              failureReason: data.description || 'Pesapal transaction was declined or failed.'
-            };
-          }
-
-          // Still awaiting payment on Pesapal
-          return {
-            paymentId,
-            providerTransactionId,
-            status: 'PENDING',
-            creditGranted: false,
-            amount: data.amount || config.priceUsd,
-            currency: data.currency || config.currency,
-            failureReason: 'Payment is pending. Please complete transaction on Pesapal.'
-          };
-        }
-      } catch (verifyErr) {
-        console.warn('[Pesapal Live Verify Exception]', verifyErr);
-      }
-    }
-
-    // Direct gateway processing: Confirm transaction and grant the credit
-    if (simulateAction === 'fail') {
+    if (!token) {
       return {
         paymentId,
-        providerTransactionId: providerTransactionId || `PESAPAL-FAILED-${Date.now()}`,
+        providerTransactionId,
         status: 'FAILED',
         creditGranted: false,
         amount: config.priceUsd,
         currency: config.currency,
-        failureReason: 'Card or mobile payment was declined.'
+        failureReason: `Pesapal authentication error: ${this.lastAuthError || 'Failed to authenticate with Pesapal'}. No payment was captured.`
       };
     }
 
-    if (simulateAction === 'cancel') {
+    if (!providerTransactionId || providerTransactionId.startsWith('PESAPAL-') || providerTransactionId.startsWith('TEST-')) {
       return {
         paymentId,
-        providerTransactionId: providerTransactionId || `PESAPAL-CANCELLED-${Date.now()}`,
-        status: 'CANCELLED',
+        providerTransactionId,
+        status: 'FAILED',
         creditGranted: false,
         amount: config.priceUsd,
         currency: config.currency,
-        failureReason: 'Payment was cancelled.'
+        failureReason: 'No valid Pesapal tracking ID exists for this payment. No payment was captured.'
       };
+    }
+
+    try {
+      const statusUrl = `${this.getBaseUrl()}/Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(providerTransactionId)}`;
+      const res = await fetch(statusUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const statusDesc = (data.payment_status_description || '').toUpperCase();
+        const isCompleted = data.status_code === 1 || statusDesc === 'COMPLETED';
+        const isFailed = data.status_code === 2 || statusDesc === 'FAILED';
+
+        if (isCompleted) {
+          return {
+            paymentId,
+            providerTransactionId,
+            status: 'SUCCESS',
+            creditGranted: true,
+            amount: data.amount || config.priceUsd,
+            currency: data.currency || config.currency
+          };
+        }
+
+        if (isFailed) {
+          return {
+            paymentId,
+            providerTransactionId,
+            status: 'FAILED',
+            creditGranted: false,
+            amount: data.amount || config.priceUsd,
+            currency: data.currency || config.currency,
+            failureReason: data.description || 'Pesapal transaction was declined or failed.'
+          };
+        }
+
+        // Still awaiting payment on Pesapal
+        return {
+          paymentId,
+          providerTransactionId,
+          status: 'PENDING',
+          creditGranted: false,
+          amount: data.amount || config.priceUsd,
+          currency: data.currency || config.currency,
+          failureReason: 'Payment is pending. Please complete transaction on Pesapal.'
+        };
+      }
+    } catch (verifyErr) {
+      console.warn('[Pesapal Live Verify Exception]', verifyErr);
     }
 
     return {
       paymentId,
-      providerTransactionId: providerTransactionId || `PESAPAL-CONFIRMED-${Date.now()}`,
-      status: 'SUCCESS',
-      creditGranted: true,
+      providerTransactionId,
+      status: 'FAILED',
+      creditGranted: false,
       amount: config.priceUsd,
-      currency: config.currency
+      currency: config.currency,
+      failureReason: 'Unable to verify payment with Pesapal.'
     };
   }
 

@@ -329,6 +329,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         throw new Error('Invalid order response from payment gateway.');
       }
 
+      if (order.status === 'FAILED') {
+        throw new Error(order.failureReason || 'Payment initialization was rejected by Pesapal gateway.');
+      }
+
       setActivePaymentId(order.paymentId);
       setProviderTxId(order.providerTransactionId);
 
