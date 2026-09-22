@@ -158,6 +158,7 @@ export class PesapalPaymentProvider implements PaymentProvider {
       return {
         paymentId,
         provider: this.name,
+        providerTransactionId: '',
         amount: params.amount,
         currency: params.currency,
         status: 'FAILED',
@@ -230,6 +231,7 @@ export class PesapalPaymentProvider implements PaymentProvider {
       return {
         paymentId,
         provider: this.name,
+        providerTransactionId: '',
         amount: params.amount,
         currency: params.currency,
         status: 'FAILED',
@@ -241,6 +243,7 @@ export class PesapalPaymentProvider implements PaymentProvider {
       return {
         paymentId,
         provider: this.name,
+        providerTransactionId: '',
         amount: params.amount,
         currency: params.currency,
         status: 'FAILED',

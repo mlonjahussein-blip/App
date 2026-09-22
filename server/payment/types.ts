@@ -1,4 +1,4 @@
-export type PaymentProviderType = 'pesapal' | 'paypal' | 'google_pay' | 'apple_pay';
+export type PaymentProviderType = 'malipopay' | 'pesapal' | 'paypal' | 'google_pay' | 'apple_pay';
 
 export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
 
@@ -60,6 +60,7 @@ export interface CreatePaymentResult {
   status: PaymentStatus;
   checkoutUrl?: string;
   instructions?: string;
+  failureReason?: string;
   isTestMode: boolean;
 }
 

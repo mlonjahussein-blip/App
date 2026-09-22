@@ -5131,6 +5131,13 @@ function getPaymentConfig() {
     priceDisplay,
     currency: "USD",
     freeAnalysisIntervalDays: 7,
+    provider: process.env.PAYMENT_PROVIDER || "malipopay",
+    malipopay: {
+      publicKey: process.env.MALIPOPAY_PUBLIC_KEY || "mp_pk_prod_U2FsdGVkX1+YKKoh3c0/MxJJfpnufy27iWhae5ffwgGFLDe9AFYzwjZauhtPL/y4",
+      secretKey: process.env.MALIPOPAY_SECRET_KEY || "mp_sk_prod_U2FsdGVkX1+OPk3ZqFss+vQkL7tzuKbYmoBVs767oDTIPtu/AF0ngWNLIKPw1i/mGfm4FF+aji0Cdw5Yele8j+DWA3wEBdvOTC80OX7hnBPR20nEdBaL+QkRAPNJGv3x1PgqKbNk5ghMtXB6vVQQINgDsPfKvlapFH325bpFvCE=",
+      keyId: process.env.MALIPOPAY_KEY_ID || "7uHBtN-zFy7G",
+      environment: process.env.MALIPOPAY_ENVIRONMENT === "uat" ? "uat" : "production"
+    },
     pesapal: {
       consumerKey: process.env.PESAPAL_CONSUMER_KEY || "TH507JLWbPOMGhF4b/gsm7XmX11MxcjQ",
       consumerSecret: process.env.PESAPAL_CONSUMER_SECRET || "zsjjV2+8++YrS5tm5uqmuiUMx2g=",
@@ -5154,6 +5161,313 @@ function getPaymentConfig() {
     }
   };
 }
+
+// server/payment/providers/malipopay.ts
+var MalipopayPaymentProvider = class {
+  constructor() {
+    this.name = "malipopay";
+    this.displayName = "MalipoPay (Mobile Money & Card)";
+  }
+  getBaseUrl() {
+    return "https://core-prod.malipopay.co.tz";
+  }
+  getApiKey() {
+    const config2 = getPaymentConfig();
+    return (config2.malipopay.secretKey || "").trim();
+  }
+  /**
+   * Format phone number for MalipoPay gateway.
+   * Tanzania mobile numbers require 255XXXXXXXXX (12 digits).
+   */
+  formatPhoneNumber(rawPhone, countryCode) {
+    if (!rawPhone) return "255712000000";
+    const digits = rawPhone.replace(/\D/g, "");
+    if (digits.startsWith("255") && digits.length === 12) {
+      return digits;
+    }
+    if (digits.startsWith("0") && digits.length === 10) {
+      return "255" + digits.slice(1);
+    }
+    if ((digits.startsWith("7") || digits.startsWith("6")) && digits.length === 9) {
+      return "255" + digits;
+    }
+    if (digits.startsWith("254") && digits.length === 12) {
+      return digits;
+    }
+    if (digits.startsWith("0") && countryCode === "KE" && digits.length === 10) {
+      return "254" + digits.slice(1);
+    }
+    if (countryCode === "TZ" || !digits.startsWith("255")) {
+      if (digits.length >= 9) {
+        return "255" + digits.slice(-9);
+      }
+    }
+    return digits;
+  }
+  /**
+   * Convert price to local payment currency amount.
+   * For mobile money in East Africa, $2.00 USD corresponds to 5,000 TZS.
+   */
+  getLocalAmount(amountUsd, currency) {
+    if (currency === "TZS") {
+      return { amount: Math.round(amountUsd || 5e3), currency: "TZS" };
+    }
+    return { amount: 5e3, currency: "TZS" };
+  }
+  /**
+   * Create Payment Order / Push Prompt via MalipoPay
+   */
+  async createPayment(params) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      return {
+        paymentId: `PAY-ERR-${Date.now()}`,
+        provider: "malipopay",
+        providerTransactionId: "",
+        amount: params.amount,
+        currency: params.currency,
+        status: "FAILED",
+        isTestMode: false,
+        instructions: "MalipoPay secret key is not configured."
+      };
+    }
+    const { amount, currency } = this.getLocalAmount(params.amount, params.currency);
+    const formattedPhone = this.formatPhoneNumber(params.phoneNumber, params.countryCode);
+    const description = `eFootball AI Hub Squad Analysis Credit (${params.displayName || "Manager"})`;
+    try {
+      console.log(`[MalipoPay] Initiating collection of ${amount} ${currency} to ${formattedPhone}...`);
+      const response = await fetch(`${this.getBaseUrl()}/api/v1/payment/collection`, {
+        method: "POST",
+        headers: {
+          apiToken: apiKey,
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          amount,
+          phoneNumber: formattedPhone,
+          description
+        })
+      });
+      const responseText = await response.text();
+      let resJson = {};
+      try {
+        resJson = JSON.parse(responseText);
+      } catch {
+        resJson = { message: responseText };
+      }
+      if (!response.ok || !resJson.success) {
+        console.warn("[MalipoPay Collection Warning]", response.status, resJson);
+        return await this.createPaymentLinkFallback(apiKey, amount, formattedPhone, params);
+      }
+      const data = resJson.data || resJson;
+      const reference = data.reference || data.id || `ML-${Date.now()}`;
+      const checkoutUrl = data.link || (data.shareSlug ? `https://link.co.tz/${data.shareSlug}` : void 0);
+      console.log(`[MalipoPay Success] Push initiated with reference: ${reference}, link: ${checkoutUrl}`);
+      return {
+        paymentId: reference,
+        provider: "malipopay",
+        providerTransactionId: reference,
+        amount: params.amount,
+        currency: params.currency,
+        status: "PENDING",
+        checkoutUrl,
+        instructions: `A payment prompt of 5,000 TZS (~$2.00 USD) has been sent to your phone (${formattedPhone}). Check your phone screen and enter your M-Pesa / Mobile Money PIN to complete payment.`,
+        isTestMode: false
+      };
+    } catch (err) {
+      console.error("[MalipoPay createPayment Exception]", err);
+      return {
+        paymentId: `PAY-ERR-${Date.now()}`,
+        provider: "malipopay",
+        providerTransactionId: "",
+        amount: params.amount,
+        currency: params.currency,
+        status: "FAILED",
+        isTestMode: false,
+        instructions: err?.message || "Failed to connect to MalipoPay payment gateway."
+      };
+    }
+  }
+  /**
+   * Fallback link creation method if direct push collection fails
+   */
+  async createPaymentLinkFallback(apiKey, amount, phoneNumber, params) {
+    try {
+      const linkResp = await fetch(`${this.getBaseUrl()}/api/v1/payment/link`, {
+        method: "POST",
+        headers: {
+          apiToken: apiKey,
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          amount,
+          phoneNumber
+        })
+      });
+      const linkJson = await linkResp.json();
+      if (linkResp.ok && (linkJson.success || linkJson.link || linkJson.reference)) {
+        const data = linkJson.data || linkJson;
+        const reference = data.reference || data.id || `ML-${Date.now()}`;
+        return {
+          paymentId: reference,
+          provider: "malipopay",
+          providerTransactionId: reference,
+          amount: params.amount,
+          currency: params.currency,
+          status: "PENDING",
+          checkoutUrl: data.link,
+          instructions: "Please open the MalipoPay checkout link to complete your payment with Mobile Money or Card.",
+          isTestMode: false
+        };
+      }
+      return {
+        paymentId: `PAY-ERR-${Date.now()}`,
+        provider: "malipopay",
+        providerTransactionId: "",
+        amount: params.amount,
+        currency: params.currency,
+        status: "FAILED",
+        isTestMode: false,
+        instructions: linkJson.message || "Payment prompt could not be initiated. Please verify your phone number."
+      };
+    } catch (linkErr) {
+      return {
+        paymentId: `PAY-ERR-${Date.now()}`,
+        provider: "malipopay",
+        providerTransactionId: "",
+        amount: params.amount,
+        currency: params.currency,
+        status: "FAILED",
+        isTestMode: false,
+        instructions: linkErr.message || "Payment gateway connection error."
+      };
+    }
+  }
+  /**
+   * Live Payment Status Verification from MalipoPay
+   */
+  async verifyPayment(paymentId, providerTransactionId, _simulateAction) {
+    const apiKey = this.getApiKey();
+    const reference = (providerTransactionId || paymentId || "").trim();
+    if (!apiKey) {
+      return {
+        paymentId,
+        providerTransactionId: reference,
+        status: "FAILED",
+        creditGranted: false,
+        amount: 2,
+        currency: "USD",
+        failureReason: "MalipoPay API credentials are not configured."
+      };
+    }
+    try {
+      console.log(`[MalipoPay Verify] Querying status for reference: ${reference}...`);
+      const response = await fetch(`${this.getBaseUrl()}/api/v1/payment/verify/${encodeURIComponent(reference)}`, {
+        headers: {
+          apiToken: apiKey,
+          Accept: "application/json"
+        }
+      });
+      if (!response.ok) {
+        const refResponse = await fetch(`${this.getBaseUrl()}/api/v1/payment/reference/${encodeURIComponent(reference)}`, {
+          headers: {
+            apiToken: apiKey,
+            Accept: "application/json"
+          }
+        });
+        if (!refResponse.ok) {
+          const errText = await response.text();
+          console.warn(`[MalipoPay Verify Failed] Status ${response.status}:`, errText);
+          return {
+            paymentId,
+            providerTransactionId: reference,
+            status: "PENDING",
+            creditGranted: false,
+            amount: 2,
+            currency: "USD",
+            failureReason: "Payment is still being processed by the mobile network."
+          };
+        }
+        const refData = await refResponse.json();
+        return this.parseMalipopayStatus(paymentId, reference, refData.data || refData);
+      }
+      const resJson = await response.json();
+      const data = resJson.data || resJson;
+      return this.parseMalipopayStatus(paymentId, reference, data);
+    } catch (err) {
+      console.error("[MalipoPay Verify Exception]", err);
+      return {
+        paymentId,
+        providerTransactionId: reference,
+        status: "PENDING",
+        creditGranted: false,
+        amount: 2,
+        currency: "USD",
+        failureReason: err?.message || "Could not verify status with MalipoPay."
+      };
+    }
+  }
+  parseMalipopayStatus(paymentId, reference, data) {
+    const rawStatus = (data.status || "").toUpperCase();
+    console.log(`[MalipoPay Status Parsed] Reference: ${reference}, Status: ${rawStatus}`);
+    if (rawStatus === "COMPLETED" || rawStatus === "SUCCESS") {
+      return {
+        paymentId,
+        providerTransactionId: reference,
+        status: "SUCCESS",
+        creditGranted: true,
+        amount: 2,
+        currency: "USD"
+      };
+    }
+    if (rawStatus === "FAILED" || rawStatus === "CANCELLED" || rawStatus === "REVERSED" || data.failure) {
+      return {
+        paymentId,
+        providerTransactionId: reference,
+        status: "FAILED",
+        creditGranted: false,
+        amount: 2,
+        currency: "USD",
+        failureReason: data.failureReason || data.providerMessage || "Transaction was cancelled or declined on your phone."
+      };
+    }
+    return {
+      paymentId,
+      providerTransactionId: reference,
+      status: "PENDING",
+      creditGranted: false,
+      amount: 2,
+      currency: "USD",
+      failureReason: "Payment prompt is active. Please enter your PIN on your phone to complete payment."
+    };
+  }
+  async getPaymentStatus(paymentId) {
+    const result = await this.verifyPayment(paymentId);
+    return result.status;
+  }
+  async handleWebhook(payload) {
+    const reference = payload?.reference || payload?.data?.reference;
+    const rawStatus = (payload?.status || payload?.data?.status || "").toUpperCase();
+    if (!reference) {
+      return { handled: false, message: "Missing reference in webhook payload" };
+    }
+    let status = "PENDING";
+    if (rawStatus === "COMPLETED" || rawStatus === "SUCCESS") {
+      status = "SUCCESS";
+    } else if (rawStatus === "FAILED" || rawStatus === "CANCELLED") {
+      status = "FAILED";
+    }
+    return {
+      handled: true,
+      paymentId: reference,
+      providerTransactionId: reference,
+      status,
+      message: `MalipoPay webhook processed with status: ${status}`
+    };
+  }
+};
 
 // server/payment/providers/pesapal.ts
 var tokenCache = null;
@@ -5278,6 +5592,7 @@ var PesapalPaymentProvider = class {
       return {
         paymentId,
         provider: this.name,
+        providerTransactionId: "",
         amount: params.amount,
         currency: params.currency,
         status: "FAILED",
@@ -5343,6 +5658,7 @@ var PesapalPaymentProvider = class {
       return {
         paymentId,
         provider: this.name,
+        providerTransactionId: "",
         amount: params.amount,
         currency: params.currency,
         status: "FAILED",
@@ -5354,6 +5670,7 @@ var PesapalPaymentProvider = class {
       return {
         paymentId,
         provider: this.name,
+        providerTransactionId: "",
         amount: params.amount,
         currency: params.currency,
         status: "FAILED",
@@ -5520,6 +5837,7 @@ var PesapalPaymentProvider = class {
 };
 
 // server/payment/providers/index.ts
+var malipopayInstance = new MalipopayPaymentProvider();
 var pesapalInstance = new PesapalPaymentProvider();
 
 // server/payment/paymentService.ts

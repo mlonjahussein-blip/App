@@ -309,7 +309,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
-          provider: 'pesapal',
+          provider: 'malipopay',
           userEmail: email.trim(),
           displayName: fullName.trim(),
           phoneNumber: fullPhoneNumber,
@@ -330,13 +330,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
 
       if (order.status === 'FAILED') {
-        throw new Error(order.failureReason || 'Payment initialization was rejected by Pesapal gateway.');
+        throw new Error(order.failureReason || order.instructions || 'Payment initialization was rejected by payment gateway.');
       }
 
       setActivePaymentId(order.paymentId);
       setProviderTxId(order.providerTransactionId);
 
-      // Open Pesapal Checkout if URL returned
+      // Open MalipoPay Checkout if URL returned
       if (order.checkoutUrl) {
         setCheckoutUrl(order.checkoutUrl);
         // Attempt to open in a secure new window (gracefully catch if blocked by popup blocker)
@@ -442,8 +442,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     const record: PaymentRecord = {
       id: paymentId,
       userId,
-      provider: 'pesapal',
-      providerTransactionId: result.providerTransactionId || transactionId || 'PESAPAL-CONFIRMED',
+      provider: 'malipopay',
+      providerTransactionId: result.providerTransactionId || transactionId || 'MALIPOPAY-CONFIRMED',
       productType: 'single_analysis',
       amount: result.amount ?? 2.00,
       currency: result.currency || 'USD',
@@ -792,13 +792,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     onChange={(e) => setMobileProvider(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white text-xs focus:border-emerald-500 focus:outline-none"
                   >
-                    <option value="mpesa_ke">Safaricom M-Pesa (Kenya 🇰🇪)</option>
                     <option value="mpesa_tz">Vodacom M-Pesa (Tanzania 🇹🇿)</option>
-                    <option value="airtel_ke">Airtel Money (Kenya 🇰🇪)</option>
+                    <option value="tigo_tz">Tigo Pesa / Mixx (Tanzania 🇹🇿)</option>
                     <option value="airtel_tz">Airtel Money (Tanzania 🇹🇿)</option>
-                    <option value="tigo_tz">Tigo Pesa (Tanzania 🇹🇿)</option>
+                    <option value="halopesa_tz">Halopesa (Tanzania 🇹🇿)</option>
+                    <option value="mpesa_ke">Safaricom M-Pesa (Kenya 🇰🇪)</option>
+                    <option value="airtel_ke">Airtel Money (Kenya 🇰🇪)</option>
                     <option value="mtn_ug">MTN MoMo (Uganda 🇺🇬)</option>
-                    <option value="mtn_rw">MTN MoMo (Rwanda 🇷🇼)</option>
+                    <option value="other">Other Mobile Money Network</option>
                   </select>
                 </div>
 
