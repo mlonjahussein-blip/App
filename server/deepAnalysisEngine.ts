@@ -3,6 +3,7 @@ import type {
   AnalysisResult,
   PlayerData,
   CoachData,
+  CoachComparisonItem,
   IndividualInstruction,
   PlayerActionRecommendation,
   TacticalRecommendations,
@@ -51,6 +52,7 @@ export interface AnalyzeSquadPayload {
   }>;
   typedPlayers?: TypedPlayerInput[];
   managerDetails?: ManagerInputDetails;
+  coaches?: ManagerInputDetails[];
   preferredPlaystyle?: string;
   preferredFormation?: string;
   analysisMode?: string;
@@ -105,6 +107,211 @@ export interface SquadPreAudit {
     tacticalStyle: string;
     styleProficiency: number;
     synergyNotes: string;
+    selectedCoachDetails?: ManagerInputDetails;
+    coachComparison?: CoachComparisonItem[];
+    isMultiCoach?: boolean;
+  };
+}
+
+/**
+ * Evaluates candidate coaches against squad players, formation, and playstyles
+ * to find the highest tactical synergy manager.
+ */
+export function evaluateCandidateCoaches(
+  payload: AnalyzeSquadPayload,
+  players: PlayerData[],
+  formation: string,
+  preferredPlaystyle?: string
+): {
+  selectedCoach: ManagerInputDetails;
+  selectedPlaystyle: string;
+  coachProficiency: number;
+  coachComparison: CoachComparisonItem[];
+  synergyNotes: string;
+  isMultiCoach: boolean;
+} {
+  // Collect all coaches from payload.coaches or payload.managerDetails
+  let rawCoaches: ManagerInputDetails[] = [];
+  if (Array.isArray(payload.coaches) && payload.coaches.length > 0) {
+    rawCoaches = payload.coaches.filter(c => (c.name && c.name.trim()) || c.linkedUpPlaystyle?.enabled);
+  } else if (payload.managerDetails && (payload.managerDetails.name?.trim() || payload.managerDetails.linkedUpPlaystyle?.enabled)) {
+    rawCoaches = [payload.managerDetails];
+  }
+
+  const isAutoPlaystyle = !preferredPlaystyle ||
+    preferredPlaystyle.includes('Auto-Detect') ||
+    preferredPlaystyle === 'AI Recommended & Optimal eFootball 2027 Balance';
+
+  // If no user coaches provided, fallback to master database
+  if (rawCoaches.length === 0) {
+    const defaultPlaystyle = !isAutoPlaystyle && preferredPlaystyle ? preferredPlaystyle : 'Quick Counter';
+    const coachMatch = EFOOTBALL_MASTER_COACHES.find(c => c.tacticalStyle === defaultPlaystyle) || EFOOTBALL_MASTER_COACHES[0];
+    const coachItem: CoachComparisonItem = {
+      name: `${coachMatch.name} (${coachMatch.inGameName})`,
+      rating: coachMatch.affinityRating,
+      tacticalStyle: coachMatch.tacticalStyle,
+      tacticalSynergyScore: coachMatch.affinityRating,
+      suitabilityReason: coachMatch.tacticalDescription,
+      isRecommended: true
+    };
+    return {
+      selectedCoach: {
+        name: `${coachMatch.name} (${coachMatch.inGameName})`,
+        playstyleProficiencies: {
+          quickCounter: 87,
+          possessionGame: 85,
+          longBallCounter: 85,
+          outWide: 80,
+          longBall: 75,
+          overload: 86
+        }
+      },
+      selectedPlaystyle: coachMatch.tacticalStyle,
+      coachProficiency: coachMatch.affinityRating,
+      coachComparison: [coachItem],
+      synergyNotes: coachMatch.tacticalDescription,
+      isMultiCoach: false
+    };
+  }
+
+  // Count player archetype strengths in squad
+  const goalPoachers = players.filter(p => (p.playstyle || '').toLowerCase().includes('poacher')).length;
+  const holePlayers = players.filter(p => (p.playstyle || '').toLowerCase().includes('hole')).length;
+  const playmakers = players.filter(p => (p.playstyle || '').toLowerCase().includes('playmaker') || (p.playstyle || '').toLowerCase().includes('orchestrator')).length;
+  const anchorMen = players.filter(p => (p.playstyle || '').toLowerCase().includes('anchor')).length;
+  const wingers = players.filter(p => ['LWF', 'RWF', 'LMF', 'RMF'].includes(p.position)).length;
+  const crossSpecialists = players.filter(p => (p.playstyle || '').toLowerCase().includes('cross')).length;
+
+  const evaluated = rawCoaches.map((c, idx) => {
+    const profs = c.playstyleProficiencies || {
+      quickCounter: 87,
+      possessionGame: 85,
+      longBallCounter: 85,
+      outWide: 80,
+      longBall: 75,
+      overload: 86
+    };
+
+    const styleScores = [
+      { id: 'Quick Counter', prof: Number(profs.quickCounter) || 87, bonus: 0 },
+      { id: 'Possession Game', prof: Number(profs.possessionGame) || 85, bonus: 0 },
+      { id: 'Long Ball Counter', prof: Number(profs.longBallCounter) || 85, bonus: 0 },
+      { id: 'Overload', prof: Number(profs.overload) || 86, bonus: 0 },
+      { id: 'Out Wide', prof: Number(profs.outWide) || 80, bonus: 0 },
+      { id: 'Long Ball', prof: Number(profs.longBall) || 75, bonus: 0 }
+    ];
+
+    // Tactical formation synergy bonuses
+    if (formation.includes('4-2-1-3') || formation.includes('4-1-2-3')) {
+      styleScores.find(s => s.id === 'Quick Counter')!.bonus += 4;
+      styleScores.find(s => s.id === 'Overload')!.bonus += 3;
+    } else if (formation.includes('3-2-4-1') || formation.includes('4-3-3')) {
+      styleScores.find(s => s.id === 'Possession Game')!.bonus += 4;
+      styleScores.find(s => s.id === 'Quick Counter')!.bonus += 2;
+    } else if (formation.includes('5-2-1-2') || formation.includes('5-3-2') || formation.includes('4-4-2')) {
+      styleScores.find(s => s.id === 'Long Ball Counter')!.bonus += 4;
+    }
+
+    if (goalPoachers >= 1 && (holePlayers >= 1 || wingers >= 2)) {
+      styleScores.find(s => s.id === 'Quick Counter')!.bonus += 3;
+    }
+    if (playmakers >= 2) {
+      styleScores.find(s => s.id === 'Possession Game')!.bonus += 3;
+      styleScores.find(s => s.id === 'Overload')!.bonus += 2;
+    }
+    if (anchorMen >= 1) {
+      styleScores.find(s => s.id === 'Long Ball Counter')!.bonus += 2;
+      styleScores.find(s => s.id === 'Quick Counter')!.bonus += 2;
+    }
+    if (crossSpecialists >= 1 || wingers >= 3) {
+      styleScores.find(s => s.id === 'Out Wide')!.bonus += 4;
+    }
+
+    let targetStyle = '';
+    let targetProf = 85;
+    if (!isAutoPlaystyle && preferredPlaystyle) {
+      targetStyle = preferredPlaystyle;
+      const found = styleScores.find(s => s.id.toLowerCase() === preferredPlaystyle.toLowerCase());
+      targetProf = found ? found.prof : 85;
+    } else {
+      styleScores.sort((a, b) => (b.prof + b.bonus) - (a.prof + a.bonus));
+      targetStyle = styleScores[0].id;
+      targetProf = styleScores[0].prof;
+    }
+
+    // Linked-up playstyle bonus
+    let linkedUpBonus = 0;
+    let linkedUpReason = '';
+    if (c.linkedUpPlaystyle && c.linkedUpPlaystyle.enabled) {
+      const cp = c.linkedUpPlaystyle.centrepiece;
+      const km = c.linkedUpPlaystyle.keyMan;
+      const hasCpPos = cp ? players.some(p => p.position === cp.position) : false;
+      const hasKmPos = km ? players.some(p => p.position === km.position) : false;
+      if (hasCpPos && hasKmPos) {
+        linkedUpBonus = 6;
+        linkedUpReason = ` Active linked-up synergy (${km?.position} ➔ ${cp?.position}) matches your squad lineup.`;
+      } else {
+        linkedUpBonus = 2;
+      }
+    }
+
+    const synergyScore = Math.min(99, Math.max(70, targetProf + linkedUpBonus + (idx === 0 ? 1 : 0)));
+    const coachDisplayName = c.name && c.name.trim() ? c.name.trim() : `Coach ${idx + 1}`;
+
+    let suitabilityReason = `Delivers ${targetProf}/90 proficiency in ${targetStyle} tactical system.${linkedUpReason}`;
+    if (targetProf >= 88) {
+      suitabilityReason = `Elite ${targetProf}/90 ${targetStyle} proficiency provides maximum team chemistry boosts and rapid attacking transitions.${linkedUpReason}`;
+    }
+
+    return {
+      coach: c,
+      name: coachDisplayName,
+      nationality: c.nationality,
+      team: c.team,
+      rating: targetProf,
+      tacticalStyle: targetStyle,
+      tacticalSynergyScore: synergyScore,
+      suitabilityReason,
+      playstyleProficiencies: c.playstyleProficiencies,
+      linkedUpPlaystyle: c.linkedUpPlaystyle,
+      isRecommended: false
+    };
+  });
+
+  // Sort candidate coaches by tactical synergy score descending
+  evaluated.sort((a, b) => b.tacticalSynergyScore - a.tacticalSynergyScore);
+  evaluated[0].isRecommended = true;
+
+  const winner = evaluated[0];
+  const isMultiCoach = evaluated.length > 1;
+
+  let synergyNotes = '';
+  if (isMultiCoach) {
+    synergyNotes = `AI Recommended Coach (Ranked #1 of ${evaluated.length} candidate managers): ${winner.name} is selected as the optimal tactical fit (${winner.tacticalSynergyScore}% synergy) for your squad, providing superior ${winner.rating}/90 proficiency in ${winner.tacticalStyle} and maximizing your player archetypes.`;
+  } else {
+    synergyNotes = `Manager ${winner.name} delivers ${winner.rating}/90 proficiency in ${winner.tacticalStyle}, providing high tactical harmony with your squad formation and player attributes.`;
+  }
+
+  const coachComparison: CoachComparisonItem[] = evaluated.map(e => ({
+    name: e.name,
+    nationality: e.nationality,
+    team: e.team,
+    rating: e.rating,
+    tacticalStyle: e.tacticalStyle,
+    tacticalSynergyScore: e.tacticalSynergyScore,
+    suitabilityReason: e.suitabilityReason,
+    isRecommended: e.isRecommended,
+    playstyleProficiencies: e.playstyleProficiencies,
+    linkedUpPlaystyle: e.linkedUpPlaystyle
+  }));
+
+  return {
+    selectedCoach: winner.coach,
+    selectedPlaystyle: winner.tacticalStyle,
+    coachProficiency: winner.rating,
+    coachComparison,
+    synergyNotes,
+    isMultiCoach
   };
 }
 
@@ -140,93 +347,13 @@ export function determineOptimalPlaystyleAndFormation(
     }
   }
 
-  // 2. Determine Playstyle (Auto Detect / AI Optimal Recommendation)
-  const isAutoPlaystyle = !payload.preferredPlaystyle ||
-    payload.preferredPlaystyle.includes('Auto-Detect') ||
-    payload.analysisMode === 'auto_tactics_23';
-
-  let finalPlaystyle = payload.preferredPlaystyle || 'Quick Counter';
-  let reasoning = '';
-  let managerProficiency = 87;
-
-  if (isAutoPlaystyle) {
-    const profs = payload.managerDetails?.playstyleProficiencies || {
-      quickCounter: 87,
-      possessionGame: 85,
-      longBallCounter: 85,
-      outWide: 80,
-      longBall: 75,
-      overload: 86
-    };
-
-    const candidateStyles = [
-      { id: 'Quick Counter', prof: Number(profs.quickCounter) || 87, bonus: 0 },
-      { id: 'Possession Game', prof: Number(profs.possessionGame) || 85, bonus: 0 },
-      { id: 'Long Ball Counter', prof: Number(profs.longBallCounter) || 85, bonus: 0 },
-      { id: 'Overload', prof: Number(profs.overload) || 86, bonus: 0 },
-      { id: 'Out Wide', prof: Number(profs.outWide) || 80, bonus: 0 },
-      { id: 'Long Ball', prof: Number(profs.longBall) || 75, bonus: 0 }
-    ];
-
-    const goalPoachers = players.filter(p => (p.playstyle || '').toLowerCase().includes('poacher')).length;
-    const holePlayers = players.filter(p => (p.playstyle || '').toLowerCase().includes('hole')).length;
-    const playmakers = players.filter(p => (p.playstyle || '').toLowerCase().includes('playmaker') || (p.playstyle || '').toLowerCase().includes('orchestrator')).length;
-    const anchorMen = players.filter(p => (p.playstyle || '').toLowerCase().includes('anchor')).length;
-    const wingers = players.filter(p => ['LWF', 'RWF', 'LMF', 'RMF'].includes(p.position)).length;
-    const crossSpecialists = players.filter(p => (p.playstyle || '').toLowerCase().includes('cross')).length;
-
-    if (finalFormation.includes('4-2-1-3') || finalFormation.includes('4-1-2-3')) {
-      candidateStyles.find(s => s.id === 'Quick Counter')!.bonus += 4;
-      candidateStyles.find(s => s.id === 'Overload')!.bonus += 3;
-    } else if (finalFormation.includes('3-2-4-1') || finalFormation.includes('4-3-3')) {
-      candidateStyles.find(s => s.id === 'Possession Game')!.bonus += 4;
-      candidateStyles.find(s => s.id === 'Quick Counter')!.bonus += 2;
-    } else if (finalFormation.includes('5-2-1-2') || finalFormation.includes('5-3-2') || finalFormation.includes('4-4-2')) {
-      candidateStyles.find(s => s.id === 'Long Ball Counter')!.bonus += 4;
-    }
-
-    if (goalPoachers >= 1 && (holePlayers >= 1 || wingers >= 2)) {
-      candidateStyles.find(s => s.id === 'Quick Counter')!.bonus += 3;
-    }
-    if (playmakers >= 2) {
-      candidateStyles.find(s => s.id === 'Possession Game')!.bonus += 3;
-      candidateStyles.find(s => s.id === 'Overload')!.bonus += 2;
-    }
-    if (anchorMen >= 1) {
-      candidateStyles.find(s => s.id === 'Long Ball Counter')!.bonus += 2;
-      candidateStyles.find(s => s.id === 'Quick Counter')!.bonus += 2;
-    }
-    if (crossSpecialists >= 1 || wingers >= 3) {
-      candidateStyles.find(s => s.id === 'Out Wide')!.bonus += 4;
-    }
-
-    candidateStyles.sort((a, b) => (b.prof + b.bonus) - (a.prof + a.bonus));
-    const best = candidateStyles[0];
-    finalPlaystyle = best.id;
-    managerProficiency = best.prof;
-
-    const mgrName = payload.managerDetails?.name ? payload.managerDetails.name : 'Tactical Manager';
-    reasoning = `AI recommended ${finalPlaystyle} as the optimal playing style: ${mgrName} delivers high tactical proficiency (${best.prof}/90) in ${finalPlaystyle}, which synergizes with the recommended ${finalFormation} formation and player chemistry (vertical pacing and half-space penetration).`;
-  } else {
-    finalPlaystyle = payload.preferredPlaystyle;
-    const profs = payload.managerDetails?.playstyleProficiencies;
-    if (profs) {
-      const key = finalPlaystyle.toLowerCase().includes('possession') ? 'possessionGame'
-        : finalPlaystyle.toLowerCase().includes('long ball counter') ? 'longBallCounter'
-        : finalPlaystyle.toLowerCase().includes('out wide') ? 'outWide'
-        : finalPlaystyle.toLowerCase().includes('long ball') ? 'longBall'
-        : finalPlaystyle.toLowerCase().includes('overload') ? 'overload'
-        : 'quickCounter';
-      managerProficiency = Number((profs as any)[key]) || 87;
-    }
-    reasoning = `User preferred playstyle: ${finalPlaystyle}. Formation ${finalFormation} tailored to maximize player positioning and team chemistry under ${finalPlaystyle}.`;
-  }
+  const evalResult = evaluateCandidateCoaches(payload, players, finalFormation, payload.preferredPlaystyle);
 
   return {
     recommendedFormation: finalFormation,
-    recommendedPlaystyle: finalPlaystyle,
-    reasoning,
-    managerProficiency
+    recommendedPlaystyle: evalResult.selectedPlaystyle,
+    reasoning: evalResult.synergyNotes,
+    managerProficiency: evalResult.coachProficiency
   };
 }
 
@@ -389,37 +516,13 @@ export function crosscheckAndAuditSquadDetails(payload: AnalyzeSquadPayload): Sq
     identifiedWeaknesses.push(`Live Update Hazard: ${highRiskStarters.map(p => `${p.name} (${p.liveUpdate})`).join(', ')} face elevated risk of negative form arrows and early stamina exhaustion.`);
   }
 
-  // Manager Audit
-  const mgr = payload.managerDetails;
-  let mgrName = 'Tactical Specialist';
-  let mgrAffinity = optimal.managerProficiency;
-  let mgrStyle = playstyle;
-  let styleProf = optimal.managerProficiency;
-  let synergyNotes = optimal.reasoning;
-
-  if (mgr && mgr.name && mgr.name.trim()) {
-    mgrName = mgr.name;
-    const profs = mgr.playstyleProficiencies || {};
-    const key = playstyle.toLowerCase().includes('possession') ? 'possessionGame'
-      : playstyle.toLowerCase().includes('long ball counter') ? 'longBallCounter'
-      : playstyle.toLowerCase().includes('out wide') ? 'outWide'
-      : playstyle.toLowerCase().includes('long ball') ? 'longBall'
-      : playstyle.toLowerCase().includes('overload') ? 'overload'
-      : 'quickCounter';
-
-    styleProf = Math.min(90, Math.max(70, Number((profs as any)[key]) || optimal.managerProficiency || 87));
-    mgrAffinity = styleProf;
-    synergyNotes = optimal.reasoning || (styleProf >= 87
-      ? `Manager ${mgrName} boasts elite ${styleProf} proficiency in ${playstyle}, granting maximum team playstyle stat multipliers (+2 to +3 overall).`
-      : `Manager ${mgrName} operates at ${styleProf} proficiency in ${playstyle}.`);
-  } else {
-    const coachMatch = EFOOTBALL_MASTER_COACHES.find(c => c.tacticalStyle === playstyle) || EFOOTBALL_MASTER_COACHES[0];
-    mgrName = `${coachMatch.name} (${coachMatch.inGameName})`;
-    mgrAffinity = coachMatch.affinityRating;
-    mgrStyle = coachMatch.tacticalStyle;
-    styleProf = coachMatch.affinityRating;
-    synergyNotes = optimal.reasoning || coachMatch.tacticalDescription;
-  }
+  // Manager Audit: Multi-Coach Evaluation & Selection
+  const coachEval = evaluateCandidateCoaches(payload, verifiedPlayers, formation, playstyle);
+  const mgrName = coachEval.selectedCoach.name || 'Tactical Specialist';
+  const mgrAffinity = coachEval.coachProficiency;
+  const mgrStyle = coachEval.selectedPlaystyle;
+  const styleProf = coachEval.coachProficiency;
+  const synergyNotes = coachEval.synergyNotes;
 
   return {
     verifiedPlayers,
@@ -454,7 +557,10 @@ export function crosscheckAndAuditSquadDetails(payload: AnalyzeSquadPayload): Sq
       affinityRating: mgrAffinity,
       tacticalStyle: mgrStyle,
       styleProficiency: styleProf,
-      synergyNotes
+      synergyNotes,
+      selectedCoachDetails: coachEval.selectedCoach,
+      coachComparison: coachEval.coachComparison,
+      isMultiCoach: coachEval.isMultiCoach
     }
   };
 }
@@ -1010,8 +1116,9 @@ export function reEvaluateAndErrorProofResult(
     isIdentifiedFromScreenshot: Boolean(payload.hasCoachScreenshot),
     confidence: 'High',
     confidenceScore: 98,
+    isRecommended: true,
     evidence: [
-      `Manager: ${managerAudit.name}`,
+      `Recommended Manager: ${managerAudit.name}`,
       `Playstyle: ${playstyle} (Proficiency: ${managerAudit.styleProficiency}/90)`,
       managerAudit.synergyNotes
     ],
@@ -1026,7 +1133,9 @@ export function reEvaluateAndErrorProofResult(
     `${verifiedPlayers.length} verified player card profiles cross-checked in squad database`,
     `Starting XI validated with exactly 11 active cards and balanced positional structure`,
     `Live Update Condition Spread: ${liveUpdateSummary.counts.A} (A), ${liveUpdateSummary.counts.B} (B), ${liveUpdateSummary.counts.C} (C), ${liveUpdateSummary.counts.D} (D), ${liveUpdateSummary.counts.E} (E)`,
-    `Manager ${managerAudit.name} operating at ${managerAudit.styleProficiency}/90 proficiency in ${playstyle}`
+    managerAudit.isMultiCoach 
+      ? `AI evaluated ${managerAudit.coachComparison?.length || 2} candidate coaches: ${managerAudit.name} recommended with highest tactical synergy (${managerAudit.styleProficiency}/90 in ${playstyle})`
+      : `Manager ${managerAudit.name} operating at ${managerAudit.styleProficiency}/90 proficiency in ${playstyle}`
   ];
 
   const inferences: string[] = [
@@ -1070,6 +1179,8 @@ export function reEvaluateAndErrorProofResult(
       players: positionedBestXI
     },
     coachRecommendation: coachRecommendationObj,
+    coachComparison: managerAudit.coachComparison,
+    coaches: payload.coaches || (payload.managerDetails ? [payload.managerDetails] : undefined),
     individualInstructions: validatedInstructions,
     playerActionPlan: validatedActionPlan,
     tacticalRecommendations,
@@ -1080,7 +1191,9 @@ export function reEvaluateAndErrorProofResult(
     fluidFormations: (payload.fluidFormations && payload.fluidFormations.enabled)
       ? payload.fluidFormations
       : computeOptimalFluidFormations(finalFormation, playstyle, positionedBestXI),
-    linkUpPlay: (payload.managerDetails?.linkedUpPlaystyle && payload.managerDetails.linkedUpPlaystyle.enabled)
+    linkUpPlay: (managerAudit.selectedCoachDetails?.linkedUpPlaystyle && managerAudit.selectedCoachDetails.linkedUpPlaystyle.enabled)
+      ? computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI, managerAudit.selectedCoachDetails.linkedUpPlaystyle, verifiedPlayers)
+      : (payload.managerDetails?.linkedUpPlaystyle && payload.managerDetails.linkedUpPlaystyle.enabled)
       ? computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI, payload.managerDetails.linkedUpPlaystyle, verifiedPlayers)
       : (payload.linkUpPlay && payload.linkUpPlay.enabled)
       ? payload.linkUpPlay
@@ -1093,7 +1206,7 @@ export function reEvaluateAndErrorProofResult(
       layoutType: 'squad_overview',
       readability: 'Good',
       detectedPlayersCount: verifiedPlayers.length,
-      hasCoach: Boolean(payload.managerDetails?.name || payload.hasCoachScreenshot)
+      hasCoach: Boolean(payload.managerDetails?.name || payload.coaches?.length || payload.hasCoachScreenshot)
     }],
     facts,
     inferences,
@@ -1103,7 +1216,7 @@ export function reEvaluateAndErrorProofResult(
       `Review match-day form arrows for ${liveUpdateSummary.highRiskStarters.map(p => p.name).join(', ') || 'starting XI'} before kick-off`
     ],
     isDeveloperModeAvailable: true,
-    managerDetails: payload.managerDetails,
+    managerDetails: managerAudit.selectedCoachDetails || payload.managerDetails,
     analysisMode: payload.analysisMode
   };
 }

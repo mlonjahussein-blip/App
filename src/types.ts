@@ -78,6 +78,27 @@ export interface CoachData {
   confidenceScore?: number;
   evidence?: string[];
   explanation: string;
+  isRecommended?: boolean;
+}
+
+export interface CoachComparisonItem {
+  name: string;
+  nationality?: string;
+  team?: string;
+  rating: number;
+  tacticalStyle: string;
+  tacticalSynergyScore: number;
+  suitabilityReason: string;
+  isRecommended: boolean;
+  playstyleProficiencies?: {
+    possessionGame?: number | string;
+    quickCounter?: number | string;
+    longBallCounter?: number | string;
+    outWide?: number | string;
+    longBall?: number | string;
+    overload?: number | string;
+  };
+  linkedUpPlaystyle?: ManagerLinkedUpPlaystyle;
 }
 
 export type AttackInstructionType = 'Off' | 'Defensive' | 'Anchoring';
@@ -310,6 +331,8 @@ export interface AnalysisResult {
   actionRecommendations?: string[];
   isDeveloperModeAvailable?: boolean;
   managerDetails?: ManagerInputDetails;
+  coaches?: ManagerInputDetails[];
+  coachComparison?: CoachComparisonItem[];
   analysisMode?: 'guided_tactics' | 'auto_tactics_23' | 'auto23' | 'guided' | 'pure23' | string;
   fluidFormations?: FluidFormationSettings;
   linkUpPlay?: LinkUpPlaySettings;
@@ -395,6 +418,7 @@ export interface ManagerLinkedUpPlaystyle {
 }
 
 export interface ManagerInputDetails {
+  id?: string;
   name: string;
   nationality?: string;
   team?: string;
@@ -407,6 +431,7 @@ export interface ManagerInputDetails {
     overload?: number | string; // eFootball 2027 new Overload playstyle
   };
   linkedUpPlaystyle?: ManagerLinkedUpPlaystyle;
+  isPrimary?: boolean;
 }
 
 export interface FluidFormationSettings {
@@ -451,6 +476,7 @@ export interface AnalyzeSquadRequestPayload {
   }>;
   typedPlayers?: TypedPlayerInput[];
   managerDetails?: ManagerInputDetails;
+  coaches?: ManagerInputDetails[];
   preferredPlaystyle?: string;
   preferredFormation?: string;
   fluidFormations?: FluidFormationSettings;

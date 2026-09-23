@@ -58,6 +58,28 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
   const { user, profile, refreshProfile } = useAuth();
   const [analysisMode, setAnalysisMode] = useState<'pure23' | 'guided'>('pure23');
   const [typedPlayers, setTypedPlayers] = useState<TypedPlayerInput[]>([]);
+  const [coaches, setCoaches] = useState<ManagerInputDetails[]>([
+    {
+      id: `coach_${Date.now()}_1`,
+      name: '',
+      nationality: '',
+      team: '',
+      playstyleProficiencies: {
+        possessionGame: 85,
+        quickCounter: 87,
+        longBallCounter: 85,
+        outWide: 80,
+        longBall: 75,
+        overload: 86
+      },
+      linkedUpPlaystyle: {
+        enabled: false,
+        centrepiece: { playstyle: 'Goal Poacher', position: 'CF' },
+        keyMan: { playstyle: 'Creative Playmaker', position: 'AMF' }
+      },
+      isPrimary: true
+    }
+  ]);
   const [managerDetails, setManagerDetails] = useState<ManagerInputDetails>({
     name: '',
     nationality: '',
@@ -157,6 +179,35 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
         ? `Custom Gameplan: ${customGameplan.trim() || 'Custom Formation'}` 
         : preferredFormation;
 
+      const validCoaches = coaches
+        .filter(c => (c.name && c.name.trim()) || c.linkedUpPlaystyle?.enabled)
+        .map(c => ({
+          ...c,
+          name: c.name.trim(),
+          nationality: c.nationality?.trim() || undefined,
+          team: c.team?.trim() || undefined,
+          playstyleProficiencies: c.playstyleProficiencies ? {
+            possessionGame: Math.min(90, Math.max(0, Number(c.playstyleProficiencies.possessionGame) || 85)),
+            quickCounter: Math.min(90, Math.max(0, Number(c.playstyleProficiencies.quickCounter) || 87)),
+            longBallCounter: Math.min(90, Math.max(0, Number(c.playstyleProficiencies.longBallCounter) || 85)),
+            outWide: Math.min(90, Math.max(0, Number(c.playstyleProficiencies.outWide) || 80)),
+            longBall: Math.min(90, Math.max(0, Number(c.playstyleProficiencies.longBall) || 75)),
+            overload: Math.min(90, Math.max(0, Number(c.playstyleProficiencies.overload) || 86))
+          } : undefined
+        }));
+
+      const primaryCoach = validCoaches[0] || (managerDetails.name.trim() ? {
+        ...managerDetails,
+        playstyleProficiencies: managerDetails.playstyleProficiencies ? {
+          possessionGame: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.possessionGame) || 85)),
+          quickCounter: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.quickCounter) || 87)),
+          longBallCounter: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.longBallCounter) || 85)),
+          outWide: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.outWide) || 80)),
+          longBall: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.longBall) || 75)),
+          overload: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.overload) || 86))
+        } : undefined
+      } : undefined);
+
       const payload = {
         userId: user?.uid || 'guest',
         images: [],
@@ -173,26 +224,17 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
           role: p.role,
           liveUpdate: p.liveUpdate
         })),
-        managerDetails: (managerDetails.name.trim() || managerDetails.linkedUpPlaystyle?.enabled) ? {
-          ...managerDetails,
-          playstyleProficiencies: managerDetails.playstyleProficiencies ? {
-            possessionGame: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.possessionGame) || 85)),
-            quickCounter: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.quickCounter) || 87)),
-            longBallCounter: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.longBallCounter) || 85)),
-            outWide: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.outWide) || 80)),
-            longBall: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.longBall) || 75)),
-            overload: Math.min(90, Math.max(0, Number(managerDetails.playstyleProficiencies.overload) || 86))
-          } : undefined
-        } : undefined,
+        managerDetails: primaryCoach,
+        coaches: validCoaches.length > 0 ? validCoaches : (primaryCoach ? [primaryCoach] : undefined),
         preferredPlaystyle: analysisMode === 'pure23' ? 'Auto-Detect / AI Optimal Recommendation' : preferredPlaystyle,
         preferredFormation: analysisMode === 'pure23' ? 'Auto-Detect / Balanced' : finalFormation,
         analysisMode: analysisMode === 'pure23' ? 'auto23' : 'guided',
         fluidFormations: analysisMode === 'guided' && fluidFormations.enabled ? fluidFormations : undefined,
-        linkUpPlay: managerDetails.linkedUpPlaystyle?.enabled ? {
+        linkUpPlay: primaryCoach?.linkedUpPlaystyle?.enabled ? {
           enabled: true,
-          fromPlayer: `Key Man (${managerDetails.linkedUpPlaystyle.keyMan.position} · ${managerDetails.linkedUpPlaystyle.keyMan.playstyle})`,
-          toPlayer: `Centrepiece (${managerDetails.linkedUpPlaystyle.centrepiece.position} · ${managerDetails.linkedUpPlaystyle.centrepiece.playstyle})`,
-          linkPattern: `${managerDetails.linkedUpPlaystyle.keyMan.playstyle} (${managerDetails.linkedUpPlaystyle.keyMan.position}) ➔ ${managerDetails.linkedUpPlaystyle.centrepiece.playstyle} (${managerDetails.linkedUpPlaystyle.centrepiece.position}) Synergy`
+          fromPlayer: `Key Man (${primaryCoach.linkedUpPlaystyle.keyMan?.position || 'AMF'} · ${primaryCoach.linkedUpPlaystyle.keyMan?.playstyle || 'Creative Playmaker'})`,
+          toPlayer: `Centrepiece (${primaryCoach.linkedUpPlaystyle.centrepiece?.position || 'CF'} · ${primaryCoach.linkedUpPlaystyle.centrepiece?.playstyle || 'Goal Poacher'})`,
+          linkPattern: `${primaryCoach.linkedUpPlaystyle.keyMan?.playstyle || 'Creative Playmaker'} (${primaryCoach.linkedUpPlaystyle.keyMan?.position || 'AMF'}) ➔ ${primaryCoach.linkedUpPlaystyle.centrepiece?.playstyle || 'Goal Poacher'} (${primaryCoach.linkedUpPlaystyle.centrepiece?.position || 'CF'}) Synergy`
         } : (analysisMode === 'guided' && linkUpPlay.enabled) ? linkUpPlay : undefined,
         tacticalPreference: analysisMode === 'pure23' ? 'AI Recommended & Optimal eFootball 2027 Balance' : tacticalPreference,
         hasCoachScreenshot: false
@@ -236,7 +278,8 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
         throw new Error(errMessage || `Server responded with status ${resp.status}`);
       }
 
-      const result: AnalysisResult = await resp.json();
+      const jsonResp = await resp.json();
+      const result: AnalysisResult = jsonResp.analysis || jsonResp;
       setIsAnalyzing(false);
       // Refresh entitlement state and user profile so counter updates in real time
       fetchEntitlements();
@@ -482,7 +525,17 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
               typedPlayers={typedPlayers}
               onChange={setTypedPlayers}
               managerDetails={managerDetails}
-              onManagerChange={setManagerDetails}
+              onManagerChange={(m) => {
+                setManagerDetails(m);
+                setCoaches(prev => prev.length > 0 ? [{ ...m, isPrimary: true }, ...prev.slice(1)] : [m]);
+              }}
+              coaches={coaches}
+              onCoachesChange={(updatedCoaches) => {
+                setCoaches(updatedCoaches);
+                if (updatedCoaches.length > 0) {
+                  setManagerDetails(updatedCoaches[0]);
+                }
+              }}
               mode={analysisMode}
             />
           </div>

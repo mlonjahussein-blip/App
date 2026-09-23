@@ -20,7 +20,9 @@ interface ManualPlayerInputProps {
   typedPlayers: TypedPlayerInput[];
   onChange: (players: TypedPlayerInput[]) => void;
   managerDetails: ManagerInputDetails;
+  coaches?: ManagerInputDetails[];
   onManagerChange: (manager: ManagerInputDetails) => void;
+  onCoachesChange?: (coaches: ManagerInputDetails[]) => void;
   mode?: 'guided' | 'pure23';
 }
 
@@ -28,7 +30,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   typedPlayers,
   onChange,
   managerDetails,
+  coaches,
   onManagerChange,
+  onCoachesChange,
   mode = 'guided'
 }) => {
   const { user } = useAuth();
@@ -313,6 +317,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           };
         });
         onChange(mapped);
+        if (found.coaches && Array.isArray(found.coaches) && onCoachesChange) {
+          onCoachesChange(found.coaches);
+        }
         if (found.managerDetails && onManagerChange) {
           onManagerChange(found.managerDetails);
         }
@@ -367,7 +374,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       {/* 1. Manager Details Section */}
       <ManagerDetailsInput
         managerDetails={managerDetails}
+        coaches={coaches}
         onManagerChange={onManagerChange}
+        onCoachesChange={onCoachesChange}
         onChange={onManagerChange}
       />
 
