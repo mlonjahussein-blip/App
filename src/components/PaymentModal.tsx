@@ -283,108 +283,24 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
     if (selectedOption === 'card') {
       const cleanCard = cardNumber.replace(/\s/g, '');
-      if (cleanCard.length < 13) {
+      if (cleanCard.length > 0 && cleanCard.length < 13) {
         setErrorMessage('Please enter a valid card number (13 to 16 digits).');
-        return;
-      }
-      if (cardExpiry.length < 5) {
-        setErrorMessage('Please enter a valid card expiration date (MM/YY).');
-        return;
-      }
-      if (cardCvv.length < 3) {
-        setErrorMessage('Please enter a valid 3 or 4 digit CVV/CVC code.');
         return;
       }
     }
 
-    // Pre-open checkout tab synchronously during user click event to prevent browser popup blockers!
+    // Clear any previous checkout redirect storage
+    try {
+      localStorage.removeItem('ef_blmpay_checkout_url');
+      localStorage.removeItem('ef_blmpay_checkout_error');
+    } catch (e) {}
+
+    // Open dedicated same-origin redirect bridge synchronously during user click
     let checkoutTab: Window | null = null;
     try {
-      checkoutTab = window.open('about:blank', '_blank');
-      if (checkoutTab) {
-        try {
-          checkoutTab.document.write(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>eFootball AI Hub — Connecting to BLM Pay...</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background-color: #09090b;
-      color: #fafafa;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 24px;
-      text-align: center;
-    }
-    .card {
-      background: #18181b;
-      border: 1px solid #27272a;
-      border-radius: 24px;
-      padding: 36px 28px;
-      max-width: 440px;
-      width: 100%;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
-    }
-    .spinner {
-      width: 48px;
-      height: 48px;
-      border: 4px solid rgba(16, 185, 129, 0.2);
-      border-top-color: #10b981;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto 20px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #34d399;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 5px 12px;
-      border-radius: 9999px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 14px;
-    }
-    h2 { font-size: 20px; margin: 0 0 10px; font-weight: 800; color: #ffffff; }
-    p { font-size: 13px; color: #a1a1aa; line-height: 1.5; margin: 0 0 16px; }
-    .note {
-      font-size: 11px;
-      color: #71717a;
-      background: #121215;
-      border: 1px solid #27272a;
-      padding: 10px;
-      border-radius: 12px;
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="spinner"></div>
-    <div class="badge">🔒 BLM Pay Secure Gateway</div>
-    <h2>Opening Checkout Page...</h2>
-    <p>Please wait while we initialize your secure payment session. You will be redirected automatically to complete your transaction.</p>
-    <div class="note">Do not close this tab. You will be redirected in just a second.</div>
-  </div>
-</body>
-</html>`);
-        } catch (docErr) {
-          console.warn('Could not write into pre-opened window:', docErr);
-        }
-      }
+      checkoutTab = window.open('/checkout-redirect.html', '_blank');
     } catch (popupErr) {
-      console.warn('Pre-open checkout tab was blocked or unavailable:', popupErr);
+      console.warn('Checkout tab could not be opened synchronously:', popupErr);
     }
 
     setIsSubmitting(true);
@@ -409,45 +325,79 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       });
 
       if (!resp.ok) {
-        if (checkoutTab && !checkoutTab.closed) checkoutTab.close();
         const errJson = await resp.json().catch(() => ({}));
-        throw new Error(errJson.error || 'Failed to initialize payment gateway.');
+        const msg = errJson.error || 'Failed to initialize payment gateway.';
+        try {
+          localStorage.setItem('ef_blmpay_checkout_error', msg);
+          if (checkoutTab && !checkoutTab.closed) checkoutTab.close();
+        } catch (e) {}
+        throw new Error(msg);
       }
 
       const data = await resp.json();
       const order = data.order;
 
       if (!order || !order.paymentId) {
-        if (checkoutTab && !checkoutTab.closed) checkoutTab.close();
-        throw new Error('Invalid order response from payment gateway.');
+        const msg = 'Invalid order response from payment gateway.';
+        try {
+          localStorage.setItem('ef_blmpay_checkout_error', msg);
+          if (checkoutTab && !checkoutTab.closed) checkoutTab.close();
+        } catch (e) {}
+        throw new Error(msg);
       }
 
       if (order.status === 'FAILED') {
-        if (checkoutTab && !checkoutTab.closed) checkoutTab.close();
-        throw new Error(order.failureReason || order.instructions || 'Payment initialization was rejected by payment gateway.');
+        const msg = order.failureReason || order.instructions || 'Payment initialization was rejected by payment gateway.';
+        try {
+          localStorage.setItem('ef_blmpay_checkout_error', msg);
+          if (checkoutTab && !checkoutTab.closed) checkoutTab.close();
+        } catch (e) {}
+        throw new Error(msg);
       }
 
       setActivePaymentId(order.paymentId);
       setProviderTxId(order.providerTransactionId);
 
-      // Automatically open / redirect pre-opened tab to BLM Pay Checkout URL
+      // Automatically redirect and load BLM Pay Checkout in the opened tab
       if (order.checkoutUrl) {
         setCheckoutUrl(order.checkoutUrl);
-        if (checkoutTab && !checkoutTab.closed) {
-          try {
-            checkoutTab.location.href = order.checkoutUrl;
-            checkoutTab.focus();
-          } catch (navErr) {
-            window.open(order.checkoutUrl, '_blank', 'noopener,noreferrer');
+
+        // 1. Set localStorage: immediately triggers storage event and 80ms polling in /checkout-redirect.html
+        try {
+          localStorage.setItem('ef_blmpay_checkout_url', order.checkoutUrl);
+        } catch (e) {}
+
+        // 2. BroadcastChannel trigger
+        try {
+          if (typeof BroadcastChannel !== 'undefined') {
+            const bc = new BroadcastChannel('ef_blmpay_checkout');
+            bc.postMessage({ type: 'CHECKOUT_URL', url: order.checkoutUrl });
+            bc.close();
           }
-        } else {
-          // If popup was blocked or tab wasn't pre-opened, attempt window.open
-          window.open(order.checkoutUrl, '_blank', 'noopener,noreferrer');
+        } catch (e) {}
+
+        // 3. Direct window postMessage
+        try {
+          if (checkoutTab && !checkoutTab.closed) {
+            checkoutTab.postMessage({ type: 'CHECKOUT_URL', url: order.checkoutUrl }, '*');
+          }
+        } catch (e) {}
+
+        // 4. Direct window location replace
+        try {
+          if (checkoutTab && !checkoutTab.closed) {
+            checkoutTab.location.replace(order.checkoutUrl);
+            checkoutTab.focus();
+          }
+        } catch (navErr) {
+          console.log('Location redirect handled by bridge page:', navErr);
         }
       } else {
-        // If mobile push without checkout URL, close the pre-opened blank tab cleanly
+        // Direct mobile push without a checkout URL: close the redirect tab cleanly
         if (checkoutTab && !checkoutTab.closed) {
-          checkoutTab.close();
+          try {
+            checkoutTab.close();
+          } catch (e) {}
         }
       }
 
@@ -455,7 +405,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       startPollingPaymentStatus(order.paymentId, order.providerTransactionId);
     } catch (err: any) {
       if (checkoutTab && !checkoutTab.closed) {
-        checkoutTab.close();
+        try {
+          checkoutTab.close();
+        } catch (e) {}
       }
       console.error('Payment order creation error:', err);
       setErrorMessage(err.message || 'Could not connect to payment gateway. Please try again.');
@@ -816,7 +768,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-300 block flex items-center gap-1.5">
                     <CreditCard className="w-3.5 h-3.5 text-blue-400" />
-                    Card Details (Any International Card)
+                    Card Details (International Cards)
                   </span>
                   <span className="text-[10px] text-neutral-500 flex items-center gap-1">
                     <Lock className="w-3 h-3 text-emerald-400" /> 256-Bit SSL
@@ -824,13 +776,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-neutral-400 block">
-                    Card Number *
-                  </label>
+                  <div className="flex justify-between items-center">
+                    <label className="text-[11px] font-semibold text-neutral-400 block">
+                      Card Number
+                    </label>
+                    <span className="text-[10px] text-emerald-400 font-medium">Entered here or on checkout page</span>
+                  </div>
                   <div className="relative">
                     <input
                       type="text"
-                      required
                       value={cardNumber}
                       onChange={handleCardNumberChange}
                       placeholder="4000 1234 5678 9010"
@@ -846,11 +800,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[11px] font-semibold text-neutral-400 block">
-                      Expiry Date *
+                      Expiry Date
                     </label>
                     <input
                       type="text"
-                      required
                       value={cardExpiry}
                       onChange={handleCardExpiryChange}
                       placeholder="MM/YY"
@@ -861,11 +814,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
                   <div className="space-y-1">
                     <label className="text-[11px] font-semibold text-neutral-400 block">
-                      CVV / CVC *
+                      CVV / CVC
                     </label>
                     <input
                       type="password"
-                      required
                       value={cardCvv}
                       onChange={handleCardCvvChange}
                       placeholder="123"
@@ -875,9 +827,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-blue-950/20 border border-blue-900/40 text-[11px] text-blue-300 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0" />
-                  <span>Supports Visa, Mastercard, American Express & 3D Secure verification globally.</span>
+                <div className="p-2.5 rounded-xl bg-emerald-950/20 border border-emerald-900/40 text-[11px] text-emerald-300 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>The BLM Pay secure 3D-Secure checkout gateway opens automatically when you click Pay below.</span>
                 </div>
               </div>
             )}

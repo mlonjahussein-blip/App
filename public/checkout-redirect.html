@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>eFootball AI Hub — Connecting to BLM Pay Secure Checkout...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#09090b">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #09090b;
+      color: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+      overflow: hidden;
+    }
+    .background-glow {
+      position: fixed;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .container {
+      position: relative;
+      z-index: 1;
+      background: rgba(24, 24, 27, 0.95);
+      border: 1px solid #27272a;
+      border-radius: 24px;
+      padding: 40px 32px;
+      max-width: 440px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(12px);
+    }
+    .spinner-box {
+      position: relative;
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 24px;
+    }
+    .spinner-ring {
+      position: absolute;
+      inset: 0;
+      border: 4px solid rgba(16, 185, 129, 0.15);
+      border-top-color: #10b981;
+      border-radius: 50%;
+      animation: spin 0.8s cubic-bezier(0.6, 0.2, 0.4, 0.8) infinite;
+    }
+    .spinner-inner {
+      position: absolute;
+      inset: 8px;
+      border: 3px solid rgba(59, 130, 246, 0.15);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin-reverse 1.2s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    @keyframes spin-reverse {
+      to { transform: rotate(-360deg); }
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 14px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 10px;
+      letter-spacing: -0.3px;
+    }
+    p {
+      font-size: 13px;
+      color: #a1a1aa;
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #27272a;
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 40%;
+      background: linear-gradient(90deg, #10b981, #3b82f6);
+      border-radius: 9999px;
+      animation: progress-slide 1.5s ease-in-out infinite;
+    }
+    @keyframes progress-slide {
+      0% { transform: translateX(-100%); }
+      50% { transform: translateX(100%); }
+      100% { transform: translateX(250%); }
+    }
+    .status-text {
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #71717a;
+    }
+    .fallback-btn {
+      display: none;
+      margin-top: 20px;
+      padding: 12px 20px;
+      background: #10b981;
+      color: #09090b;
+      font-weight: 800;
+      font-size: 13px;
+      border-radius: 12px;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .fallback-btn:hover {
+      background: #059669;
+    }
+  </style>
+</head>
+<body>
+  <div class="background-glow"></div>
+  <div class="container">
+    <div class="spinner-box">
+      <div class="spinner-ring"></div>
+      <div class="spinner-inner"></div>
+    </div>
+    <div class="badge">
+      <span>🔒 BLM Pay Secure Gateway</span>
+    </div>
+    <h1>Connecting to Checkout...</h1>
+    <p id="descText">Initializing your 256-bit encrypted transaction session. You will be redirected automatically to complete payment.</p>
+    
+    <div class="progress-bar">
+      <div class="progress-bar-fill"></div>
+    </div>
+
+    <div class="status-text" id="statusLabel">Awaiting gateway handoff...</div>
+
+    <a href="#" id="manualBtn" class="fallback-btn" rel="noopener noreferrer">Click here if not redirected automatically</a>
+  </div>
+
+  <script>
+    (function() {
+      var redirected = false;
+
+      function performRedirect(url) {
+        if (!url || redirected) return;
+        redirected = true;
+        
+        var statusLabel = document.getElementById('statusLabel');
+        var manualBtn = document.getElementById('manualBtn');
+        var descText = document.getElementById('descText');
+
+        if (statusLabel) statusLabel.textContent = 'Redirecting to checkout page...';
+        if (descText) descText.textContent = 'Redirecting to the official BLM Pay checkout gateway now...';
+        
+        if (manualBtn) {
+          manualBtn.href = url;
+          manualBtn.style.display = 'inline-block';
+        }
+
+        // Clean up stored value
+        try {
+          localStorage.removeItem('ef_blmpay_checkout_url');
+        } catch (e) {}
+
+        // Immediate navigation
+        window.location.replace(url);
+      }
+
+      // Check query parameter ?url=
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var directUrl = params.get('url');
+        if (directUrl && (directUrl.startsWith('https://') || directUrl.startsWith('http://'))) {
+          performRedirect(directUrl);
+          return;
+        }
+      } catch (e) {}
+
+      // Check localStorage immediately
+      try {
+        var cached = localStorage.getItem('ef_blmpay_checkout_url');
+        if (cached && (cached.startsWith('https://') || cached.startsWith('http://'))) {
+          performRedirect(cached);
+          return;
+        }
+      } catch (e) {}
+
+      // Listen for window postMessage
+      window.addEventListener('message', function(evt) {
+        if (evt.data && evt.data.type === 'CHECKOUT_URL' && evt.data.url) {
+          performRedirect(evt.data.url);
+        }
+      });
+
+      // Listen for localStorage changes
+      window.addEventListener('storage', function(evt) {
+        if (evt.key === 'ef_blmpay_checkout_url' && evt.newValue) {
+          performRedirect(evt.newValue);
+        }
+      });
+
+      // Listen on BroadcastChannel if supported
+      if (typeof BroadcastChannel !== 'undefined') {
+        try {
+          var bc = new BroadcastChannel('ef_blmpay_checkout');
+          bc.onmessage = function(evt) {
+            if (evt.data && evt.data.type === 'CHECKOUT_URL' && evt.data.url) {
+              performRedirect(evt.data.url);
+            }
+          };
+        } catch (e) {}
+      }
+
+      // Fast polling fallback (every 80ms)
+      var pollCount = 0;
+      var interval = setInterval(function() {
+        pollCount++;
+        try {
+          var url = localStorage.getItem('ef_blmpay_checkout_url');
+          if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
+            clearInterval(interval);
+            performRedirect(url);
+            return;
+          }
+
+          var err = localStorage.getItem('ef_blmpay_checkout_error');
+          if (err) {
+            clearInterval(interval);
+            var statusLabel = document.getElementById('statusLabel');
+            var descText = document.getElementById('descText');
+            if (statusLabel) statusLabel.textContent = 'Error initializing payment.';
+            if (descText) descText.textContent = err;
+            return;
+          }
+        } catch (e) {}
+
+        // If after 15 seconds still waiting, show fallback button
+        if (pollCount > 180) {
+          clearInterval(interval);
+          var statusLabel = document.getElementById('statusLabel');
+          if (statusLabel) statusLabel.textContent = 'Session timed out. Please return to the main window.';
+        }
+      }, 80);
+    })();
+  </script>
+</body>
+</html>
