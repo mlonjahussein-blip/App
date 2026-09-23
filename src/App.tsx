@@ -19,8 +19,8 @@ import { MaintenanceView } from './components/MaintenanceView.tsx';
 import { NetworkErrorShutdownView } from './components/NetworkErrorShutdownView.tsx';
 import { OfflineIndicator } from './components/OfflineIndicator.tsx';
 
-// Temporary shutdown flag: shows authentic network connection error to visitors
-export const IS_SYSTEM_SHUTDOWN = true;
+// Temporary shutdown flag: set to false to make website public and live
+export const IS_SYSTEM_SHUTDOWN = false;
 
 // Temporary maintenance mode flag (set to false to reactivate)
 export const IS_MAINTENANCE_MODE = false;
@@ -428,6 +428,8 @@ export default function App() {
       document.title = 'This site can’t be reached';
     } else if (IS_MAINTENANCE_MODE) {
       document.title = 'eFootball AI Hub — Scheduled Maintenance';
+    } else {
+      document.title = 'eFootball AI Hub — AI Football Tactics & Squad Analysis';
     }
   }, []);
 
