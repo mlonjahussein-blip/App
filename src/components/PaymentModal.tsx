@@ -297,6 +297,96 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
     }
 
+    // Pre-open checkout tab synchronously during user click event to prevent browser popup blockers!
+    let checkoutTab: Window | null = null;
+    try {
+      checkoutTab = window.open('about:blank', '_blank');
+      if (checkoutTab) {
+        try {
+          checkoutTab.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>eFootball AI Hub — Connecting to BLM Pay...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background-color: #09090b;
+      color: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 24px;
+      padding: 36px 28px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(16, 185, 129, 0.2);
+      border-top-color: #10b981;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 14px;
+    }
+    h2 { font-size: 20px; margin: 0 0 10px; font-weight: 800; color: #ffffff; }
+    p { font-size: 13px; color: #a1a1aa; line-height: 1.5; margin: 0 0 16px; }
+    .note {
+      font-size: 11px;
+      color: #71717a;
+      background: #121215;
+      border: 1px solid #27272a;
+      padding: 10px;
+      border-radius: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <div class="badge">🔒 BLM Pay Secure Gateway</div>
+    <h2>Opening Checkout Page...</h2>
+    <p>Please wait while we initialize your secure payment session. You will be redirected automatically to complete your transaction.</p>
+    <div class="note">Do not close this tab. You will be redirected in just a second.</div>
+  </div>
+</body>
+</html>`);
+        } catch (docErr) {
+          console.warn('Could not write into pre-opened window:', docErr);
+        }
+      }
+    } catch (popupErr) {
+      console.warn('Pre-open checkout tab was blocked or unavailable:', popupErr);
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -319,6 +409,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       });
 
       if (!resp.ok) {
+        if (checkoutTab && !checkoutTab.closed) checkoutTab.close();
         const errJson = await resp.json().catch(() => ({}));
         throw new Error(errJson.error || 'Failed to initialize payment gateway.');
       }
@@ -327,30 +418,45 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       const order = data.order;
 
       if (!order || !order.paymentId) {
+        if (checkoutTab && !checkoutTab.closed) checkoutTab.close();
         throw new Error('Invalid order response from payment gateway.');
       }
 
       if (order.status === 'FAILED') {
+        if (checkoutTab && !checkoutTab.closed) checkoutTab.close();
         throw new Error(order.failureReason || order.instructions || 'Payment initialization was rejected by payment gateway.');
       }
 
       setActivePaymentId(order.paymentId);
       setProviderTxId(order.providerTransactionId);
 
-      // Open BLM Pay Checkout if URL returned
+      // Automatically open / redirect pre-opened tab to BLM Pay Checkout URL
       if (order.checkoutUrl) {
         setCheckoutUrl(order.checkoutUrl);
-        // Attempt to open in a secure new window (gracefully catch if blocked by popup blocker)
-        try {
+        if (checkoutTab && !checkoutTab.closed) {
+          try {
+            checkoutTab.location.href = order.checkoutUrl;
+            checkoutTab.focus();
+          } catch (navErr) {
+            window.open(order.checkoutUrl, '_blank', 'noopener,noreferrer');
+          }
+        } else {
+          // If popup was blocked or tab wasn't pre-opened, attempt window.open
           window.open(order.checkoutUrl, '_blank', 'noopener,noreferrer');
-        } catch (popupErr) {
-          console.warn('Popup blocked, using embedded view:', popupErr);
+        }
+      } else {
+        // If mobile push without checkout URL, close the pre-opened blank tab cleanly
+        if (checkoutTab && !checkoutTab.closed) {
+          checkoutTab.close();
         }
       }
 
       setStep('awaiting_payment');
       startPollingPaymentStatus(order.paymentId, order.providerTransactionId);
     } catch (err: any) {
+      if (checkoutTab && !checkoutTab.closed) {
+        checkoutTab.close();
+      }
       console.error('Payment order creation error:', err);
       setErrorMessage(err.message || 'Could not connect to payment gateway. Please try again.');
     } finally {
@@ -883,25 +989,29 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
             </div>
 
-            {/* Embedded Payment Iframe if available */}
+            {/* Checkout Link / New Tab Notification */}
             {checkoutUrl ? (
-              <div className="space-y-2">
-                <div className="w-full h-80 rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950 shadow-inner">
-                  <iframe
-                    src={checkoutUrl}
-                    title="Payment Checkout"
-                    className="w-full h-full border-0"
-                    allow="payment"
-                  />
+              <div className="bg-neutral-950 border border-emerald-500/40 rounded-2xl p-5 space-y-4 text-center animate-fade-in shadow-xl shadow-emerald-500/5">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mx-auto flex items-center justify-center shadow-inner">
+                  <ExternalLink className="w-7 h-7 text-emerald-400 animate-pulse" />
+                </div>
+                <div className="space-y-1.5">
+                  <h4 className="text-white font-extrabold text-base">BLM Pay Checkout Opened</h4>
+                  <p className="text-xs text-neutral-300 max-w-sm mx-auto leading-relaxed">
+                    The secure payment page was opened in a new tab. Please complete your transaction there.
+                  </p>
+                  <p className="text-[11px] text-neutral-400">
+                    Once finished, your squad analysis credit will activate automatically!
+                  </p>
                 </div>
                 <a
                   href={checkoutUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer border border-neutral-700"
+                  className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Open Checkout in New Tab</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Re-Open Checkout Page in New Tab</span>
+                  <ExternalLink className="w-4 h-4" />
                 </a>
               </div>
             ) : (
