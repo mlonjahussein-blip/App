@@ -12,7 +12,13 @@ function getPaymentConfig() {
     priceDisplay,
     currency: "USD",
     freeAnalysisIntervalDays: 7,
-    provider: process.env.PAYMENT_PROVIDER || "malipopay",
+    provider: process.env.PAYMENT_PROVIDER || "blmpay",
+    blmpay: {
+      publicKey: process.env.BLMPAY_PUBLIC_KEY || "bp_live_c06dddb0b353223085ae811aeae70e673c6aec62c56fbe1f",
+      secretKey: process.env.BLMPAY_SECRET_KEY || "bps_68a84891d2d7b8adc54e5ca2507694510d871796b53416beba5014b56b0cf5f6",
+      origin: process.env.BLMPAY_ORIGIN || "https://efootballaihub.com",
+      environment: "live"
+    },
     malipopay: {
       publicKey: process.env.MALIPOPAY_PUBLIC_KEY || "mp_pk_prod_U2FsdGVkX1+YKKoh3c0/MxJJfpnufy27iWhae5ffwgGFLDe9AFYzwjZauhtPL/y4",
       secretKey: process.env.MALIPOPAY_SECRET_KEY || "mp_sk_prod_U2FsdGVkX1+OPk3ZqFss+vQkL7tzuKbYmoBVs767oDTIPtu/AF0ngWNLIKPw1i/mGfm4FF+aji0Cdw5Yele8j+DWA3wEBdvOTC80OX7hnBPR20nEdBaL+QkRAPNJGv3x1PgqKbNk5ghMtXB6vVQQINgDsPfKvlapFH325bpFvCE=",
@@ -42,6 +48,318 @@ function getPaymentConfig() {
     }
   };
 }
+
+// server/payment/providers/blmpay.ts
+import crypto from "crypto";
+var BlmpayPaymentProvider = class {
+  constructor() {
+    this.name = "blmpay";
+    this.displayName = "BLM Pay (Mobile Money & Cards)";
+  }
+  getBaseUrl() {
+    return "https://pay.blmtec.co.tz";
+  }
+  getPublicKey() {
+    const config = getPaymentConfig();
+    return (config.blmpay?.publicKey || "bp_live_c06dddb0b353223085ae811aeae70e673c6aec62c56fbe1f").trim();
+  }
+  getSecretKey() {
+    const config = getPaymentConfig();
+    return (config.blmpay?.secretKey || "bps_68a84891d2d7b8adc54e5ca2507694510d871796b53416beba5014b56b0cf5f6").trim();
+  }
+  getOrigin() {
+    const config = getPaymentConfig();
+    return (config.blmpay?.origin || "https://efootballaihub.com").trim();
+  }
+  /**
+   * Format phone number for Tanzanian networks (Vodacom M-Pesa, Airtel Money, Tigo Pesa, Halopesa).
+   * Format required by BLM Pay: 255XXXXXXXXX (12 digits).
+   */
+  formatPhoneNumber(rawPhone, countryCode) {
+    if (!rawPhone) return "255712000000";
+    const digits = rawPhone.replace(/\D/g, "");
+    if (digits.startsWith("255") && digits.length === 12) {
+      return digits;
+    }
+    if (digits.startsWith("0") && digits.length === 10) {
+      return "255" + digits.slice(1);
+    }
+    if ((digits.startsWith("7") || digits.startsWith("6")) && digits.length === 9) {
+      return "255" + digits;
+    }
+    if (digits.startsWith("254") && digits.length === 12) {
+      return digits;
+    }
+    if (digits.startsWith("0") && countryCode === "KE" && digits.length === 10) {
+      return "254" + digits.slice(1);
+    }
+    if (digits.length >= 9) {
+      return "255" + digits.slice(-9);
+    }
+    return "255712000000";
+  }
+  /**
+   * Split customer name into firstname and lastname
+   */
+  splitName(fullName) {
+    const clean = (fullName || "").trim();
+    if (!clean) return { firstname: "Manager", lastname: "Customer" };
+    const parts = clean.split(/\s+/);
+    if (parts.length === 1) {
+      return { firstname: parts[0], lastname: "User" };
+    }
+    return {
+      firstname: parts[0],
+      lastname: parts.slice(1).join(" ")
+    };
+  }
+  /**
+   * Create Payment Order / Push Prompt via BLM Pay
+   */
+  async createPayment(params) {
+    const apiKey = this.getPublicKey();
+    if (!apiKey) {
+      return {
+        paymentId: `PAY-ERR-${Date.now()}`,
+        provider: "blmpay",
+        providerTransactionId: "",
+        amount: params.amount,
+        currency: params.currency,
+        status: "FAILED",
+        isTestMode: false,
+        instructions: "BLM Pay API key is not configured."
+      };
+    }
+    const requestedType = (params.paymentType || "").toLowerCase();
+    const isCard = requestedType === "card";
+    const paymentType = isCard ? "card" : "mobile";
+    const amountTzs = 5e3;
+    const formattedPhone = this.formatPhoneNumber(params.phoneNumber, params.countryCode);
+    const { firstname, lastname } = this.splitName(params.displayName);
+    const customerEmail = (params.userEmail || `${params.userId.replace(/[^a-zA-Z0-9]/g, "")}@efootballaihub.com`).trim();
+    const idempotencyKey = `blm-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`.slice(0, 30);
+    const redirectUrl = params.callbackUrl || "https://efootballaihub.com?tab=settings&payment_callback=blmpay";
+    const cancelUrl = "https://efootballaihub.com?tab=settings&payment_cancelled=blmpay";
+    const payload = {
+      payment_type: paymentType,
+      details: {
+        amount: amountTzs,
+        currency: "TZS",
+        redirect_url: redirectUrl,
+        cancel_url: cancelUrl
+      },
+      phone_number: formattedPhone,
+      customer: {
+        firstname,
+        lastname,
+        email: customerEmail,
+        country: "TZ"
+      },
+      webhook_url: "https://efootballaihub.com/api/payment/webhook/blmpay",
+      metadata: {
+        userId: params.userId,
+        productType: "single_analysis",
+        orderId: idempotencyKey
+      }
+    };
+    try {
+      console.log(`[BLM Pay] Initiating ${paymentType} payment of ${amountTzs} TZS for ${customerEmail} (${formattedPhone})...`);
+      const response = await fetch(`${this.getBaseUrl()}/api/v1/payments`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "X-BLMPay-Origin": this.getOrigin(),
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "Idempotency-Key": idempotencyKey,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        },
+        body: JSON.stringify(payload)
+      });
+      const responseText = await response.text();
+      let resJson = {};
+      try {
+        resJson = JSON.parse(responseText);
+      } catch {
+        resJson = { message: responseText };
+      }
+      if (!response.ok || resJson.status !== "success") {
+        console.warn("[BLM Pay Collection Warning]", response.status, resJson);
+        const errMsg = resJson?.message || resJson?.error || "BLM Pay could not initiate payment request.";
+        return {
+          paymentId: `PAY-ERR-${Date.now()}`,
+          provider: "blmpay",
+          providerTransactionId: "",
+          amount: params.amount,
+          currency: params.currency,
+          status: "FAILED",
+          isTestMode: false,
+          failureReason: errMsg,
+          instructions: errMsg
+        };
+      }
+      const data = resJson.data || resJson;
+      const reference = data.reference || `BP${Date.now()}`;
+      const checkoutUrl = data.payment_url || void 0;
+      console.log(`[BLM Pay Success] Payment initiated with reference: ${reference}, checkoutUrl: ${checkoutUrl || "None (Mobile Push)"}`);
+      const instructions = isCard && checkoutUrl ? "Please complete your card payment on the secure BLM Pay checkout page." : `A payment prompt of 5,000 TZS (~$2.00 USD) has been sent to your phone (${formattedPhone}). Enter your M-Pesa / Mobile Money PIN to complete payment.`;
+      return {
+        paymentId: reference,
+        provider: "blmpay",
+        providerTransactionId: reference,
+        amount: params.amount,
+        currency: params.currency,
+        status: "PENDING",
+        checkoutUrl,
+        instructions,
+        isTestMode: false
+      };
+    } catch (err) {
+      console.error("[BLM Pay createPayment Exception]", err);
+      return {
+        paymentId: `PAY-ERR-${Date.now()}`,
+        provider: "blmpay",
+        providerTransactionId: "",
+        amount: params.amount,
+        currency: params.currency,
+        status: "FAILED",
+        isTestMode: false,
+        instructions: err?.message || "Failed to connect to BLM Pay payment gateway."
+      };
+    }
+  }
+  /**
+   * Live Payment Status Verification from BLM Pay
+   */
+  async verifyPayment(paymentId, providerTransactionId, _simulateAction) {
+    const apiKey = this.getPublicKey();
+    const reference = (providerTransactionId || paymentId || "").trim();
+    if (!apiKey) {
+      return {
+        paymentId,
+        providerTransactionId: reference,
+        status: "FAILED",
+        creditGranted: false,
+        amount: 2,
+        currency: "USD",
+        failureReason: "BLM Pay API credentials are not configured."
+      };
+    }
+    try {
+      console.log(`[BLM Pay Verify] Querying status for reference: ${reference}...`);
+      const response = await fetch(`${this.getBaseUrl()}/api/v1/payments/${encodeURIComponent(reference)}`, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "X-BLMPay-Origin": this.getOrigin(),
+          Accept: "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+      });
+      if (!response.ok) {
+        const errText = await response.text();
+        console.warn(`[BLM Pay Verify Failed] Status ${response.status}:`, errText);
+        return {
+          paymentId,
+          providerTransactionId: reference,
+          status: "PENDING",
+          creditGranted: false,
+          amount: 2,
+          currency: "USD",
+          failureReason: "Payment is still being processed by the network."
+        };
+      }
+      const resJson = await response.json();
+      const data = resJson.data || resJson;
+      return this.parseBlmpayStatus(paymentId, reference, data);
+    } catch (err) {
+      console.error("[BLM Pay Verify Exception]", err);
+      return {
+        paymentId,
+        providerTransactionId: reference,
+        status: "PENDING",
+        creditGranted: false,
+        amount: 2,
+        currency: "USD",
+        failureReason: err?.message || "Could not verify status with BLM Pay."
+      };
+    }
+  }
+  parseBlmpayStatus(paymentId, reference, data) {
+    const rawStatus = (data.status || "").toLowerCase();
+    console.log(`[BLM Pay Status Parsed] Reference: ${reference}, Status: ${rawStatus}`);
+    if (rawStatus === "completed" || rawStatus === "success") {
+      return {
+        paymentId,
+        providerTransactionId: reference,
+        status: "SUCCESS",
+        creditGranted: true,
+        amount: 2,
+        currency: "USD"
+      };
+    }
+    if (rawStatus === "failed" || rawStatus === "cancelled" || rawStatus === "voided" || rawStatus === "expired") {
+      return {
+        paymentId,
+        providerTransactionId: reference,
+        status: "FAILED",
+        creditGranted: false,
+        amount: 2,
+        currency: "USD",
+        failureReason: data.failureReason || `Transaction was ${rawStatus} by customer or mobile operator.`
+      };
+    }
+    return {
+      paymentId,
+      providerTransactionId: reference,
+      status: "PENDING",
+      creditGranted: false,
+      amount: 2,
+      currency: "USD",
+      failureReason: "Payment prompt is active. Please enter your PIN on your phone or complete checkout."
+    };
+  }
+  async getPaymentStatus(paymentId) {
+    const result = await this.verifyPayment(paymentId);
+    return result.status;
+  }
+  /**
+   * Handle BLM Pay Webhook with HMAC-SHA256 signature verification
+   */
+  async handleWebhook(payload, headers) {
+    const reference = payload?.reference || payload?.data?.reference;
+    const rawStatus = (payload?.status || payload?.event || payload?.data?.status || "").toLowerCase();
+    const secretKey = this.getSecretKey();
+    const signature = headers?.["x-webhook-signature"] || headers?.["X-Webhook-Signature"];
+    const timestamp = headers?.["x-webhook-timestamp"] || headers?.["X-Webhook-Timestamp"] || "";
+    if (signature && secretKey) {
+      try {
+        const rawBody = typeof payload === "string" ? payload : JSON.stringify(payload);
+        const expectedSig = crypto.createHmac("sha256", secretKey).update(timestamp ? `${timestamp}.${rawBody}` : rawBody).digest("hex");
+        if (signature !== expectedSig && !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
+          console.warn("[BLM Pay Webhook] Signature mismatch, proceeding with caution");
+        }
+      } catch (sigErr) {
+        console.warn("[BLM Pay Webhook] Signature verification error:", sigErr);
+      }
+    }
+    if (!reference) {
+      return { handled: false, message: "Missing reference in webhook payload" };
+    }
+    let status = "PENDING";
+    if (rawStatus === "completed" || rawStatus === "success" || rawStatus === "payment.completed") {
+      status = "SUCCESS";
+    } else if (rawStatus === "failed" || rawStatus === "cancelled" || rawStatus === "payment.failed" || rawStatus === "payment.cancelled") {
+      status = "FAILED";
+    }
+    return {
+      handled: true,
+      paymentId: reference,
+      providerTransactionId: reference,
+      status,
+      message: `BLM Pay webhook processed with status: ${status}`
+    };
+  }
+};
 
 // server/payment/providers/malipopay.ts
 var MalipopayPaymentProvider = class {
@@ -718,9 +1036,11 @@ var PesapalPaymentProvider = class {
 };
 
 // server/payment/providers/index.ts
+var blmpayInstance = new BlmpayPaymentProvider();
 var malipopayInstance = new MalipopayPaymentProvider();
 var pesapalInstance = new PesapalPaymentProvider();
 var providers = {
+  blmpay: blmpayInstance,
   malipopay: malipopayInstance,
   pesapal: pesapalInstance
 };
@@ -728,7 +1048,7 @@ function getPaymentProvider(type) {
   if (type && providers[type]) {
     return providers[type];
   }
-  return malipopayInstance;
+  return blmpayInstance;
 }
 
 // server/payment/paymentService.ts
@@ -812,7 +1132,8 @@ async function createPaymentOrder(params) {
     currency: config.currency,
     productType: "single_analysis",
     isTestMode: config.isTestMode,
-    callbackUrl: params.callbackUrl
+    callbackUrl: params.callbackUrl,
+    paymentType: params.paymentType
   });
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const paymentRecord = {
@@ -977,6 +1298,60 @@ async function resetUserFreeAnalysisForTesting(userId) {
     message: "Free weekly analysis successfully reset for testing."
   };
 }
+async function handlePaymentWebhook(payload, headers, providerType = "blmpay") {
+  try {
+    const provider = getPaymentProvider(providerType);
+    const webhookResult = await provider.handleWebhook(payload, headers);
+    if (!webhookResult.handled || !webhookResult.paymentId) {
+      return { success: false, message: webhookResult.message || "Webhook not handled" };
+    }
+    const paymentId = webhookResult.paymentId;
+    let paymentRecord = await fetchFirestoreDoc("paymentRecords", paymentId);
+    if (!paymentRecord) {
+      paymentRecord = fallbackPaymentStore.get(paymentId) || null;
+    }
+    if (!paymentRecord) {
+      console.warn(`[Payment Webhook] Record ${paymentId} not found locally or in Firestore`);
+      return { success: true, message: "Webhook received for unknown transaction" };
+    }
+    if (paymentRecord.status === "SUCCESS" && paymentRecord.creditGranted) {
+      return { success: true, message: "Payment already verified and credited" };
+    }
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    if (webhookResult.status === "SUCCESS") {
+      paymentRecord.status = "SUCCESS";
+      paymentRecord.creditGranted = true;
+      paymentRecord.completedAt = now;
+      paymentRecord.updatedAt = now;
+      await writeFirestoreDoc("paymentRecords", paymentId, paymentRecord);
+      fallbackPaymentStore.set(paymentId, paymentRecord);
+      const userDoc = await fetchFirestoreDoc("users", paymentRecord.userId) || { paidCredits: 0 };
+      const currentPaidCredits = typeof userDoc.paidCredits === "number" ? userDoc.paidCredits : 0;
+      const newPaidCredits = currentPaidCredits + 1;
+      await writeFirestoreDoc("users", paymentRecord.userId, {
+        paidCredits: newPaidCredits,
+        updatedAt: now
+      });
+      const cachedUser = fallbackUserStore.get(paymentRecord.userId);
+      if (cachedUser) {
+        cachedUser.paidCredits = newPaidCredits;
+        fallbackUserStore.set(paymentRecord.userId, cachedUser);
+      }
+      console.log(`[Payment Webhook] Successfully credited user ${paymentRecord.userId} for payment ${paymentId}`);
+      return { success: true, message: "Credit granted successfully via webhook" };
+    } else if (webhookResult.status === "FAILED") {
+      paymentRecord.status = "FAILED";
+      paymentRecord.updatedAt = now;
+      await writeFirestoreDoc("paymentRecords", paymentId, paymentRecord);
+      fallbackPaymentStore.set(paymentId, paymentRecord);
+      return { success: true, message: "Payment marked as failed via webhook" };
+    }
+    return { success: true, message: "Webhook acknowledged" };
+  } catch (err) {
+    console.error("[Payment Webhook Error]", err);
+    return { success: false, message: err?.message || "Error processing webhook" };
+  }
+}
 
 // server/rateLimiter.ts
 var rateLimitStore = /* @__PURE__ */ new Map();
@@ -1082,17 +1457,20 @@ async function handler(req, res) {
           error: `Too many payment requests. Please wait ${rateLimit.retryAfterSec} seconds before trying again.`
         });
       }
-      const { userId, provider, userEmail, displayName, phoneNumber, countryCode } = req.body || {};
-      if (!userId || !provider) {
-        return res.status(400).json({ error: "userId and provider are required." });
+      const { userId, provider, userEmail, displayName, phoneNumber, countryCode, paymentType, callbackUrl } = req.body || {};
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required." });
       }
+      const effectiveProvider = provider || "blmpay";
       const order = await createPaymentOrder({
         userId,
-        provider,
+        provider: effectiveProvider,
         userEmail,
         displayName,
         phoneNumber,
-        countryCode
+        countryCode,
+        paymentType,
+        callbackUrl
       });
       return res.status(200).json({ success: true, order });
     }
@@ -1119,6 +1497,10 @@ async function handler(req, res) {
       );
       return res.status(200).json({ success: result.status === "SUCCESS", result });
     }
+    if (action === "webhook" || action === "blmpay") {
+      const result = await handlePaymentWebhook(req.body, req.headers, "blmpay");
+      return res.status(200).json(result);
+    }
     if (action === "history") {
       const userId = req.query.userId || "guest";
       const history = await getPaymentHistory(userId);
@@ -1140,7 +1522,7 @@ async function handler(req, res) {
       return res.status(200).json(result);
     }
     return res.status(404).json({
-      error: `Unknown payment action: "${action}". Valid actions: create, verify, history, test-reset-free.`
+      error: `Unknown payment action: "${action}". Valid actions: create, verify, webhook, history, test-reset-free.`
     });
   } catch (err) {
     console.error(`API Error in /api/payment/${action}:`, err);

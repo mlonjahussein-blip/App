@@ -1,4 +1,4 @@
-export type PaymentProviderType = 'malipopay' | 'pesapal' | 'paypal' | 'google_pay' | 'apple_pay';
+export type PaymentProviderType = 'blmpay' | 'malipopay' | 'pesapal' | 'paypal' | 'google_pay' | 'apple_pay';
 
 export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
 
@@ -49,6 +49,7 @@ export interface CreatePaymentParams {
   productType: PaymentProductType;
   isTestMode: boolean;
   callbackUrl?: string;
+  paymentType?: 'mobile' | 'card' | 'dynamic-qr' | string;
 }
 
 export interface CreatePaymentResult {

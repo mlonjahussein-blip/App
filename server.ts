@@ -10,7 +10,8 @@ import {
   createPaymentOrder,
   verifyAndCompletePayment,
   getPaymentHistory,
-  resetUserFreeAnalysisForTesting
+  resetUserFreeAnalysisForTesting,
+  handlePaymentWebhook
 } from './server/payment/paymentService.ts';
 import { getPaymentConfig } from './server/payment/config.ts';
 
@@ -549,24 +550,40 @@ app.get('/api/user/usage-status', async (req, res) => {
 // Create Payment Order Intent endpoint
 app.post('/api/payment/create', async (req, res) => {
   try {
-    const { userId, provider, userEmail, displayName, phoneNumber, countryCode } = req.body || {};
-    if (!userId || !provider) {
-      return res.status(400).json({ error: 'userId and provider are required.' });
+    const { userId, provider, userEmail, displayName, phoneNumber, countryCode, paymentType, callbackUrl } = req.body || {};
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required.' });
     }
+
+    const effectiveProvider = provider || 'blmpay';
 
     const order = await createPaymentOrder({
       userId,
-      provider,
+      provider: effectiveProvider,
       userEmail,
       displayName,
       phoneNumber,
-      countryCode
+      countryCode,
+      paymentType,
+      callbackUrl
     });
 
     res.json({ success: true, order });
   } catch (err: any) {
     console.error('Error in /api/payment/create:', err);
     res.status(500).json({ success: false, error: err?.message || 'Failed to create payment order' });
+  }
+});
+
+// BLM Pay / Universal Payment Webhook endpoint
+app.post(['/api/payment/webhook/blmpay', '/api/payment/webhook'], async (req, res) => {
+  try {
+    console.log('[Payment Webhook Received]', req.path, JSON.stringify(req.body));
+    const result = await handlePaymentWebhook(req.body, req.headers, 'blmpay');
+    res.json(result);
+  } catch (err: any) {
+    console.error('[Payment Webhook Error in Route]', err);
+    res.status(500).json({ success: false, error: err?.message || 'Internal webhook error' });
   }
 });
 

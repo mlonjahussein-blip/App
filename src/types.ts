@@ -461,7 +461,7 @@ export interface AnalyzeSquadRequestPayload {
   analysisMode?: 'guided_tactics' | 'auto_tactics_23';
 }
 
-export type PaymentProviderType = 'malipopay' | 'pesapal' | 'paypal' | 'google_pay' | 'apple_pay';
+export type PaymentProviderType = 'blmpay' | 'malipopay' | 'pesapal' | 'paypal' | 'google_pay' | 'apple_pay';
 
 export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
 

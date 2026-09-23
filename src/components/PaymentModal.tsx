@@ -309,11 +309,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
-          provider: 'malipopay',
+          provider: 'blmpay',
           userEmail: email.trim(),
           displayName: fullName.trim(),
           phoneNumber: fullPhoneNumber,
-          countryCode: isoCountry
+          countryCode: isoCountry,
+          paymentType: selectedOption === 'card' ? 'card' : 'mobile'
         })
       });
 
@@ -336,7 +337,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setActivePaymentId(order.paymentId);
       setProviderTxId(order.providerTransactionId);
 
-      // Open MalipoPay Checkout if URL returned
+      // Open BLM Pay Checkout if URL returned
       if (order.checkoutUrl) {
         setCheckoutUrl(order.checkoutUrl);
         // Attempt to open in a secure new window (gracefully catch if blocked by popup blocker)
@@ -442,8 +443,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     const record: PaymentRecord = {
       id: paymentId,
       userId,
-      provider: 'malipopay',
-      providerTransactionId: result.providerTransactionId || transactionId || 'MALIPOPAY-CONFIRMED',
+      provider: 'blmpay',
+      providerTransactionId: result.providerTransactionId || transactionId || 'BLMPAY-CONFIRMED',
       productType: 'single_analysis',
       amount: result.amount ?? 2.00,
       currency: result.currency || 'USD',

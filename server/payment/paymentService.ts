@@ -298,6 +298,7 @@ export async function createPaymentOrder(params: {
   phoneNumber?: string;
   countryCode?: string;
   callbackUrl?: string;
+  paymentType?: 'mobile' | 'card' | string;
 }): Promise<CreatePaymentResult> {
   const config = getPaymentConfig();
   const cleanUid = (params.userId || 'guest').trim();
@@ -313,7 +314,8 @@ export async function createPaymentOrder(params: {
     currency: config.currency,
     productType: 'single_analysis',
     isTestMode: config.isTestMode,
-    callbackUrl: params.callbackUrl
+    callbackUrl: params.callbackUrl,
+    paymentType: params.paymentType
   });
 
   const now = new Date().toISOString();
@@ -529,3 +531,80 @@ export async function resetUserFreeAnalysisForTesting(userId: string): Promise<{
     message: 'Free weekly analysis successfully reset for testing.'
   };
 }
+
+/**
+ * Handle incoming payment webhook (e.g. from BLM Pay)
+ */
+export async function handlePaymentWebhook(
+  payload: any,
+  headers?: Record<string, any>,
+  providerType: PaymentProviderType = 'blmpay'
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const provider = getPaymentProvider(providerType);
+    const webhookResult = await provider.handleWebhook(payload, headers);
+
+    if (!webhookResult.handled || !webhookResult.paymentId) {
+      return { success: false, message: webhookResult.message || 'Webhook not handled' };
+    }
+
+    const paymentId = webhookResult.paymentId;
+    let paymentRecord: PaymentRecord | null = await fetchFirestoreDoc('paymentRecords', paymentId);
+    if (!paymentRecord) {
+      paymentRecord = fallbackPaymentStore.get(paymentId) || null;
+    }
+
+    if (!paymentRecord) {
+      console.warn(`[Payment Webhook] Record ${paymentId} not found locally or in Firestore`);
+      return { success: true, message: 'Webhook received for unknown transaction' };
+    }
+
+    // Idempotent: If already granted, ignore
+    if (paymentRecord.status === 'SUCCESS' && paymentRecord.creditGranted) {
+      return { success: true, message: 'Payment already verified and credited' };
+    }
+
+    const now = new Date().toISOString();
+
+    if (webhookResult.status === 'SUCCESS') {
+      paymentRecord.status = 'SUCCESS';
+      paymentRecord.creditGranted = true;
+      paymentRecord.completedAt = now;
+      paymentRecord.updatedAt = now;
+
+      await writeFirestoreDoc('paymentRecords', paymentId, paymentRecord);
+      fallbackPaymentStore.set(paymentId, paymentRecord);
+
+      // Grant 1 credit to user
+      const userDoc = (await fetchFirestoreDoc('users', paymentRecord.userId)) || { paidCredits: 0 };
+      const currentPaidCredits = typeof userDoc.paidCredits === 'number' ? userDoc.paidCredits : 0;
+      const newPaidCredits = currentPaidCredits + 1;
+
+      await writeFirestoreDoc('users', paymentRecord.userId, {
+        paidCredits: newPaidCredits,
+        updatedAt: now
+      });
+
+      const cachedUser = fallbackUserStore.get(paymentRecord.userId);
+      if (cachedUser) {
+        cachedUser.paidCredits = newPaidCredits;
+        fallbackUserStore.set(paymentRecord.userId, cachedUser);
+      }
+
+      console.log(`[Payment Webhook] Successfully credited user ${paymentRecord.userId} for payment ${paymentId}`);
+      return { success: true, message: 'Credit granted successfully via webhook' };
+    } else if (webhookResult.status === 'FAILED') {
+      paymentRecord.status = 'FAILED';
+      paymentRecord.updatedAt = now;
+      await writeFirestoreDoc('paymentRecords', paymentId, paymentRecord);
+      fallbackPaymentStore.set(paymentId, paymentRecord);
+      return { success: true, message: 'Payment marked as failed via webhook' };
+    }
+
+    return { success: true, message: 'Webhook acknowledged' };
+  } catch (err: any) {
+    console.error('[Payment Webhook Error]', err);
+    return { success: false, message: err?.message || 'Error processing webhook' };
+  }
+}
+

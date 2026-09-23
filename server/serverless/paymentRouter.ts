@@ -3,7 +3,8 @@ import {
   createPaymentOrder,
   verifyAndCompletePayment,
   getPaymentHistory,
-  resetUserFreeAnalysisForTesting
+  resetUserFreeAnalysisForTesting,
+  handlePaymentWebhook
 } from '../payment/paymentService.ts';
 import { getPaymentConfig } from '../payment/config.ts';
 import { applySecurityHeaders, checkRateLimit, getClientIp } from '../rateLimiter.ts';
@@ -47,17 +48,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
-      const { userId, provider, userEmail, displayName, phoneNumber, countryCode } = req.body || {};
-      if (!userId || !provider) {
-        return res.status(400).json({ error: 'userId and provider are required.' });
+      const { userId, provider, userEmail, displayName, phoneNumber, countryCode, paymentType, callbackUrl } = req.body || {};
+      if (!userId) {
+        return res.status(400).json({ error: 'userId is required.' });
       }
+      const effectiveProvider = provider || 'blmpay';
       const order = await createPaymentOrder({
         userId,
-        provider,
+        provider: effectiveProvider,
         userEmail,
         displayName,
         phoneNumber,
-        countryCode
+        countryCode,
+        paymentType,
+        callbackUrl
       });
       return res.status(200).json({ success: true, order });
     }
@@ -93,14 +97,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ success: result.status === 'SUCCESS', result });
     }
 
-    // 3. /api/payment/history
+    // 3. /api/payment/webhook or /api/payment/webhook/blmpay
+    if (action === 'webhook' || action === 'blmpay') {
+      const result = await handlePaymentWebhook(req.body, req.headers, 'blmpay');
+      return res.status(200).json(result);
+    }
+
+    // 4. /api/payment/history
     if (action === 'history') {
       const userId = (req.query.userId as string) || 'guest';
       const history = await getPaymentHistory(userId);
       return res.status(200).json({ success: true, history });
     }
 
-    // 4. /api/payment/test-reset-free
+    // 5. /api/payment/test-reset-free
     if (action === 'test-reset-free') {
       if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed. Use POST.' });
@@ -118,7 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     return res.status(404).json({
-      error: `Unknown payment action: "${action}". Valid actions: create, verify, history, test-reset-free.`
+      error: `Unknown payment action: "${action}". Valid actions: create, verify, webhook, history, test-reset-free.`
     });
   } catch (err: any) {
     console.error(`API Error in /api/payment/${action}:`, err);

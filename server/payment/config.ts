@@ -7,7 +7,13 @@ export interface PaymentConfiguration {
   priceDisplay: string;
   currency: string;
   freeAnalysisIntervalDays: number;
-  provider: 'malipopay' | 'pesapal' | 'paypal';
+  provider: 'blmpay' | 'malipopay' | 'pesapal' | 'paypal';
+  blmpay: {
+    publicKey: string;
+    secretKey: string;
+    origin: string;
+    environment: 'live' | 'test';
+  };
   malipopay: {
     publicKey: string;
     secretKey: string;
@@ -51,7 +57,13 @@ export function getPaymentConfig(): PaymentConfiguration {
     priceDisplay,
     currency: 'USD',
     freeAnalysisIntervalDays: 7,
-    provider: (process.env.PAYMENT_PROVIDER || 'malipopay') as 'malipopay' | 'pesapal' | 'paypal',
+    provider: (process.env.PAYMENT_PROVIDER || 'blmpay') as 'blmpay' | 'malipopay' | 'pesapal' | 'paypal',
+    blmpay: {
+      publicKey: process.env.BLMPAY_PUBLIC_KEY || 'bp_live_c06dddb0b353223085ae811aeae70e673c6aec62c56fbe1f',
+      secretKey: process.env.BLMPAY_SECRET_KEY || 'bps_68a84891d2d7b8adc54e5ca2507694510d871796b53416beba5014b56b0cf5f6',
+      origin: process.env.BLMPAY_ORIGIN || 'https://efootballaihub.com',
+      environment: 'live'
+    },
     malipopay: {
       publicKey: process.env.MALIPOPAY_PUBLIC_KEY || 'mp_pk_prod_U2FsdGVkX1+YKKoh3c0/MxJJfpnufy27iWhae5ffwgGFLDe9AFYzwjZauhtPL/y4',
       secretKey: process.env.MALIPOPAY_SECRET_KEY || 'mp_sk_prod_U2FsdGVkX1+OPk3ZqFss+vQkL7tzuKbYmoBVs767oDTIPtu/AF0ngWNLIKPw1i/mGfm4FF+aji0Cdw5Yele8j+DWA3wEBdvOTC80OX7hnBPR20nEdBaL+QkRAPNJGv3x1PgqKbNk5ghMtXB6vVQQINgDsPfKvlapFH325bpFvCE=',
