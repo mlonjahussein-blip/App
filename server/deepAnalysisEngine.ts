@@ -30,6 +30,8 @@ export interface TypedPlayerInput {
   id: string;
   name: string;
   position: string;
+  secondaryPositions?: string[];
+  playablePositions?: string[];
   rating: number;
   team?: string;
   role?: 'starting_xi' | 'substitute';
@@ -468,6 +470,9 @@ export function crosscheckAndAuditSquadDetails(payload: AnalyzeSquadPayload): Sq
       id: raw.id || `verified_${idx + 1}`,
       name: matched ? matched.commonName : rawName,
       position,
+      registeredPosition: position,
+      secondaryPositions: Array.isArray(raw.secondaryPositions) ? raw.secondaryPositions : (matched?.secondaryPositions || []),
+      playablePositions: Array.isArray(raw.playablePositions) ? raw.playablePositions : [position, ...(raw.secondaryPositions || matched?.secondaryPositions || [])],
       rating,
       playstyle: playerPlaystyle,
       confidence: 'High',
@@ -845,14 +850,21 @@ export function reEvaluateAndErrorProofResult(
     const candidate = findVerified(raw.name, raw.position);
     if (candidate) {
       assignedPlayerIds.add(candidate.id);
+      const candidatePos = (candidate.position || candidate.registeredPosition || 'CMF').toUpperCase();
+      const secondaries = (candidate.secondaryPositions || []).map(s => s.toUpperCase());
+      const rawPos = (raw.position || '').toUpperCase();
+      const finalPos = (rawPos === candidatePos || secondaries.includes(rawPos)) ? rawPos : candidatePos;
+
       resolvedBestXI.push({
         ...candidate,
         rating: Math.max(candidate.rating, Number(raw.rating) || candidate.rating),
-        position: raw.position || candidate.position,
+        position: finalPos,
+        registeredPosition: candidatePos,
+        secondaryPositions: candidate.secondaryPositions,
         playstyle: raw.playstyle || candidate.playstyle,
         pitchX: typeof raw.pitchX === 'number' ? raw.pitchX : 50,
         pitchY: typeof raw.pitchY === 'number' ? raw.pitchY : 50,
-        selectionReason: raw.selectionReason || `${candidate.name} is selected as primary ${candidate.position} for high synergy in ${playstyle}.`
+        selectionReason: raw.selectionReason || `${candidate.name} is selected as primary ${finalPos} for high synergy in ${playstyle}.`
       });
     }
   }

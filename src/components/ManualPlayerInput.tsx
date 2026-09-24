@@ -102,6 +102,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   // Pure 23 Squad Form State (Mode 2)
   const [squadPlayerName, setSquadPlayerName] = useState('');
   const [squadPlayerPos, setSquadPlayerPos] = useState('CF');
+  const [squadSecondaryPositions, setSquadSecondaryPositions] = useState<string[]>([]);
   const [squadPlayerCardType, setSquadPlayerCardType] = useState('Highlight');
   const [squadPlayerPlaystyle, setSquadPlayerPlaystyle] = useState('Goal Poacher');
   const [squadPlayerRating, setSquadPlayerRating] = useState<number | string>(95);
@@ -111,6 +112,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   // Starting XI Form State (Mode 1)
   const [xiName, setXiName] = useState('');
   const [xiPos, setXiPos] = useState('CF');
+  const [xiSecondaryPositions, setXiSecondaryPositions] = useState<string[]>([]);
   const [xiCardType, setXiCardType] = useState('Highlight');
   const [xiPlaystyle, setXiPlaystyle] = useState('Goal Poacher');
   const [xiRating, setXiRating] = useState<number | string>(95);
@@ -120,11 +122,15 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   // Substitute Form State (Mode 1)
   const [subName, setSubName] = useState('');
   const [subPos, setSubPos] = useState('CF');
+  const [subSecondaryPositions, setSubSecondaryPositions] = useState<string[]>([]);
   const [subCardType, setSubCardType] = useState('Highlight');
   const [subPlaystyle, setSubPlaystyle] = useState('Goal Poacher');
   const [subRating, setSubRating] = useState<number | string>(92);
   const [subTeam, setSubTeam] = useState('');
   const [subLiveUpdate, setSubLiveUpdate] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('C');
+
+  // Quick Inline Editing State
+  const [editingSecondaryForId, setEditingSecondaryForId] = useState<string | null>(null);
 
   const liveUpdateOptions = ['A', 'B', 'C', 'D', 'E'] as const;
 
@@ -165,6 +171,8 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       id: 'sq_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
       name: squadPlayerName.trim(),
       position: squadPlayerPos,
+      secondaryPositions: squadSecondaryPositions.length > 0 ? squadSecondaryPositions : undefined,
+      playablePositions: [squadPlayerPos, ...squadSecondaryPositions],
       cardType: squadPlayerCardType,
       playstyle: squadPlayerPlaystyle,
       rating: Math.min(110, Math.max(20, Number(squadPlayerRating) || 90)),
@@ -176,6 +184,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     onChange([...typedPlayers, newPlayer]);
     setSquadPlayerName('');
     setSquadPlayerTeam('');
+    setSquadSecondaryPositions([]);
     setSquadPlayerLiveUpdate('C');
   };
 
@@ -188,6 +197,8 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       id: 'xi_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
       name: xiName.trim(),
       position: xiPos,
+      secondaryPositions: xiSecondaryPositions.length > 0 ? xiSecondaryPositions : undefined,
+      playablePositions: [xiPos, ...xiSecondaryPositions],
       cardType: xiCardType,
       playstyle: xiPlaystyle,
       rating: Math.min(110, Math.max(20, Number(xiRating) || 90)),
@@ -199,6 +210,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     onChange([...typedPlayers, newPlayer]);
     setXiName('');
     setXiTeam('');
+    setXiSecondaryPositions([]);
     setXiLiveUpdate('C');
   };
 
@@ -211,6 +223,8 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       id: 'sub_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
       name: subName.trim(),
       position: subPos,
+      secondaryPositions: subSecondaryPositions.length > 0 ? subSecondaryPositions : undefined,
+      playablePositions: [subPos, ...subSecondaryPositions],
       cardType: subCardType,
       playstyle: subPlaystyle,
       rating: Math.min(110, Math.max(20, Number(subRating) || 90)),
@@ -222,7 +236,16 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     onChange([...typedPlayers, newPlayer]);
     setSubName('');
     setSubTeam('');
+    setSubSecondaryPositions([]);
     setSubLiveUpdate('C');
+  };
+
+  const updatePlayerSecondaryPositions = (id: string, newSecondaries: string[]) => {
+    onChange(typedPlayers.map(p => p.id === id ? {
+      ...p,
+      secondaryPositions: newSecondaries,
+      playablePositions: [p.position, ...newSecondaries]
+    } : p));
   };
 
   const removePlayer = (id: string) => {
@@ -330,6 +353,118 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     if (lower.includes('big time') || lower.includes('legendary')) return 'text-purple-300 border-purple-500/40 bg-purple-950/40';
     if (lower.includes('highlight') || lower.includes('featured')) return 'text-blue-300 border-blue-500/40 bg-blue-950/40';
     return 'text-neutral-400 border-neutral-700 bg-neutral-900';
+  };
+
+  const renderPlayerSecondaryPosFooter = (player: TypedPlayerInput) => {
+    const isEditing = editingSecondaryForId === player.id;
+    const secondaries = player.secondaryPositions || [];
+
+    return (
+      <div className="pt-1.5 border-t border-neutral-800/60 space-y-1">
+        <div className="flex items-center justify-between text-[10px]">
+          <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+            <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-wider shrink-0">
+              Alt Pos:
+            </span>
+            {secondaries.length > 0 ? (
+              secondaries.map(sp => (
+                <span key={sp} className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                  {sp}
+                </span>
+              ))
+            ) : (
+              <span className="text-[9px] text-neutral-600 italic shrink-0">None</span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditingSecondaryForId(isEditing ? null : player.id)}
+            className="text-[9px] font-bold text-neutral-400 hover:text-emerald-400 bg-neutral-950 px-1.5 py-0.5 rounded border border-neutral-800 hover:border-emerald-500/40 transition-colors shrink-0 ml-1"
+          >
+            {isEditing ? 'Done' : '+ Alt Pos'}
+          </button>
+        </div>
+
+        {isEditing && (
+          <div className="p-2 bg-neutral-950 rounded-xl border border-emerald-500/30 space-y-1 mt-1">
+            <span className="text-[9px] font-bold text-emerald-400 block">Select alternate positions for {player.name}:</span>
+            <div className="flex flex-wrap gap-1">
+              {positions.filter(p => p !== player.position).map(p => {
+                const isSel = secondaries.includes(p);
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      const updated = isSel ? secondaries.filter(x => x !== p) : [...secondaries, p];
+                      updatePlayerSecondaryPositions(player.id, updated);
+                    }}
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${
+                      isSel
+                        ? 'bg-emerald-500 text-neutral-950 font-black border-emerald-400'
+                        : 'bg-neutral-900 text-neutral-400 hover:text-white border-neutral-800'
+                    }`}
+                  >
+                    {isSel ? `✓ ${p}` : `+ ${p}`}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderSecondaryPosSelector = (
+    primaryPos: string,
+    selectedSecondaries: string[],
+    setSelectedSecondaries: (pos: string[]) => void,
+    accentColor: 'emerald' | 'cyan' = 'emerald'
+  ) => {
+    const activeClass = accentColor === 'emerald'
+      ? 'bg-emerald-500 text-neutral-950 font-black border-emerald-400'
+      : 'bg-cyan-500 text-neutral-950 font-black border-cyan-400';
+
+    return (
+      <div className="space-y-1.5 pt-1.5 col-span-full">
+        <div className="flex items-center justify-between">
+          <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
+            Secondary / Alternate Playable Positions <span className="text-neutral-500 font-normal lowercase">(optional)</span>
+          </label>
+          {selectedSecondaries.length > 0 && (
+            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${accentColor === 'emerald' ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' : 'text-cyan-400 bg-cyan-500/10 border border-cyan-500/20'}`}>
+              {selectedSecondaries.length} selected ({selectedSecondaries.join(', ')})
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-1 bg-neutral-950 p-2 rounded-xl border border-neutral-800">
+          {positions.filter(p => p !== primaryPos).map(p => {
+            const isSelected = selectedSecondaries.includes(p);
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => {
+                  if (isSelected) {
+                    setSelectedSecondaries(selectedSecondaries.filter(x => x !== p));
+                  } else {
+                    setSelectedSecondaries([...selectedSecondaries, p]);
+                  }
+                }}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-all border ${
+                  isSelected
+                    ? activeClass
+                    : 'bg-neutral-900 text-neutral-400 hover:text-white border-neutral-800 hover:border-neutral-700'
+                }`}
+              >
+                {isSelected ? `✓ ${p}` : `+ ${p}`}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -485,6 +620,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
               </div>
             </div>
 
+            {/* Secondary Positions Selector */}
+            {renderSecondaryPosSelector(squadPlayerPos, squadSecondaryPositions, setSquadSecondaryPositions, 'emerald')}
+
           </div>
 
           {/* Add Player Button */}
@@ -622,6 +760,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                   className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
                 />
               </div>
+
+              {/* Secondary Positions Selector */}
+              {renderSecondaryPosSelector(xiPos, xiSecondaryPositions, setXiSecondaryPositions, 'emerald')}
             </div>
 
             <button
@@ -753,6 +894,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                   className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-cyan-500"
                 />
               </div>
+
+              {/* Secondary Positions Selector */}
+              {renderSecondaryPosSelector(subPos, subSecondaryPositions, setSubSecondaryPositions, 'cyan')}
             </div>
 
             <button
@@ -955,6 +1099,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                           ))}
                         </select>
                       </div>
+
+                      {/* Alternate Positions Badge & Quick Editor */}
+                      {renderPlayerSecondaryPosFooter(player)}
                     </div>
                   ))}
                 </div>
@@ -1089,6 +1236,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                               ))}
                             </select>
                           </div>
+
+                          {/* Alternate Positions Badge & Quick Editor */}
+                          {renderPlayerSecondaryPosFooter(player)}
                         </div>
                       ))}
                     </div>
@@ -1223,6 +1373,9 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                               ))}
                             </select>
                           </div>
+
+                          {/* Alternate Positions Badge & Quick Editor */}
+                          {renderPlayerSecondaryPosFooter(player)}
                         </div>
                       ))}
                     </div>

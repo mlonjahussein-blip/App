@@ -210,6 +210,8 @@ export interface TypedPlayerInput {
   id: string;
   name: string;
   position: string;
+  secondaryPositions?: string[];
+  playablePositions?: string[];
   rating: number;
   team?: string;
   role?: 'starting_xi' | 'substitute';

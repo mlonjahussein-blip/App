@@ -1939,10 +1939,20 @@ function calculatePlayerSlotSuitability(player, slot) {
     if (slotPos === "CB") return 110;
     return -1e3;
   }
+  const isAttacker = ["CF", "SS", "LWF", "RWF"].includes(primaryPos) || ["CF", "SS", "LWF", "RWF"].includes(registeredPos);
+  const isDefender = ["CB", "LB", "RB", "LWB", "RWB", "GK"].includes(primaryPos) || ["CB", "LB", "RB", "LWB", "RWB", "GK"].includes(registeredPos);
+  const isSlotDefender = ["CB", "LB", "RB", "LWB", "RWB", "GK"].includes(slotPos);
+  const isSlotAttacker = ["CF", "SS", "LWF", "RWF"].includes(slotPos);
+  if (isAttacker && isSlotDefender && !secondaryPositions.includes(slotPos)) {
+    return -1e5;
+  }
+  if (isDefender && isSlotAttacker && !secondaryPositions.includes(slotPos)) {
+    return -1e5;
+  }
   if (registeredPos === slotPos || primaryPos === slotPos) {
-    score = 200 + (Number(player.rating) || 90);
+    score = 250 + (Number(player.rating) || 90);
   } else if (secondaryPositions.includes(slotPos)) {
-    score = 170 + (Number(player.rating) || 90);
+    score = 210 + (Number(player.rating) || 90);
   } else {
     switch (slotPos) {
       case "CF":
@@ -2202,10 +2212,15 @@ function solveOptimalLineupPlacement(formation, candidatePlayers) {
     if (playerIdx >= 0 && playerIdx < outfieldCandidates.length) {
       usedPlayerIndices.add(playerIdx);
       const player = outfieldCandidates[playerIdx];
+      const enteredPos = (player.position || player.registeredPosition || "CMF").toUpperCase();
+      const secondaries = (player.secondaryPositions || []).map((s) => s.toUpperCase());
+      const displayPos = enteredPos === slot.pos || secondaries.includes(slot.pos) ? slot.pos : enteredPos;
       assignedOutfield.push({
         ...player,
-        position: slot.pos,
-        // Explicitly shows authentic slot role (e.g. LWF, AMF, CF, CMF, DMF)
+        position: displayPos,
+        // Preserves user's entered position (e.g. CF stays CF)
+        registeredPosition: enteredPos,
+        secondaryPositions: player.secondaryPositions,
         pitchX: slot.x,
         pitchY: slot.y,
         selectionReason: buildAuthenticSelectionReason(player, slot, formation),
@@ -2812,6 +2827,9 @@ function crosscheckAndAuditSquadDetails(payload) {
       id: raw.id || `verified_${idx + 1}`,
       name: matched ? matched.commonName : rawName,
       position,
+      registeredPosition: position,
+      secondaryPositions: Array.isArray(raw.secondaryPositions) ? raw.secondaryPositions : matched?.secondaryPositions || [],
+      playablePositions: Array.isArray(raw.playablePositions) ? raw.playablePositions : [position, ...raw.secondaryPositions || matched?.secondaryPositions || []],
       rating,
       playstyle: playerPlaystyle,
       confidence: "High",
@@ -3152,14 +3170,20 @@ function reEvaluateAndErrorProofResult(rawResult, audit, payload) {
     const candidate = findVerified(raw.name, raw.position);
     if (candidate) {
       assignedPlayerIds.add(candidate.id);
+      const candidatePos = (candidate.position || candidate.registeredPosition || "CMF").toUpperCase();
+      const secondaries = (candidate.secondaryPositions || []).map((s) => s.toUpperCase());
+      const rawPos = (raw.position || "").toUpperCase();
+      const finalPos = rawPos === candidatePos || secondaries.includes(rawPos) ? rawPos : candidatePos;
       resolvedBestXI.push({
         ...candidate,
         rating: Math.max(candidate.rating, Number(raw.rating) || candidate.rating),
-        position: raw.position || candidate.position,
+        position: finalPos,
+        registeredPosition: candidatePos,
+        secondaryPositions: candidate.secondaryPositions,
         playstyle: raw.playstyle || candidate.playstyle,
         pitchX: typeof raw.pitchX === "number" ? raw.pitchX : 50,
         pitchY: typeof raw.pitchY === "number" ? raw.pitchY : 50,
-        selectionReason: raw.selectionReason || `${candidate.name} is selected as primary ${candidate.position} for high synergy in ${playstyle}.`
+        selectionReason: raw.selectionReason || `${candidate.name} is selected as primary ${finalPos} for high synergy in ${playstyle}.`
       });
     }
   }

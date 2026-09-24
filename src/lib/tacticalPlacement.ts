@@ -480,10 +480,23 @@ export function calculatePlayerSlotSuitability(player: PlayerData, slot: Tactica
   }
 
   // 3. GENERIC POSITION-AFFINITY MATRIX
+  const isAttacker = ['CF', 'SS', 'LWF', 'RWF'].includes(primaryPos) || ['CF', 'SS', 'LWF', 'RWF'].includes(registeredPos);
+  const isDefender = ['CB', 'LB', 'RB', 'LWB', 'RWB', 'GK'].includes(primaryPos) || ['CB', 'LB', 'RB', 'LWB', 'RWB', 'GK'].includes(registeredPos);
+  const isSlotDefender = ['CB', 'LB', 'RB', 'LWB', 'RWB', 'GK'].includes(slotPos);
+  const isSlotAttacker = ['CF', 'SS', 'LWF', 'RWF'].includes(slotPos);
+
+  // Strictly forbid placing attackers in defense or defenders in attack unless user explicitly set as secondary position
+  if (isAttacker && isSlotDefender && !secondaryPositions.includes(slotPos)) {
+    return -100000;
+  }
+  if (isDefender && isSlotAttacker && !secondaryPositions.includes(slotPos)) {
+    return -100000;
+  }
+
   if (registeredPos === slotPos || primaryPos === slotPos) {
-    score = 200 + (Number(player.rating) || 90);
+    score = 250 + (Number(player.rating) || 90);
   } else if (secondaryPositions.includes(slotPos)) {
-    score = 170 + (Number(player.rating) || 90);
+    score = 210 + (Number(player.rating) || 90);
   } else {
     // Cross-category positional compatibilities
     switch (slotPos) {
@@ -836,10 +849,18 @@ export function solveOptimalLineupPlacement(
       usedPlayerIndices.add(playerIdx);
       const player = outfieldCandidates[playerIdx];
 
-      // Deployed position badge on pitch: matches tactical slot role
+      const enteredPos = (player.position || player.registeredPosition || 'CMF').toUpperCase();
+      const secondaries = (player.secondaryPositions || []).map(s => s.toUpperCase());
+      // Keep user's entered position, or if slot matches a secondary position, use slot.pos
+      const displayPos = (enteredPos === slot.pos || secondaries.includes(slot.pos))
+        ? slot.pos
+        : enteredPos;
+
       assignedOutfield.push({
         ...player,
-        position: slot.pos, // Explicitly shows authentic slot role (e.g. LWF, AMF, CF, CMF, DMF)
+        position: displayPos, // Preserves user's entered position (e.g. CF stays CF)
+        registeredPosition: enteredPos,
+        secondaryPositions: player.secondaryPositions,
         pitchX: slot.x,
         pitchY: slot.y,
         selectionReason: buildAuthenticSelectionReason(player, slot, formation),

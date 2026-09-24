@@ -23,6 +23,8 @@ export interface PlayerData {
   id: string;
   name: string;
   position: string; // e.g. CF, SS, LWF, RWF, AMF, CMF, DMF, LB, RB, CB, GK
+  secondaryPositions?: string[]; // Secondary / playable positions (e.g. ['SS', 'LWF'])
+  playablePositions?: string[]; // All playable positions [primary, ...secondary]
   rating: number;
   playstyle?: string; // e.g. Goal Poacher, Hole Player, Anchor Man, Build Up, Offensive Fullback
   confidence: 'High' | 'Medium' | 'Low' | 'Uncertain identification';
@@ -533,6 +535,8 @@ export interface TypedPlayerInput {
   id: string;
   name: string;
   position: string;
+  secondaryPositions?: string[];
+  playablePositions?: string[];
   rating: number | string;
   cardType?: string;
   playstyle?: string;

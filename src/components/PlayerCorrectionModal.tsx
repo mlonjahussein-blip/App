@@ -80,6 +80,7 @@ export const PlayerCorrectionModal: React.FC<PlayerCorrectionModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [name, setName] = useState(player?.name ? player.name.replace(/^Unidentified Player.*$/, '') : '');
   const [position, setPosition] = useState(player?.position || 'CMF');
+  const [secondaryPositions, setSecondaryPositions] = useState<string[]>(player?.secondaryPositions || []);
   const [rating, setRating] = useState(player?.rating || 90);
   const [playstyle, setPlaystyle] = useState(player?.playstyle || 'Box-to-Box');
   const [playerType, setPlayerType] = useState(player?.playerType || 'Highlight');
@@ -91,6 +92,7 @@ export const PlayerCorrectionModal: React.FC<PlayerCorrectionModalProps> = ({
     if (player) {
       setName(player.name ? player.name.replace(/^Unidentified Player.*$/, '') : '');
       setPosition(player.position || 'CMF');
+      setSecondaryPositions(player.secondaryPositions || []);
       setRating(player.rating || 90);
       setPlaystyle(player.playstyle || 'Box-to-Box');
       setPlayerType(player.playerType || 'Highlight');
@@ -115,6 +117,7 @@ export const PlayerCorrectionModal: React.FC<PlayerCorrectionModalProps> = ({
     setSelectedMasterPlayer(p);
     setName(p.commonName);
     setPosition(p.primaryPosition);
+    if (p.secondaryPositions) setSecondaryPositions(p.secondaryPositions);
     setRating(p.maxRating);
     setPlaystyle(p.playstyle);
     setPlayerType(p.cardType);
@@ -126,6 +129,8 @@ export const PlayerCorrectionModal: React.FC<PlayerCorrectionModalProps> = ({
       ...player,
       name: finalName,
       position,
+      secondaryPositions,
+      playablePositions: [position, ...secondaryPositions],
       rating: Number(rating) || 85,
       playstyle,
       playerType,
@@ -272,7 +277,7 @@ export const PlayerCorrectionModal: React.FC<PlayerCorrectionModalProps> = ({
 
           <div>
             <label className="text-xs font-bold text-neutral-300 block mb-1">
-              Position
+              Primary Position
             </label>
             <select
               value={position}
@@ -285,6 +290,35 @@ export const PlayerCorrectionModal: React.FC<PlayerCorrectionModalProps> = ({
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Secondary Positions Multi-Select */}
+          <div className="col-span-1 sm:col-span-2">
+            <label className="text-xs font-bold text-neutral-300 block mb-1">
+              Secondary / Alternate Positions
+            </label>
+            <div className="flex flex-wrap items-center gap-1.5 p-2.5 rounded-xl bg-neutral-950 border border-neutral-800">
+              {POSITIONS.filter(p => p !== position).map((p) => {
+                const isSel = secondaryPositions.includes(p);
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      if (isSel) setSecondaryPositions(secondaryPositions.filter(x => x !== p));
+                      else setSecondaryPositions([...secondaryPositions, p]);
+                    }}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all border ${
+                      isSel
+                        ? 'bg-emerald-500 text-neutral-950 font-black border-emerald-400'
+                        : 'bg-neutral-900 text-neutral-400 hover:text-white border-neutral-800'
+                    }`}
+                  >
+                    {isSel ? `✓ ${p}` : `+ ${p}`}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div>
