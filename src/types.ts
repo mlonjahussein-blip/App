@@ -333,6 +333,7 @@ export interface AnalysisResult {
   managerDetails?: ManagerInputDetails;
   coaches?: ManagerInputDetails[];
   coachComparison?: CoachComparisonItem[];
+  coachComparisonSummary?: string;
   analysisMode?: 'guided_tactics' | 'auto_tactics_23' | 'auto23' | 'guided' | 'pure23' | string;
   fluidFormations?: FluidFormationSettings;
   linkUpPlay?: LinkUpPlaySettings;

@@ -1264,7 +1264,7 @@ export function reEvaluateAndErrorProofResult(
       ? computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI, payload.managerDetails.linkedUpPlaystyle, verifiedPlayers)
       : (payload.linkUpPlay && payload.linkUpPlay.enabled)
       ? payload.linkUpPlay
-      : computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI, undefined, verifiedPlayers),
+      : undefined,
     freeOrPaidStatus: 'free',
     paymentStatus: 'free',
     analysisQuality,

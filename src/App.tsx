@@ -29,45 +29,75 @@ const VALID_TABS = ['home', 'analyzer', 'results', 'mysquad', 'reports', 'commun
 
 function AppContent() {
   const { user, profile, logout } = useAuth();
-  // Restore current tab from URL hash or localStorage so refreshing the page never kicks the user out or loses their screen
+  
+  // Initialize tab: If user has an active session, restore tab from hash/sessionStorage; otherwise go to login
   const [currentTab, setCurrentTabState] = useState<string>(() => {
     try {
       if (typeof window !== 'undefined') {
         const hash = window.location.hash.replace('#', '').trim().toLowerCase();
         if (hash && VALID_TABS.includes(hash)) return hash;
-        const saved = localStorage.getItem('ef_active_tab');
+        const saved = sessionStorage.getItem('ef_active_tab');
         if (saved && VALID_TABS.includes(saved)) return saved;
       }
     } catch {}
-    return 'home';
+    return 'login';
   });
 
-  const setCurrentTab = (newTab: string) => {
+  // Navigate between tabs with browser history tracking (supports browser back/forward buttons)
+  const setCurrentTab = (newTab: string, pushHistory = true) => {
     setCurrentTabState(newTab);
     try {
       if (VALID_TABS.includes(newTab)) {
-        localStorage.setItem('ef_active_tab', newTab);
+        sessionStorage.setItem('ef_active_tab', newTab);
         if (typeof window !== 'undefined') {
-          window.history.replaceState(null, '', `#${newTab}`);
+          const currentHash = window.location.hash.replace('#', '').trim().toLowerCase();
+          if (currentHash !== newTab) {
+            if (pushHistory) {
+              window.history.pushState({ tab: newTab }, '', `#${newTab}`);
+            } else {
+              window.history.replaceState({ tab: newTab }, '', `#${newTab}`);
+            }
+          }
         }
       }
     } catch {}
   };
 
-  // Listen for browser back / forward / hash changes
+  // Listen for browser Back / Forward buttons (popstate & hashchange)
   useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      try {
+        const hash = window.location.hash.replace('#', '').trim().toLowerCase();
+        if (hash && VALID_TABS.includes(hash)) {
+          setCurrentTabState(hash);
+          sessionStorage.setItem('ef_active_tab', hash);
+        } else if (e.state && e.state.tab && VALID_TABS.includes(e.state.tab)) {
+          setCurrentTabState(e.state.tab);
+          sessionStorage.setItem('ef_active_tab', e.state.tab);
+        } else {
+          setCurrentTabState(user ? 'home' : 'login');
+          sessionStorage.setItem('ef_active_tab', user ? 'home' : 'login');
+        }
+      } catch {}
+    };
+
     const handleHashChange = () => {
       try {
         const hash = window.location.hash.replace('#', '').trim().toLowerCase();
         if (hash && VALID_TABS.includes(hash)) {
           setCurrentTabState(hash);
-          localStorage.setItem('ef_active_tab', hash);
+          sessionStorage.setItem('ef_active_tab', hash);
         }
       } catch {}
     };
+
+    window.addEventListener('popstate', handlePopState);
     window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, [user]);
 
   const [settingsSubTab, setSettingsSubTab] = useState<'account' | 'usage' | 'payments'>('account');
   const [activeAnalysis, setActiveAnalysis] = useState<AnalysisResult | null>(null);

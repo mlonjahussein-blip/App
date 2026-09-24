@@ -7,7 +7,9 @@ import {
   signOut as fbSignOut,
   updateProfile,
   deleteUser,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  setPersistence,
+  browserSessionPersistence
 } from 'firebase/auth';
 import {
   doc,
@@ -82,11 +84,47 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Local Storage Keys
+// Session Storage Key (Tied to browser tab/session: auto-cleared when leaving the website)
 const STORAGE_SESSION_KEY = 'ef_user_session';
 const STORAGE_WHATSAPP_ACCOUNTS_KEY = 'ef_whatsapp_accounts_v1';
 const STORAGE_ACCOUNTS_V2_KEY = 'ef_auth_users_v2';
 const STORAGE_LEGACY_ACCOUNTS_KEY = 'ef_registered_accounts';
+
+export function saveActiveSession(authUser: AppAuthUser) {
+  try {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+      // Remove persistent long-term storage so leaving the website automatically signs out the user
+      localStorage.removeItem(STORAGE_SESSION_KEY);
+    }
+  } catch {}
+}
+
+export function getActiveSession(): AppAuthUser | null {
+  try {
+    if (typeof window !== 'undefined') {
+      const raw = sessionStorage.getItem(STORAGE_SESSION_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as AppAuthUser;
+        if (parsed && (parsed.uid || parsed.email || parsed.whatsappNumber)) {
+          return parsed;
+        }
+      }
+    }
+  } catch {}
+  return null;
+}
+
+export function clearActiveSession() {
+  try {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(STORAGE_SESSION_KEY);
+      sessionStorage.removeItem('ef_active_tab');
+      localStorage.removeItem(STORAGE_SESSION_KEY);
+      localStorage.removeItem('ef_active_tab');
+    }
+  } catch {}
+}
 
 export interface StoredWhatsAppAccount {
   uid: string;
@@ -210,35 +248,19 @@ async function findCloudAccount(identifier: string): Promise<StoredAccountV2 | n
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Synchronously initialize user from localStorage to eliminate any login flickering on refresh
-  const [user, setUser] = useState<AppAuthUser | null>(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        const raw = localStorage.getItem(STORAGE_SESSION_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as AppAuthUser;
-          if (parsed && (parsed.uid || parsed.email || parsed.whatsappNumber)) {
-            return parsed;
-          }
-        }
-      }
-    } catch {}
-    return null;
-  });
+  // Synchronously initialize user from sessionStorage (clears when leaving the website)
+  const [user, setUser] = useState<AppAuthUser | null>(() => getActiveSession());
 
-  // Synchronously initialize profile from localStorage for instantaneous hydration
+  // Synchronously initialize profile from sessionStorage/cache
   const [profile, setProfile] = useState<UserProfile | null>(() => {
     try {
       if (typeof window !== 'undefined') {
-        const rawSession = localStorage.getItem(STORAGE_SESSION_KEY);
-        if (rawSession) {
-          const parsed = JSON.parse(rawSession) as AppAuthUser;
-          if (parsed && parsed.uid) {
-            const rawProf = localStorage.getItem(`ef_profile_${parsed.uid}`);
-            if (rawProf) {
-              const prof = JSON.parse(rawProf) as UserProfile;
-              if (prof && prof.uid) return prof;
-            }
+        const activeUser = getActiveSession();
+        if (activeUser && activeUser.uid) {
+          const rawProf = localStorage.getItem(`ef_profile_${activeUser.uid}`);
+          if (rawProf) {
+            const prof = JSON.parse(rawProf) as UserProfile;
+            if (prof && prof.uid) return prof;
           }
         }
       }
@@ -246,16 +268,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return null;
   });
 
-  // If a valid session exists in localStorage, loading is false immediately
-  const [loading, setLoading] = useState<boolean>(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        const raw = localStorage.getItem(STORAGE_SESSION_KEY);
-        if (raw) return false;
-      }
-    } catch {}
-    return true;
-  });
+  // If a valid session exists in sessionStorage, loading is false immediately
+  const [loading, setLoading] = useState<boolean>(() => !getActiveSession());
 
   const fetchProfile = async (
     uid: string,
@@ -361,79 +375,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    // Ensure Firebase session persistence is browser session level
+    try {
+      setPersistence(auth, browserSessionPersistence).catch(() => {});
+    } catch {}
+
     // 1. Wipe legacy local testing stores to ensure clean slate across all browsers
     try {
       localStorage.removeItem(STORAGE_ACCOUNTS_V2_KEY);
       localStorage.removeItem(STORAGE_WHATSAPP_ACCOUNTS_KEY);
       localStorage.removeItem(STORAGE_LEGACY_ACCOUNTS_KEY);
       localStorage.removeItem('ef_pending_whatsapp_otps');
+      localStorage.removeItem(STORAGE_SESSION_KEY);
     } catch {}
 
-    // 2. Check local session and instantly restore user state on page reload
+    // 2. Check active browser tab session and instantly restore user state on page reload
     try {
-      const rawSession = localStorage.getItem(STORAGE_SESSION_KEY);
-      if (rawSession) {
-        const savedSession = JSON.parse(rawSession) as AppAuthUser;
-        if (savedSession && (savedSession.uid || savedSession.email)) {
-          // Immediately set user and fetch cached profile synchronously to prevent sign-out on browser refresh
-          setUser(savedSession);
-          fetchProfile(
-            savedSession.uid,
-            savedSession.email || '',
-            savedSession.displayName || undefined,
-            savedSession.photoURL || undefined,
-            savedSession.whatsappNumber || undefined
-          );
+      const savedSession = getActiveSession();
+      if (savedSession && (savedSession.uid || savedSession.email || savedSession.whatsappNumber)) {
+        // Immediately set user and fetch cached profile synchronously to prevent sign-out on browser refresh
+        setUser(savedSession);
+        fetchProfile(
+          savedSession.uid,
+          savedSession.email || '',
+          savedSession.displayName || undefined,
+          savedSession.photoURL || undefined,
+          savedSession.whatsappNumber || undefined
+        );
 
-          // Verify/update session in background without forcefully logging user out on network delays or missing lookup fields
-          const verifyIdentifier = savedSession.email || savedSession.whatsappNumber || savedSession.uid;
-          findCloudAccount(verifyIdentifier)
-            .then((cloudAcc) => {
-              if (cloudAcc) {
-                const refreshedUser: AppAuthUser = {
-                  uid: savedSession.uid, // Always preserve established local session UID
-                  email: cloudAcc.email || savedSession.email,
-                  displayName: cloudAcc.displayName || savedSession.displayName,
-                  photoURL: savedSession.photoURL,
-                  whatsappNumber: cloudAcc.whatsappNumber || savedSession.whatsappNumber
-                };
-                setUser(refreshedUser);
-                localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(refreshedUser));
-              }
-            })
-            .catch(() => {});
-        }
+        // Verify/update session in background
+        const verifyIdentifier = savedSession.email || savedSession.whatsappNumber || savedSession.uid;
+        findCloudAccount(verifyIdentifier)
+          .then((cloudAcc) => {
+            if (cloudAcc) {
+              const refreshedUser: AppAuthUser = {
+                uid: savedSession.uid, // Always preserve established local session UID
+                email: cloudAcc.email || savedSession.email,
+                displayName: cloudAcc.displayName || savedSession.displayName,
+                photoURL: savedSession.photoURL,
+                whatsappNumber: cloudAcc.whatsappNumber || savedSession.whatsappNumber
+              };
+              setUser(refreshedUser);
+              saveActiveSession(refreshedUser);
+            }
+          })
+          .catch(() => {});
       }
     } catch (e) {
       console.warn('Session parse error:', e);
     }
 
-    // 3. Firebase Auth listener with resilient persistence
+    // 3. Firebase Auth listener with session persistence
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         const verifyId = u.email || u.uid;
         try {
-          // Check what we currently have in local storage
-          let currentSessionUid = u.uid;
-          let currentSessionEmail = u.email || '';
-          let currentSessionDisplayName = u.displayName || '';
-          let currentSessionWhatsApp: string | undefined = undefined;
-
-          try {
-            const raw = localStorage.getItem(STORAGE_SESSION_KEY);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (parsed && (parsed.uid || parsed.email)) {
-                // If email matches or UID matches, keep the established app UID
-                if (!u.email || (parsed.email && parsed.email.toLowerCase() === u.email.toLowerCase())) {
-                  currentSessionUid = parsed.uid;
-                  currentSessionEmail = parsed.email;
-                  currentSessionDisplayName = parsed.displayName || currentSessionDisplayName;
-                  currentSessionWhatsApp = parsed.whatsappNumber;
-                }
-              }
-            }
-          } catch {}
+          const currentSaved = getActiveSession();
+          let currentSessionUid = currentSaved?.uid || u.uid;
+          let currentSessionEmail = currentSaved?.email || u.email || '';
+          let currentSessionDisplayName = currentSaved?.displayName || u.displayName || '';
+          let currentSessionWhatsApp: string | undefined = currentSaved?.whatsappNumber;
 
           const cloudAcc = await findCloudAccount(verifyId);
           const authUser: AppAuthUser = {
@@ -445,31 +446,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             whatsappNumber: currentSessionWhatsApp || cloudAcc?.whatsappNumber
           };
           setUser(authUser);
-          localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+          saveActiveSession(authUser);
           await fetchProfile(authUser.uid, authUser.email || '', authUser.displayName || undefined, u.photoURL || undefined, authUser.whatsappNumber);
           setLoading(false);
         } catch {
           setLoading(false);
         }
       } else {
-        // Firebase Auth user is null. Check if a local session exists in localStorage (e.g. WhatsApp, OTP, persistent login)
-        const rawSession = localStorage.getItem(STORAGE_SESSION_KEY);
-        if (rawSession) {
-          try {
-            const savedSession = JSON.parse(rawSession) as AppAuthUser;
-            if (savedSession && (savedSession.uid || savedSession.email)) {
-              setUser(savedSession);
-              fetchProfile(
-                savedSession.uid,
-                savedSession.email || '',
-                savedSession.displayName || undefined,
-                savedSession.photoURL || undefined,
-                savedSession.whatsappNumber || undefined
-              );
-              setLoading(false);
-              return;
-            }
-          } catch {}
+        // Firebase Auth user is null. Check if active session exists in sessionStorage
+        const savedSession = getActiveSession();
+        if (savedSession && (savedSession.uid || savedSession.email || savedSession.whatsappNumber)) {
+          setUser(savedSession);
+          fetchProfile(
+            savedSession.uid,
+            savedSession.email || '',
+            savedSession.displayName || undefined,
+            savedSession.photoURL || undefined,
+            savedSession.whatsappNumber || undefined
+          );
+          setLoading(false);
+          return;
         }
         // Genuinely no session present
         setUser(null);
@@ -583,7 +579,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setUser(authUser);
-    localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+    saveActiveSession(authUser);
   };
 
   /**
@@ -616,7 +612,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           whatsappNumber: cloudAcc.whatsappNumber || cleanPhone
         };
         setUser(authUser);
-        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+        saveActiveSession(authUser);
         await fetchProfile(cloudAcc.uid, authUser.email || '', cloudAcc.displayName, undefined, authUser.whatsappNumber);
         return;
       } else {
@@ -672,7 +668,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setUser(authUser);
-    localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+    saveActiveSession(authUser);
     await fetchProfile(uid, pseudoEmail, displayName, avatarUrl, cleanPhone);
   };
 
@@ -709,7 +705,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           whatsappNumber: cloudAcc.whatsappNumber
         };
         setUser(authUser);
-        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+        saveActiveSession(authUser);
 
         // Background sync to Firebase Auth if possible
         try {
@@ -891,7 +887,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setUser(authUser);
-    localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+    saveActiveSession(authUser);
     await fetchProfile(uid, cleanEmail, displayName, avatarUrl, cloudAcc.whatsappNumber);
   };
 
@@ -985,13 +981,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       whatsappNumber: cleanWhatsApp || undefined
     };
     setUser(authUser);
-    localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(authUser));
+    saveActiveSession(authUser);
   };
 
   const logout = async () => {
     await fbSignOut(auth).catch(() => {});
-    localStorage.removeItem(STORAGE_SESSION_KEY);
-    localStorage.removeItem('ef_active_tab');
+    clearActiveSession();
     setUser(null);
     setProfile(null);
   };

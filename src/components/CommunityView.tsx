@@ -14,7 +14,7 @@ import {
   deleteDoc, 
   getDoc 
 } from 'firebase/firestore';
-import { CommunityPost, PostComment, DirectMessage, AnalysisResult } from '../types.ts';
+import { CommunityPost, PostComment, DirectMessage, AnalysisResult, PlayerData } from '../types.ts';
 import { 
   Users, 
   Heart, 
@@ -31,9 +31,76 @@ import {
   User,
   Shield,
   Layers,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
 import { BestXIView } from './BestXIView.tsx';
+
+// Helper to normalize and ensure 2D pitch coordinates for any starting XI array
+function resolveStartingXIWithPitchCoords(rawPlayers: any[], formation: string): (PlayerData & { pitchX: number; pitchY: number; selectionReason: string })[] {
+  if (!Array.isArray(rawPlayers) || rawPlayers.length === 0) return [];
+  
+  const posCoords: Record<string, { x: number; y: number }[]> = {
+    GK: [{ x: 50, y: 88 }],
+    CB: [{ x: 34, y: 76 }, { x: 66, y: 76 }, { x: 50, y: 76 }],
+    LB: [{ x: 16, y: 70 }],
+    RB: [{ x: 84, y: 70 }],
+    DMF: [{ x: 50, y: 58 }, { x: 36, y: 58 }, { x: 64, y: 58 }],
+    CMF: [{ x: 35, y: 48 }, { x: 65, y: 48 }, { x: 50, y: 48 }],
+    AMF: [{ x: 50, y: 34 }, { x: 34, y: 34 }, { x: 66, y: 34 }],
+    LMF: [{ x: 16, y: 48 }],
+    RMF: [{ x: 84, y: 48 }],
+    LWF: [{ x: 18, y: 22 }],
+    RWF: [{ x: 82, y: 22 }],
+    SS: [{ x: 40, y: 24 }, { x: 60, y: 24 }],
+    CF: [{ x: 50, y: 16 }, { x: 38, y: 16 }, { x: 62, y: 16 }]
+  };
+
+  const posUsage: Record<string, number> = {};
+
+  return rawPlayers.slice(0, 11).map((p: any, idx: number) => {
+    // If string like "Messi (RWF)", parse it
+    let pName = typeof p === 'string' ? p : p.name || `Player ${idx + 1}`;
+    let pPos = typeof p === 'string' ? 'CF' : p.position || 'CF';
+    let pRating = typeof p === 'string' ? 88 : p.overallRating || p.rating || 88;
+    let pPlaystyle = typeof p === 'string' ? 'Creative Playmaker' : p.playstyle || 'Goal Poacher';
+
+    if (typeof p === 'string' && p.includes('(') && p.includes(')')) {
+      const match = p.match(/^(.+)\s*\(([A-Za-z]+)\)$/);
+      if (match) {
+        pName = match[1].trim();
+        pPos = match[2].trim().toUpperCase();
+      }
+    }
+
+    const pos = pPos.toUpperCase();
+    const used = posUsage[pos] || 0;
+    posUsage[pos] = used + 1;
+
+    let px = typeof p?.pitchX === 'number' && p.pitchX > 0 ? p.pitchX : undefined;
+    let py = typeof p?.pitchY === 'number' && p.pitchY > 0 ? p.pitchY : undefined;
+
+    if (px === undefined || py === undefined) {
+      const candidates = posCoords[pos] || [{ x: 50, y: 50 }];
+      const coord = candidates[used % candidates.length] || { x: 50, y: 50 };
+      px = coord.x;
+      py = coord.y;
+    }
+
+    return {
+      id: p.id || `starter_${idx}_${pName}`,
+      name: pName,
+      position: pPos,
+      rating: pRating,
+      overallRating: pRating,
+      playstyle: pPlaystyle,
+      confidence: 'High',
+      pitchX: px,
+      pitchY: py,
+      selectionReason: p.selectionReason || p.tacticalReason || `Essential starter for ${formation} tactical structure.`
+    };
+  });
+}
 
 interface CommunityProps {
   onSelectPostSquad?: (post: CommunityPost) => void;
@@ -217,6 +284,25 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
       await addDoc(collection(db, 'directMessages'), newMsg);
     } catch (e) {
       console.warn('Error sending DM:', e);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm('Are you sure you want to delete this community post?')) return;
+    try {
+      await deleteDoc(doc(db, 'communityPosts', postId));
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      if (inspectingPost?.id === postId) {
+        setInspectingPost(null);
+      }
+      alert('Post deleted successfully.');
+    } catch (err) {
+      console.error('Error deleting post:', err);
+      // Optimistically remove from state if permission allows or local post
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      if (inspectingPost?.id === postId) {
+        setInspectingPost(null);
+      }
     }
   };
 
@@ -468,14 +554,27 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
                   </h3>
                 </div>
 
-                {/* Rating Badge */}
-                <div className="text-right">
-                  <span className="text-2xl font-black text-emerald-400 leading-none">
-                    {post.squadRating}
-                  </span>
-                  <span className="block text-[10px] text-neutral-400 uppercase font-bold">
-                    Rating
-                  </span>
+                {/* Rating & Delete Badge */}
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-emerald-400 leading-none">
+                      {post.squadRating}
+                    </span>
+                    <span className="block text-[10px] text-neutral-400 uppercase font-bold">
+                      Rating
+                    </span>
+                  </div>
+
+                  {user && (post.userId === user.uid || (profile?.displayName && post.authorName === profile.displayName)) && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePost(post.id)}
+                      className="p-2 rounded-xl text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors ml-1 cursor-pointer"
+                      title="Delete this post"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -885,13 +984,26 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
                 </h2>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setInspectingPost(null)}
-                className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {user && (inspectingPost.userId === user.uid || (profile?.displayName && inspectingPost.authorName === profile.displayName)) && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePost(inspectingPost.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition-colors cursor-pointer"
+                    title="Delete this post"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Post</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setInspectingPost(null)}
+                  className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Tactical System Overview (Always Visible: Manager, Playstyle, Formation) */}
@@ -957,27 +1069,37 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
                   </span>
                 </div>
 
-                {/* 2D Pitch View */}
-                {inspectingPost.bestXI ? (
-                  <div className="bg-neutral-950 rounded-2xl border border-neutral-800 overflow-hidden p-2">
-                    <BestXIView bestXI={inspectingPost.bestXI} formation={inspectingPost.formation} />
-                  </div>
-                ) : inspectingPost.startingXI && inspectingPost.startingXI.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                    {inspectingPost.startingXI.map((p, pIdx) => (
-                      <div key={pIdx} className="bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 flex items-center justify-between">
-                        <div className="truncate">
-                          <span className="text-[10px] font-black text-emerald-400 block">{p.position}</span>
-                          <span className="text-xs font-bold text-white truncate block">{p.name}</span>
-                          {p.playstyle && <span className="text-[9px] text-neutral-400 block truncate">{p.playstyle}</span>}
+                {/* 2D Pitch View with Guaranteed Positional Coordinates */}
+                {(() => {
+                  const startingXIPlayersForPitch = resolveStartingXIWithPitchCoords(
+                    inspectingPost.bestXI?.players || inspectingPost.startingXI || inspectingPost.keyPlayers || [],
+                    inspectingPost.formation
+                  );
+
+                  return startingXIPlayersForPitch.length > 0 ? (
+                    <div className="bg-neutral-950 rounded-2xl border border-neutral-800 overflow-hidden">
+                      <BestXIView
+                        formation={inspectingPost.formation}
+                        players={startingXIPlayersForPitch}
+                      />
+                    </div>
+                  ) : inspectingPost.startingXI && inspectingPost.startingXI.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                      {inspectingPost.startingXI.map((p, pIdx) => (
+                        <div key={pIdx} className="bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 flex items-center justify-between">
+                          <div className="truncate">
+                            <span className="text-[10px] font-black text-emerald-400 block">{p.position}</span>
+                            <span className="text-xs font-bold text-white truncate block">{p.name}</span>
+                            {p.playstyle && <span className="text-[9px] text-neutral-400 block truncate">{p.playstyle}</span>}
+                          </div>
+                          <span className="text-xs font-black text-emerald-400 pl-2">{p.overallRating || p.rating || 85}</span>
                         </div>
-                        <span className="text-xs font-black text-emerald-400 pl-2">{p.overallRating || p.rating || 85}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-neutral-400 italic">Starting XI lineup details synchronized.</p>
-                )}
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-neutral-400 italic">Starting XI lineup details synchronized.</p>
+                  );
+                })()}
 
                 {/* Substitutes Section */}
                 {inspectingPost.substitutes && inspectingPost.substitutes.length > 0 && (
@@ -1012,21 +1134,11 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
             )}
 
             {/* Footer Buttons */}
-            <div className="flex items-center justify-between pt-4 border-t border-neutral-800">
-              <button
-                type="button"
-                onClick={() => {
-                  setInspectingPost(null);
-                  onNavigateToAnalyzer();
-                }}
-                className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs transition-colors cursor-pointer"
-              >
-                Analyze Your Own Squad in this Formation →
-              </button>
+            <div className="flex items-center justify-end pt-4 border-t border-neutral-800">
               <button
                 type="button"
                 onClick={() => setInspectingPost(null)}
-                className="px-5 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs transition-colors cursor-pointer"
+                className="px-6 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs transition-colors cursor-pointer"
               >
                 Close
               </button>

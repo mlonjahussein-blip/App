@@ -891,15 +891,16 @@ export async function postProcessAndVerifySquad(
     });
   }
 
-  // 2. Coach Processing & Matching with Multi-Coach Evaluation
+  // 2. Formation and Coach Processing & Matching with Multi-Coach Evaluation
+  const formation = parsed.recommendedFormation || '4-2-1-3';
   let verifiedCoach: CoachData;
   let coachEvalResult: ReturnType<typeof evaluateCandidateCoaches> | null = null;
 
-  const rawCoaches = (Array.isArray(payload.managersList) && payload.managersList.length > 0)
-    ? payload.managersList
+  const rawCoaches = (Array.isArray((payload as any).managersList) && (payload as any).managersList.length > 0)
+    ? (payload as any).managersList
     : (payload.managerDetails ? [payload.managerDetails] : []);
 
-  if (rawCoaches.length > 0 && rawCoaches.some(c => c && (c.name?.trim() || c.linkedUpPlaystyle?.enabled))) {
+  if (rawCoaches.length > 0 && rawCoaches.some((c: any) => c && (c.name?.trim() || c.linkedUpPlaystyle?.enabled))) {
     coachEvalResult = evaluateCandidateCoaches(
       rawCoaches,
       processedPlayers,
@@ -907,8 +908,17 @@ export async function postProcessAndVerifySquad(
       payload.preferredPlaystyle || 'Quick Counter'
     );
 
-    const topCoach = coachEvalResult.evaluatedCoaches[0];
-    const bestAffinity = topCoach.compatibilityScore;
+    const topCoach = coachEvalResult.coachComparison[0] || {
+      name: coachEvalResult.selectedCoach.name,
+      nationality: coachEvalResult.selectedCoach.nationality,
+      team: coachEvalResult.selectedCoach.team,
+      rating: coachEvalResult.coachProficiency,
+      tacticalStyle: coachEvalResult.selectedPlaystyle,
+      tacticalSynergyScore: 90,
+      suitabilityReason: coachEvalResult.synergyNotes,
+      isRecommended: true
+    };
+    const bestAffinity = topCoach.tacticalSynergyScore;
     const proficiencies = topCoach.playstyleProficiencies || {};
 
     const evidenceList = [
@@ -918,18 +928,16 @@ export async function postProcessAndVerifySquad(
       `Configured Playstyle Proficiencies: QC (${proficiencies.quickCounter || 87}), PG (${proficiencies.possessionGame || 85}), LBC (${proficiencies.longBallCounter || 85}), Overload (${proficiencies.overload || 86})`
     ].filter(Boolean);
 
-    if (coachEvalResult.evaluatedCoaches.length > 1) {
-      evidenceList.unshift(`AI Recommended #1 Choice from ${coachEvalResult.evaluatedCoaches.length} candidate managers evaluated`);
+    if (coachEvalResult.coachComparison.length > 1) {
+      evidenceList.unshift(`AI Recommended #1 Choice from ${coachEvalResult.coachComparison.length} candidate managers evaluated`);
     }
 
-    const explanation = coachEvalResult.coachComparisonSummary 
-      ? `${coachEvalResult.coachComparisonSummary} ${topCoach.synergyReason}`
-      : (topCoach.synergyReason || `Custom user-specified manager with ${bestAffinity} max tactical proficiency across core eFootball playstyles.`);
+    const explanation = coachEvalResult.synergyNotes || topCoach.suitabilityReason || `Custom user-specified manager with ${bestAffinity}% tactical synergy across core eFootball playstyles.`;
 
     verifiedCoach = {
       name: topCoach.name + (topCoach.team ? ` (${topCoach.team})` : ''),
-      rating: topCoach.playstyleRating || bestAffinity,
-      tacticalStyle: payload.preferredPlaystyle || 'Quick Counter',
+      rating: topCoach.rating || 88,
+      tacticalStyle: topCoach.tacticalStyle || payload.preferredPlaystyle || 'Quick Counter',
       tacticalAffinity: bestAffinity,
       isIdentifiedFromScreenshot: false,
       confidence: 'High',
@@ -969,7 +977,6 @@ export async function postProcessAndVerifySquad(
 
   // 3. Best XI: MUST ONLY USE VERIFIED PLAYERS (Rule 16)
   // Ensure Best XI strictly uses players that exist in the extracted squad dataset
-  const formation = parsed.recommendedFormation || '4-2-1-3';
   let bestXIPlayers = (parsed.bestXI || []).map((p: any, idx: number) => {
     // Find matching player in processed squad
     const found = processedPlayers.find(sp => normalizeString(sp.name) === normalizeString(p.name));
@@ -1222,10 +1229,10 @@ export async function postProcessAndVerifySquad(
       signalsEvaluated: ['Face Likeness', 'Position Label', 'Overall Rating', 'Nationality Flag', 'Club Badge', 'Card Type/Foil'],
       ocrBypassedDueToNoNamesOnCards: true
     },
-    coachEvaluationList: coachEvalResult?.evaluatedCoaches,
-    recommendedCoachComparisonSummary: coachEvalResult?.coachComparisonSummary,
-    managersList: (Array.isArray(payload.managersList) && payload.managersList.length > 0)
-      ? payload.managersList
+    coachComparison: coachEvalResult?.coachComparison,
+    coachComparisonSummary: coachEvalResult?.synergyNotes,
+    coaches: (Array.isArray((payload as any).managersList) && (payload as any).managersList.length > 0)
+      ? (payload as any).managersList
       : (payload.managerDetails ? [payload.managerDetails] : undefined),
     isDeveloperModeAvailable: true
   };

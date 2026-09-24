@@ -3495,7 +3495,7 @@ function reEvaluateAndErrorProofResult(rawResult, audit, payload) {
     tacticalPreferences: generateTacticalPreferences(playstyle, finalFormation),
     gamePlanRecommendations: generateGamePlanRecommendations(playstyle, finalFormation, verifiedPlayers),
     fluidFormations: payload.fluidFormations && payload.fluidFormations.enabled ? payload.fluidFormations : computeOptimalFluidFormations(finalFormation, playstyle, positionedBestXI),
-    linkUpPlay: managerAudit.selectedCoachDetails?.linkedUpPlaystyle && managerAudit.selectedCoachDetails.linkedUpPlaystyle.enabled ? computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI, managerAudit.selectedCoachDetails.linkedUpPlaystyle, verifiedPlayers) : payload.managerDetails?.linkedUpPlaystyle && payload.managerDetails.linkedUpPlaystyle.enabled ? computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI, payload.managerDetails.linkedUpPlaystyle, verifiedPlayers) : payload.linkUpPlay && payload.linkUpPlay.enabled ? payload.linkUpPlay : computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI, void 0, verifiedPlayers),
+    linkUpPlay: managerAudit.selectedCoachDetails?.linkedUpPlaystyle && managerAudit.selectedCoachDetails.linkedUpPlaystyle.enabled ? computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI, managerAudit.selectedCoachDetails.linkedUpPlaystyle, verifiedPlayers) : payload.managerDetails?.linkedUpPlaystyle && payload.managerDetails.linkedUpPlaystyle.enabled ? computeOptimalLinkUpPlay(managerAudit.name, playstyle, finalFormation, positionedBestXI, payload.managerDetails.linkedUpPlaystyle, verifiedPlayers) : payload.linkUpPlay && payload.linkUpPlay.enabled ? payload.linkUpPlay : void 0,
     freeOrPaidStatus: "free",
     paymentStatus: "free",
     analysisQuality,
@@ -4458,6 +4458,7 @@ async function postProcessAndVerifySquad(parsed, payload, imageBuffers) {
       needsUserConfirmation: status === "needs_confirmation" || status === "unverified"
     });
   }
+  const formation = parsed.recommendedFormation || "4-2-1-3";
   let verifiedCoach;
   let coachEvalResult = null;
   const rawCoaches = Array.isArray(payload.managersList) && payload.managersList.length > 0 ? payload.managersList : payload.managerDetails ? [payload.managerDetails] : [];
@@ -4468,8 +4469,17 @@ async function postProcessAndVerifySquad(parsed, payload, imageBuffers) {
       formation,
       payload.preferredPlaystyle || "Quick Counter"
     );
-    const topCoach = coachEvalResult.evaluatedCoaches[0];
-    const bestAffinity = topCoach.compatibilityScore;
+    const topCoach = coachEvalResult.coachComparison[0] || {
+      name: coachEvalResult.selectedCoach.name,
+      nationality: coachEvalResult.selectedCoach.nationality,
+      team: coachEvalResult.selectedCoach.team,
+      rating: coachEvalResult.coachProficiency,
+      tacticalStyle: coachEvalResult.selectedPlaystyle,
+      tacticalSynergyScore: 90,
+      suitabilityReason: coachEvalResult.synergyNotes,
+      isRecommended: true
+    };
+    const bestAffinity = topCoach.tacticalSynergyScore;
     const proficiencies = topCoach.playstyleProficiencies || {};
     const evidenceList = [
       `Manager: ${topCoach.name}`,
@@ -4477,14 +4487,14 @@ async function postProcessAndVerifySquad(parsed, payload, imageBuffers) {
       topCoach.team ? `Team / Club: ${topCoach.team}` : "",
       `Configured Playstyle Proficiencies: QC (${proficiencies.quickCounter || 87}), PG (${proficiencies.possessionGame || 85}), LBC (${proficiencies.longBallCounter || 85}), Overload (${proficiencies.overload || 86})`
     ].filter(Boolean);
-    if (coachEvalResult.evaluatedCoaches.length > 1) {
-      evidenceList.unshift(`AI Recommended #1 Choice from ${coachEvalResult.evaluatedCoaches.length} candidate managers evaluated`);
+    if (coachEvalResult.coachComparison.length > 1) {
+      evidenceList.unshift(`AI Recommended #1 Choice from ${coachEvalResult.coachComparison.length} candidate managers evaluated`);
     }
-    const explanation = coachEvalResult.coachComparisonSummary ? `${coachEvalResult.coachComparisonSummary} ${topCoach.synergyReason}` : topCoach.synergyReason || `Custom user-specified manager with ${bestAffinity} max tactical proficiency across core eFootball playstyles.`;
+    const explanation = coachEvalResult.synergyNotes || topCoach.suitabilityReason || `Custom user-specified manager with ${bestAffinity}% tactical synergy across core eFootball playstyles.`;
     verifiedCoach = {
       name: topCoach.name + (topCoach.team ? ` (${topCoach.team})` : ""),
-      rating: topCoach.playstyleRating || bestAffinity,
-      tacticalStyle: payload.preferredPlaystyle || "Quick Counter",
+      rating: topCoach.rating || 88,
+      tacticalStyle: topCoach.tacticalStyle || payload.preferredPlaystyle || "Quick Counter",
       tacticalAffinity: bestAffinity,
       isIdentifiedFromScreenshot: false,
       confidence: "High",
@@ -4519,7 +4529,6 @@ async function postProcessAndVerifySquad(parsed, payload, imageBuffers) {
       explanation: coach.explanation || "Provides maximum tactical attribute boosts for the starting lineup."
     };
   }
-  const formation = parsed.recommendedFormation || "4-2-1-3";
   let bestXIPlayers = (parsed.bestXI || []).map((p, idx) => {
     const found = processedPlayers.find((sp) => normalizeString(sp.name) === normalizeString(p.name));
     const name = found ? found.name : p.name || `Player ${idx + 1}`;
@@ -4755,9 +4764,9 @@ async function postProcessAndVerifySquad(parsed, payload, imageBuffers) {
       signalsEvaluated: ["Face Likeness", "Position Label", "Overall Rating", "Nationality Flag", "Club Badge", "Card Type/Foil"],
       ocrBypassedDueToNoNamesOnCards: true
     },
-    coachEvaluationList: coachEvalResult?.evaluatedCoaches,
-    recommendedCoachComparisonSummary: coachEvalResult?.coachComparisonSummary,
-    managersList: Array.isArray(payload.managersList) && payload.managersList.length > 0 ? payload.managersList : payload.managerDetails ? [payload.managerDetails] : void 0,
+    coachComparison: coachEvalResult?.coachComparison,
+    coachComparisonSummary: coachEvalResult?.synergyNotes,
+    coaches: Array.isArray(payload.managersList) && payload.managersList.length > 0 ? payload.managersList : payload.managerDetails ? [payload.managerDetails] : void 0,
     isDeveloperModeAvailable: true
   };
 }
