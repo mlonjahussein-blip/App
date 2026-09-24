@@ -33,6 +33,11 @@ import {
   HelpCircle,
   AlertCircle,
   Eye,
+  EyeOff,
+  Lock,
+  X,
+  ChevronDown,
+  ChevronUp,
   Layers,
   ArrowRight,
   Download,
@@ -55,7 +60,7 @@ import {
 interface ResultsDashboardProps {
   analysis: AnalysisResult;
   onSaveReport: (analysis: AnalysisResult) => Promise<void>;
-  onShareToCommunity: (analysis: AnalysisResult) => void;
+  onShareToCommunity: (analysis: AnalysisResult, options?: { showSquadDetails?: boolean; title?: string; description?: string }) => void;
   onPlayerBuilderSelect: (player: PlayerData) => void;
   onComparePlayersSelect: (p1: PlayerData, p2: PlayerData, initialMode?: 'battles' | 'startingXI') => void;
   onUpdateAnalysis?: (analysis: AnalysisResult) => void;
@@ -95,6 +100,14 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const [expandedAuditPlayerId, setExpandedAuditPlayerId] = useState<string | null>(null);
   const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
+
+  // Share to Community Modal State
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareShowSquadDetails, setShareShowSquadDetails] = useState(true);
+  const [shareTitle, setShareTitle] = useState(squadAnalysis.title || `${squadAnalysis.recommendedFormation} ${squadAnalysis.coachRecommendation?.tacticalStyle || 'Tactical'} Blueprint`);
+  const [shareDescription, setShareDescription] = useState(squadAnalysis.formationExplanation || '');
+  const [isSubmittingShare, setIsSubmittingShare] = useState(false);
+  const [expandedCoachPlaystyles, setExpandedCoachPlaystyles] = useState<{ [coachIdx: number]: boolean }>({});
 
   const dbMatchedCount = squadAnalysis.identifiedPlayers.filter((p) => {
     if (p.matchedDatabaseName) return true;
@@ -424,7 +437,11 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
 
           <button
             id="share-report-btn"
-            onClick={() => onShareToCommunity(squadAnalysis)}
+            onClick={() => {
+              setShareTitle(squadAnalysis.title || `${squadAnalysis.recommendedFormation} ${squadAnalysis.coachRecommendation?.tacticalStyle || 'Tactical'} Blueprint`);
+              setShareDescription(squadAnalysis.formationExplanation || '');
+              setShowShareModal(true);
+            }}
             className="px-5 py-3 rounded-xl text-xs sm:text-sm font-bold bg-neutral-950 hover:bg-neutral-800 text-white border border-neutral-700 flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
             <Share2 className="w-4 h-4 text-cyan-400" />
@@ -1086,6 +1103,63 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                             <p className="text-xs text-neutral-300 leading-relaxed bg-neutral-900/50 p-2.5 rounded-xl border border-neutral-800/50">
                               {coachItem.suitabilityReason}
                             </p>
+
+                            {/* Deep Multi-Playstyle Evaluation Breakdown */}
+                            {coachItem.playstyleEvaluations && coachItem.playstyleEvaluations.length > 0 && (
+                              <div className="pt-2 border-t border-neutral-850">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setExpandedCoachPlaystyles(prev => ({
+                                      ...prev,
+                                      [cIdx]: !prev[cIdx]
+                                    }));
+                                  }}
+                                  className="w-full flex items-center justify-between text-[11px] font-bold text-neutral-400 hover:text-white py-1 transition-colors cursor-pointer"
+                                >
+                                  <span className="flex items-center gap-1">
+                                    <Layers className="w-3 h-3 text-cyan-400" />
+                                    <span>All 6 Evaluated Playstyles ({coachItem.playstyleEvaluations.length})</span>
+                                  </span>
+                                  {expandedCoachPlaystyles[cIdx] ? (
+                                    <ChevronUp className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+
+                                {expandedCoachPlaystyles[cIdx] && (
+                                  <div className="mt-2 space-y-1.5 bg-neutral-900/90 rounded-xl p-2.5 border border-neutral-800">
+                                    <div className="grid grid-cols-4 text-[9px] font-bold uppercase tracking-wider text-neutral-500 pb-1 border-b border-neutral-800">
+                                      <span className="col-span-2">Playstyle</span>
+                                      <span className="text-center">Squad Fit</span>
+                                      <span className="text-right">Proficiency</span>
+                                    </div>
+                                    {coachItem.playstyleEvaluations.map(pe => (
+                                      <div
+                                        key={pe.playstyle}
+                                        className={`grid grid-cols-4 items-center text-[10px] p-1.5 rounded-lg ${
+                                          pe.isBestFitForCoach
+                                            ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-bold'
+                                            : 'text-neutral-300 hover:bg-neutral-800/50'
+                                        }`}
+                                      >
+                                        <div className="col-span-2 flex items-center gap-1.5 truncate">
+                                          {pe.isBestFitForCoach && <span className="text-[9px] text-emerald-400">★</span>}
+                                          <span className="truncate">{pe.playstyle}</span>
+                                        </div>
+                                        <div className="text-center">
+                                          <span className="text-[10px] font-bold text-cyan-400">{pe.squadFitScore}%</span>
+                                        </div>
+                                        <div className="text-right font-black">
+                                          {pe.proficiency}/90
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                             {/* Linked-up Playstyle badge if present */}
                             {coachItem.linkedUpPlaystyle?.enabled && (
@@ -1961,6 +2035,173 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                 <span>Recommended Starting XI</span>
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Community Share Modal with Squad Visibility Settings */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl space-y-5 text-neutral-100">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400">
+                  <Share2 className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-lg font-black text-white">Share with Community</h3>
+                  <p className="text-xs text-neutral-400">Publish your tactical setup to the Community Hub</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowShareModal(false)}
+                className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Title & Description Inputs */}
+            <div className="space-y-3.5">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 block mb-1.5">
+                  Post Title
+                </label>
+                <input
+                  type="text"
+                  value={shareTitle}
+                  onChange={(e) => setShareTitle(e.target.value)}
+                  placeholder="e.g. 4-2-1-3 Quick Counter Dominance"
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-neutral-400 block mb-1.5">
+                  Tactical Notes & Description
+                </label>
+                <textarea
+                  rows={3}
+                  value={shareDescription}
+                  onChange={(e) => setShareDescription(e.target.value)}
+                  placeholder="Share key player instructions, matchup tactics, or how you play this system..."
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-neutral-200 focus:outline-none focus:border-emerald-500 leading-relaxed"
+                />
+              </div>
+            </div>
+
+            {/* Squad Visibility Toggle Option */}
+            <div className="space-y-2.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                <Shield className="w-4 h-4" />
+                Recommended Squad Visibility Option
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Option 1: Show Squad */}
+                <button
+                  type="button"
+                  onClick={() => setShareShowSquadDetails(true)}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                    shareShowSquadDetails
+                      ? 'bg-emerald-950/30 border-emerald-500 text-white shadow-md shadow-emerald-950/20'
+                      : 'bg-neutral-950/60 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-xs font-bold text-white">
+                      <Eye className={`w-4 h-4 ${shareShowSquadDetails ? 'text-emerald-400' : 'text-neutral-500'}`} />
+                      Show Recommended Squad
+                    </span>
+                    <input
+                      type="radio"
+                      checked={shareShowSquadDetails}
+                      onChange={() => setShareShowSquadDetails(true)}
+                      className="accent-emerald-500"
+                    />
+                  </div>
+                  <p className="text-[11px] text-neutral-400 leading-relaxed">
+                    Other users will see your 2D Recommended Starting XI, Substitute players, recommended manager, playstyle, and formation.
+                  </p>
+                </button>
+
+                {/* Option 2: Hide Squad */}
+                <button
+                  type="button"
+                  onClick={() => setShareShowSquadDetails(false)}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                    !shareShowSquadDetails
+                      ? 'bg-neutral-800 border-cyan-500 text-white shadow-md'
+                      : 'bg-neutral-950/60 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-xs font-bold text-white">
+                      <EyeOff className={`w-4 h-4 ${!shareShowSquadDetails ? 'text-cyan-400' : 'text-neutral-500'}`} />
+                      Hide Squad Lineup
+                    </span>
+                    <input
+                      type="radio"
+                      checked={!shareShowSquadDetails}
+                      onChange={() => setShareShowSquadDetails(false)}
+                      className="accent-cyan-500"
+                    />
+                  </div>
+                  <p className="text-[11px] text-neutral-400 leading-relaxed">
+                    Tactical overview only. Keeps your specific Starting XI and bench players hidden from viewers.
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {/* Preview notice */}
+            <div className="bg-neutral-950 p-3 rounded-xl border border-neutral-800 text-xs text-neutral-300">
+              <span className="font-bold text-neutral-400 block mb-1">What community viewers will see:</span>
+              {shareShowSquadDetails ? (
+                <p className="text-[11px] text-emerald-400">
+                  ✓ (a) 2D Recommended Starting XI pitch view &amp; Substitute players list<br />
+                  ✓ (b) Recommended Manager ({squadAnalysis.coachRecommendation.name}), Playstyle ({squadAnalysis.coachRecommendation.tacticalStyle}), and Formation ({squadAnalysis.recommendedFormation})
+                </p>
+              ) : (
+                <p className="text-[11px] text-cyan-400">
+                  🔒 Recommended Manager ({squadAnalysis.coachRecommendation.name}), Playstyle ({squadAnalysis.coachRecommendation.tacticalStyle}), and Formation ({squadAnalysis.recommendedFormation}) only (players hidden)
+                </p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowShareModal(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingShare}
+                onClick={async () => {
+                  try {
+                    setIsSubmittingShare(true);
+                    await onShareToCommunity(squadAnalysis, {
+                      showSquadDetails: shareShowSquadDetails,
+                      title: shareTitle.trim() || squadAnalysis.title,
+                      description: shareDescription.trim() || squadAnalysis.formationExplanation
+                    });
+                    setShowShareModal(false);
+                  } finally {
+                    setIsSubmittingShare(false);
+                  }
+                }}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-neutral-950 font-black text-xs transition-all shadow-md shadow-emerald-950/40 flex items-center gap-2 cursor-pointer"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>{isSubmittingShare ? 'Publishing...' : 'Publish to Community'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

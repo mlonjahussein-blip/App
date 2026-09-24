@@ -50,7 +50,8 @@ import {
   crosscheckAndAuditSquadDetails,
   buildSpecializedGeminiPrompt,
   reEvaluateAndErrorProofResult,
-  generateDeepAlgorithmicAnalysis
+  generateDeepAlgorithmicAnalysis,
+  evaluateCandidateCoaches
 } from './deepAnalysisEngine.ts';
 
 let aiClient: GoogleGenAI | null = null;
@@ -332,8 +333,8 @@ export async function runMultiStageSquadPipeline(payload: AnalyzeSquadPayload): 
       const ai = getGenAI();
       const prompt = buildSpecializedGeminiPrompt(payload, preAudit);
       const candidateModels = [
-        'gemini-3.8-flash',
         'gemini-3.1-pro-preview',
+        'gemini-3.8-flash',
         'gemini-flash-latest',
         'gemini-3.1-flash-lite'
       ];
@@ -890,35 +891,51 @@ export async function postProcessAndVerifySquad(
     });
   }
 
-  // 2. Coach Processing & Matching
+  // 2. Coach Processing & Matching with Multi-Coach Evaluation
   let verifiedCoach: CoachData;
+  let coachEvalResult: ReturnType<typeof evaluateCandidateCoaches> | null = null;
 
-  if (payload.managerDetails && payload.managerDetails.name && payload.managerDetails.name.trim()) {
-    const proficiencies = payload.managerDetails.playstyleProficiencies || {};
-    const bestAffinity = Math.max(
-      proficiencies.possessionGame || 85,
-      proficiencies.quickCounter || 87,
-      proficiencies.longBallCounter || 85,
-      proficiencies.outWide || 80,
-      proficiencies.longBall || 75,
-      proficiencies.overload || 86
+  const rawCoaches = (Array.isArray(payload.managersList) && payload.managersList.length > 0)
+    ? payload.managersList
+    : (payload.managerDetails ? [payload.managerDetails] : []);
+
+  if (rawCoaches.length > 0 && rawCoaches.some(c => c && (c.name?.trim() || c.linkedUpPlaystyle?.enabled))) {
+    coachEvalResult = evaluateCandidateCoaches(
+      rawCoaches,
+      processedPlayers,
+      formation,
+      payload.preferredPlaystyle || 'Quick Counter'
     );
 
+    const topCoach = coachEvalResult.evaluatedCoaches[0];
+    const bestAffinity = topCoach.compatibilityScore;
+    const proficiencies = topCoach.playstyleProficiencies || {};
+
+    const evidenceList = [
+      `Manager: ${topCoach.name}`,
+      topCoach.nationality ? `Nationality: ${topCoach.nationality}` : '',
+      topCoach.team ? `Team / Club: ${topCoach.team}` : '',
+      `Configured Playstyle Proficiencies: QC (${proficiencies.quickCounter || 87}), PG (${proficiencies.possessionGame || 85}), LBC (${proficiencies.longBallCounter || 85}), Overload (${proficiencies.overload || 86})`
+    ].filter(Boolean);
+
+    if (coachEvalResult.evaluatedCoaches.length > 1) {
+      evidenceList.unshift(`AI Recommended #1 Choice from ${coachEvalResult.evaluatedCoaches.length} candidate managers evaluated`);
+    }
+
+    const explanation = coachEvalResult.coachComparisonSummary 
+      ? `${coachEvalResult.coachComparisonSummary} ${topCoach.synergyReason}`
+      : (topCoach.synergyReason || `Custom user-specified manager with ${bestAffinity} max tactical proficiency across core eFootball playstyles.`);
+
     verifiedCoach = {
-      name: payload.managerDetails.name + (payload.managerDetails.team ? ` (${payload.managerDetails.team})` : ''),
-      rating: bestAffinity,
+      name: topCoach.name + (topCoach.team ? ` (${topCoach.team})` : ''),
+      rating: topCoach.playstyleRating || bestAffinity,
       tacticalStyle: payload.preferredPlaystyle || 'Quick Counter',
       tacticalAffinity: bestAffinity,
       isIdentifiedFromScreenshot: false,
       confidence: 'High',
       confidenceScore: 98,
-      evidence: [
-        `Manager: ${payload.managerDetails.name}`,
-        payload.managerDetails.nationality ? `Nationality: ${payload.managerDetails.nationality}` : '',
-        payload.managerDetails.team ? `Team / Club: ${payload.managerDetails.team}` : '',
-        `Configured Playstyle Proficiencies: QC (${proficiencies.quickCounter || 87}), PG (${proficiencies.possessionGame || 85}), LBC (${proficiencies.longBallCounter || 85}), Overload (${proficiencies.overload || 86})`
-      ].filter(Boolean),
-      explanation: `Custom user-specified manager with ${bestAffinity} max tactical proficiency across core eFootball playstyles.`
+      evidence: evidenceList,
+      explanation
     };
   } else {
     let coach = parsed.coach || {};
@@ -1205,6 +1222,11 @@ export async function postProcessAndVerifySquad(
       signalsEvaluated: ['Face Likeness', 'Position Label', 'Overall Rating', 'Nationality Flag', 'Club Badge', 'Card Type/Foil'],
       ocrBypassedDueToNoNamesOnCards: true
     },
+    coachEvaluationList: coachEvalResult?.evaluatedCoaches,
+    recommendedCoachComparisonSummary: coachEvalResult?.coachComparisonSummary,
+    managersList: (Array.isArray(payload.managersList) && payload.managersList.length > 0)
+      ? payload.managersList
+      : (payload.managerDetails ? [payload.managerDetails] : undefined),
     isDeveloperModeAvailable: true
   };
 }

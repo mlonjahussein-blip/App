@@ -25,8 +25,15 @@ import {
   Send, 
   Filter, 
   ShieldCheck,
-  Flame
+  Flame,
+  Eye,
+  EyeOff,
+  User,
+  Shield,
+  Layers,
+  X
 } from 'lucide-react';
+import { BestXIView } from './BestXIView.tsx';
 
 interface CommunityProps {
   onSelectPostSquad?: (post: CommunityPost) => void;
@@ -57,6 +64,9 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
   const [dmInputText, setDmInputText] = useState('');
   const [showInboxModal, setShowInboxModal] = useState(false);
   const [allUserMessages, setAllUserMessages] = useState<DirectMessage[]>([]);
+
+  // Squad Details Inspection Modal State
+  const [inspectingPost, setInspectingPost] = useState<CommunityPost | null>(null);
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -470,13 +480,30 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
               </div>
 
               {/* Badges */}
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-neutral-950 text-emerald-400 border border-neutral-800">
                   {post.formation}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-neutral-950 text-cyan-400 border border-neutral-800">
                   {post.playstyle}
                 </span>
+                {post.coachRecommendation?.name && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-neutral-950 text-neutral-300 border border-neutral-800 flex items-center gap-1">
+                    <User className="w-3 h-3 text-cyan-400" />
+                    {post.coachRecommendation.name}
+                  </span>
+                )}
+                {post.showSquadDetails !== false ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <Eye className="w-3 h-3" />
+                    Lineup Visible
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-neutral-800 text-neutral-400 border border-neutral-700 flex items-center gap-1">
+                    <EyeOff className="w-3 h-3" />
+                    Lineup Hidden
+                  </span>
+                )}
               </div>
 
               {/* Description */}
@@ -500,12 +527,12 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
                 </div>
               )}
 
-              {/* Post Actions: Like, Comment */}
-              <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between">
+              {/* Post Actions: Like, Comment, Inspect Squad */}
+              <div className="pt-3 border-t border-neutral-800/80 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => handleLike(post)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                       post.isLikedByCurrentUser
                         ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                         : 'bg-neutral-950 text-neutral-400 hover:text-white'
@@ -517,10 +544,18 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
 
                   <button
                     onClick={() => handleToggleComments(post.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-neutral-950 text-neutral-400 hover:text-white transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-neutral-950 text-neutral-400 hover:text-white transition-colors cursor-pointer"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
                     <span>{post.commentsCount} Comments</span>
+                  </button>
+
+                  <button
+                    onClick={() => setInspectingPost(post)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors cursor-pointer"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>View Blueprint &amp; Lineup</span>
                   </button>
                 </div>
 
@@ -821,6 +856,182 @@ export const CommunityView: React.FC<CommunityProps> = ({ onNavigateToAnalyzer }
                 Close Inbox
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Blueprint & Squad Lineup Inspection Modal */}
+      {inspectingPost && (
+        <div className="fixed inset-0 z-50 bg-neutral-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fadeIn">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl max-w-3xl w-full p-6 sm:p-8 space-y-6 shadow-2xl my-auto text-neutral-100 max-h-[90vh] overflow-y-auto">
+            
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-neutral-800 gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs flex items-center justify-center">
+                    {inspectingPost.authorName[0]?.toUpperCase() || 'T'}
+                  </span>
+                  <span className="text-xs font-bold text-neutral-200">
+                    {inspectingPost.authorName}
+                  </span>
+                  <span className="text-neutral-600 text-xs">•</span>
+                  <span className="text-[11px] text-neutral-500">
+                    {new Date(inspectingPost.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black text-white">
+                  {inspectingPost.title}
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setInspectingPost(null)}
+                className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Tactical System Overview (Always Visible: Manager, Playstyle, Formation) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Formation */}
+              <div className="bg-neutral-950 border border-neutral-800 p-3.5 rounded-2xl space-y-1">
+                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
+                  Tactical Formation
+                </span>
+                <span className="text-lg font-black text-emerald-400 block">
+                  {inspectingPost.formation}
+                </span>
+              </div>
+
+              {/* Playstyle */}
+              <div className="bg-neutral-950 border border-neutral-800 p-3.5 rounded-2xl space-y-1">
+                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
+                  Team Playstyle
+                </span>
+                <span className="text-lg font-black text-cyan-400 block">
+                  {inspectingPost.playstyle}
+                </span>
+              </div>
+
+              {/* Manager */}
+              <div className="bg-neutral-950 border border-neutral-800 p-3.5 rounded-2xl space-y-1">
+                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
+                  Recommended Manager
+                </span>
+                <span className="text-sm font-bold text-white block truncate">
+                  {inspectingPost.coachRecommendation?.name || 'Tactical Specialist'}
+                </span>
+                {inspectingPost.coachRecommendation?.rating && (
+                  <span className="text-[11px] text-emerald-400 font-semibold block">
+                    Rating: {inspectingPost.coachRecommendation.rating}/90
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Tactical Explanation */}
+            <div className="bg-neutral-950/80 border border-neutral-800/80 p-4 rounded-2xl text-xs sm:text-sm text-neutral-300 space-y-1.5">
+              <span className="font-bold text-white block">Tactical Overview &amp; Strategy:</span>
+              <p className="leading-relaxed text-neutral-300">
+                {inspectingPost.description || inspectingPost.analysisSummary}
+              </p>
+            </div>
+
+            {/* Squad Lineup Area (Visible or Private based on user setting) */}
+            {inspectingPost.showSquadDetails !== false ? (
+              <div className="space-y-4 pt-2 border-t border-neutral-800">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1 rounded-lg bg-emerald-500/20 text-emerald-400">
+                      <Award className="w-4 h-4" />
+                    </span>
+                    <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                      (a) 2D Recommended Starting XI &amp; Substitutes
+                    </h3>
+                  </div>
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
+                    Shared by Author
+                  </span>
+                </div>
+
+                {/* 2D Pitch View */}
+                {inspectingPost.bestXI ? (
+                  <div className="bg-neutral-950 rounded-2xl border border-neutral-800 overflow-hidden p-2">
+                    <BestXIView bestXI={inspectingPost.bestXI} formation={inspectingPost.formation} />
+                  </div>
+                ) : inspectingPost.startingXI && inspectingPost.startingXI.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                    {inspectingPost.startingXI.map((p, pIdx) => (
+                      <div key={pIdx} className="bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 flex items-center justify-between">
+                        <div className="truncate">
+                          <span className="text-[10px] font-black text-emerald-400 block">{p.position}</span>
+                          <span className="text-xs font-bold text-white truncate block">{p.name}</span>
+                          {p.playstyle && <span className="text-[9px] text-neutral-400 block truncate">{p.playstyle}</span>}
+                        </div>
+                        <span className="text-xs font-black text-emerald-400 pl-2">{p.overallRating || p.rating || 85}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-neutral-400 italic">Starting XI lineup details synchronized.</p>
+                )}
+
+                {/* Substitutes Section */}
+                {inspectingPost.substitutes && inspectingPost.substitutes.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-400 block">
+                      Substitute Bench ({inspectingPost.substitutes.length} Players)
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                      {inspectingPost.substitutes.map((sub, sIdx) => (
+                        <div key={sIdx} className="bg-neutral-950/70 border border-neutral-850 rounded-xl p-2 flex items-center justify-between text-xs">
+                          <div className="truncate">
+                            <span className="text-[10px] font-bold text-cyan-400 block">{sub.position}</span>
+                            <span className="font-semibold text-neutral-200 truncate block">{sub.name}</span>
+                          </div>
+                          <span className="text-xs font-bold text-neutral-400 pl-2">{sub.overallRating || sub.rating || 80}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 text-center space-y-2">
+                <div className="w-10 h-10 rounded-full bg-neutral-800 text-neutral-400 flex items-center justify-center mx-auto">
+                  <EyeOff className="w-5 h-5" />
+                </div>
+                <h4 className="text-sm font-bold text-white">Lineup Hidden by Author</h4>
+                <p className="text-xs text-neutral-400 max-w-md mx-auto leading-relaxed">
+                  The tactician chose to share the tactical setup (Manager, Team Playstyle, and Formation) while keeping their specific Starting XI and substitute player lineup private.
+                </p>
+              </div>
+            )}
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-between pt-4 border-t border-neutral-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setInspectingPost(null);
+                  onNavigateToAnalyzer();
+                }}
+                className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Analyze Your Own Squad in this Formation →
+              </button>
+              <button
+                type="button"
+                onClick={() => setInspectingPost(null)}
+                className="px-5 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
           </div>
         </div>
       )}

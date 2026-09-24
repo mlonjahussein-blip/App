@@ -10,7 +10,7 @@ import {
   Sparkles,
   Award
 } from 'lucide-react';
-import { TypedPlayerInput, ManagerInputDetails, AnalysisResult, SavedSquad } from '../types.ts';
+import { TypedPlayerInput, ManagerInputDetails, AnalysisResult, SavedSquad, ALL_EFOOTBALL_PLAYSTYLES } from '../types.ts';
 import { ManagerDetailsInput } from './ManagerDetailsInput.tsx';
 import { useAuth } from '../lib/AuthContext.tsx';
 import { db } from '../lib/firebase.ts';
@@ -151,43 +151,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     'Standard'
   ];
 
-  const playstyles = [
-    'Goal Poacher',
-    'Adv. Striker',
-    'Fox in the Box',
-    'Target Man',
-    'Deep-Lying Forward',
-    'Dummy Runner',
-    'Creative Playmaker',
-    'Hole Player',
-    'Box-to-Box',
-    'Anchor Man',
-    'Orchestrator',
-    'Destroyer',
-    'Build Up',
-    'All-Action Defender',
-    'Pass Disruptor',
-    'Covering Role',
-    'Front Line Pressure',
-    'Front Line Poacher',
-    'Shadow Marker',
-    'Screen Defender',
-    'High Line Master',
-    'Attack Outlet',
-    'Offensive Fullback',
-    'Defensive Fullback',
-    'Full-back Finisher',
-    'Roaming Flank',
-    'Prolific Winger',
-    'Cross Specialist',
-    'Extra Frontman',
-    'Counter Target',
-    'Sweeper GK',
-    'Offensive Goalkeeper',
-    'Defensive Goalkeeper',
-    'Classic No. 10',
-    'No Playstyle'
-  ];
+  const playstyles = ALL_EFOOTBALL_PLAYSTYLES;
 
   const startingXI = typedPlayers.filter(p => p.role === 'starting_xi' || !p.role);
   const substitutes = typedPlayers.filter(p => p.role === 'substitute');

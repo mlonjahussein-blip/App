@@ -192,7 +192,10 @@ function AppContent() {
   };
 
   // Share to community
-  const handleShareToCommunity = async (analysis: AnalysisResult) => {
+  const handleShareToCommunity = async (
+    analysis: AnalysisResult,
+    options?: { showSquadDetails?: boolean; title?: string; description?: string }
+  ) => {
     if (!user) {
       alert('Please log in to share your squad with the community.');
       setCurrentTab('login');
@@ -203,20 +206,32 @@ function AppContent() {
     setIsSharingPost(true);
 
     try {
-      const post = {
+      const showSquad = options?.showSquadDetails !== false;
+      const startingXI = analysis.bestXI?.players || analysis.identifiedPlayers?.filter(p => p.role === 'starting_xi' || !p.role) || [];
+      const substitutes = analysis.identifiedPlayers?.filter(p => p.role === 'substitute' || p.isBench) || [];
+
+      const post: any = {
         userId: user.uid,
         authorName: profile?.displayName || user.email?.split('@')[0] || 'Tactician',
         createdAt: new Date().toISOString(),
-        title: analysis.title,
-        description: `${analysis.recommendedFormation} tactical system (${analysis.coachRecommendation?.tacticalStyle || 'Tactics'}). ${analysis.formationExplanation}`,
+        title: options?.title || analysis.title || `${analysis.recommendedFormation} Tactical Blueprint`,
+        description: options?.description || `${analysis.recommendedFormation} tactical system (${analysis.coachRecommendation?.tacticalStyle || 'Tactics'}). ${analysis.formationExplanation}`,
         formation: analysis.recommendedFormation,
         playstyle: analysis.coachRecommendation?.tacticalStyle || 'Quick Counter',
         squadRating: analysis.squadRatings?.overall || 86,
         keyPlayers: analysis.bestXI?.players?.slice(0, 4).map((p) => `${p.name} (${p.position})`) || [],
         analysisSummary: analysis.formationExplanation,
         likesCount: 1,
-        commentsCount: 0
+        commentsCount: 0,
+        showSquadDetails: showSquad,
+        coachRecommendation: analysis.coachRecommendation
       };
+
+      if (showSquad) {
+        post.startingXI = startingXI;
+        post.substitutes = substitutes;
+        post.bestXI = analysis.bestXI;
+      }
 
       await addDoc(collection(db, 'communityPosts'), post);
       alert('Squad shared successfully to the Community Hub!');

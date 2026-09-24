@@ -1,33 +1,10 @@
 import React from 'react';
 import { Briefcase, Sparkles, UserPlus, Trash2, Shield, UserCheck } from 'lucide-react';
-import { ManagerInputDetails } from '../types.ts';
+import { ManagerInputDetails, ALL_EFOOTBALL_PLAYSTYLES } from '../types.ts';
 
 const POSITIONS = ['CF', 'SS', 'LWF', 'RWF', 'AMF', 'CMF', 'DMF', 'LMF', 'RMF', 'CB', 'LB', 'RB', 'GK'];
 
-const PLAYSTYLES = [
-  'Goal Poacher',
-  'Fox in the Box',
-  'Target Man',
-  'Deep-Lying Forward',
-  'Creative Playmaker',
-  'Hole Player',
-  'Classic No.10',
-  'Dummy Runner',
-  'Inverted Winger',
-  'Prolific Winger',
-  'Cross Specialist',
-  'Box-to-Box',
-  'Orchestrator',
-  'Destroyer',
-  'Anchor Man',
-  'Build Up',
-  'Extra Frontman',
-  'Offensive Full-back',
-  'Defensive Full-back',
-  'Full-back Finisher',
-  'Attacking Goalkeeper',
-  'Defensive Goalkeeper'
-];
+const PLAYSTYLES = ALL_EFOOTBALL_PLAYSTYLES;
 
 export const createDefaultCoach = (index: number = 0): ManagerInputDetails => ({
   id: `coach_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,

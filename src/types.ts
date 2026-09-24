@@ -338,6 +338,74 @@ export interface AnalysisResult {
   linkUpPlay?: LinkUpPlaySettings;
 }
 
+export const ALL_EFOOTBALL_PLAYSTYLES = [
+  'Goal Poacher',
+  'Fox in the Box',
+  'Target Man',
+  'Deep-Lying Forward',
+  'Adv. Striker',
+  'Dummy Runner',
+  'Creative Playmaker',
+  'Hole Player',
+  'Classic No. 10',
+  'Inverted Winger',
+  'Prolific Winger',
+  'Roaming Flank',
+  'Cross Specialist',
+  'Box-to-Box',
+  'Orchestrator',
+  'Destroyer',
+  'Anchor Man',
+  'Build Up',
+  'Extra Frontman',
+  'All-Action Defender',
+  'Pass Disruptor',
+  'Covering Role',
+  'Front Line Pressure',
+  'Front Line Poacher',
+  'Shadow Marker',
+  'Screen Defender',
+  'High Line Master',
+  'Attack Outlet',
+  'Offensive Full-back',
+  'Defensive Full-back',
+  'Offensive Fullback',
+  'Defensive Fullback',
+  'Full-back Finisher',
+  'Attacking Goalkeeper',
+  'Defensive Goalkeeper',
+  'Offensive Goalkeeper',
+  'Sweeper GK',
+  'Counter Target',
+  'No Playstyle'
+] as const;
+
+export interface PlaystyleEvaluationDetail {
+  playstyle: string;
+  proficiency: number;
+  squadFitScore: number;
+  synergyScore: number;
+  fitAssessment: string;
+  isBestFitForCoach: boolean;
+}
+
+export interface CoachComparisonItem {
+  name: string;
+  team?: string;
+  nationality?: string;
+  rating: number;
+  tacticalStyle: string;
+  tacticalSynergyScore: number;
+  suitabilityReason: string;
+  isRecommended: boolean;
+  linkedUpPlaystyle?: {
+    enabled: boolean;
+    centrepiece?: { playstyle: string; position: string };
+    keyMan?: { playstyle: string; position: string };
+  };
+  playstyleEvaluations?: PlaystyleEvaluationDetail[];
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -368,6 +436,15 @@ export interface CommunityPost {
   likesCount: number;
   commentsCount: number;
   isLikedByCurrentUser?: boolean;
+  // Squad visibility controls & details
+  showSquadDetails?: boolean;
+  startingXI?: PlayerData[];
+  substitutes?: PlayerData[];
+  bestXI?: {
+    formation: string;
+    players: (PlayerData & { pitchX?: number; pitchY?: number; selectionReason?: string })[];
+  };
+  coachRecommendation?: CoachData;
 }
 
 export interface PostComment {

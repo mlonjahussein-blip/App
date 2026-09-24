@@ -215,12 +215,30 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const checkoutUrlRef = useRef<string | null>(null);
+  const checkoutTabRef = useRef<Window | null>(null);
 
   // Sync initial props
   useEffect(() => {
     if (displayName && !fullName) setFullName(displayName);
     if (userEmail && !email) setEmail(userEmail);
   }, [displayName, userEmail]);
+
+  // Listen for CHECKOUT_PAGE_READY from the redirect bridge page
+  useEffect(() => {
+    const handleMessage = (evt: MessageEvent) => {
+      if (evt.data?.type === 'CHECKOUT_PAGE_READY') {
+        const url = checkoutUrlRef.current;
+        if (url) {
+          try {
+            (evt.source as Window)?.postMessage({ type: 'CHECKOUT_URL', url }, '*');
+          } catch (e) {}
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   // Clean up polling interval on unmount or reset
   useEffect(() => {
@@ -289,8 +307,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
     }
 
-    // Clear any previous checkout redirect storage
+    // Clear any previous checkout redirect storage and global references
     try {
+      (window as any).efCurrentCheckoutUrl = null;
+      (window as any).efCurrentCheckoutError = null;
       localStorage.removeItem('ef_blmpay_checkout_url');
       localStorage.removeItem('ef_blmpay_checkout_error');
     } catch (e) {}
@@ -299,6 +319,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     let checkoutTab: Window | null = null;
     try {
       checkoutTab = window.open('/checkout-redirect.html', '_blank');
+      checkoutTabRef.current = checkoutTab;
     } catch (popupErr) {
       console.warn('Checkout tab could not be opened synchronously:', popupErr);
     }
@@ -328,6 +349,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         const errJson = await resp.json().catch(() => ({}));
         const msg = errJson.error || 'Failed to initialize payment gateway.';
         try {
+          (window as any).efCurrentCheckoutError = msg;
           localStorage.setItem('ef_blmpay_checkout_error', msg);
           if (checkoutTab && !checkoutTab.closed) checkoutTab.close();
         } catch (e) {}
@@ -340,6 +362,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       if (!order || !order.paymentId) {
         const msg = 'Invalid order response from payment gateway.';
         try {
+          (window as any).efCurrentCheckoutError = msg;
           localStorage.setItem('ef_blmpay_checkout_error', msg);
           if (checkoutTab && !checkoutTab.closed) checkoutTab.close();
         } catch (e) {}
@@ -349,6 +372,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       if (order.status === 'FAILED') {
         const msg = order.failureReason || order.instructions || 'Payment initialization was rejected by payment gateway.';
         try {
+          (window as any).efCurrentCheckoutError = msg;
           localStorage.setItem('ef_blmpay_checkout_error', msg);
           if (checkoutTab && !checkoutTab.closed) checkoutTab.close();
         } catch (e) {}
@@ -358,16 +382,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setActivePaymentId(order.paymentId);
       setProviderTxId(order.providerTransactionId);
 
-      // Automatically redirect and load BLM Pay Checkout in the opened tab
+      // Automatically redirect and load BLM Pay Checkout in the new tab
       if (order.checkoutUrl) {
+        checkoutUrlRef.current = order.checkoutUrl;
         setCheckoutUrl(order.checkoutUrl);
 
-        // 1. Set localStorage: immediately triggers storage event and 80ms polling in /checkout-redirect.html
+        // 1. Expose to opener directly for synchronous 0ms handoff
+        try {
+          (window as any).efCurrentCheckoutUrl = order.checkoutUrl;
+        } catch (e) {}
+
+        // 2. Set localStorage: triggers storage event and fast polling
         try {
           localStorage.setItem('ef_blmpay_checkout_url', order.checkoutUrl);
         } catch (e) {}
 
-        // 2. BroadcastChannel trigger
+        // 3. BroadcastChannel trigger
         try {
           if (typeof BroadcastChannel !== 'undefined') {
             const bc = new BroadcastChannel('ef_blmpay_checkout');
@@ -376,21 +406,47 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           }
         } catch (e) {}
 
-        // 3. Direct window postMessage
-        try {
-          if (checkoutTab && !checkoutTab.closed) {
-            checkoutTab.postMessage({ type: 'CHECKOUT_URL', url: order.checkoutUrl }, '*');
+        // 4. Direct window location navigation
+        const targetTab = checkoutTab || checkoutTabRef.current;
+        let tabNavigated = false;
+        if (targetTab && !targetTab.closed) {
+          try {
+            targetTab.location.href = order.checkoutUrl;
+            targetTab.focus();
+            tabNavigated = true;
+          } catch (navErr) {
+            console.log('Location href navigation on targetTab:', navErr);
           }
-        } catch (e) {}
 
-        // 4. Direct window location replace
-        try {
-          if (checkoutTab && !checkoutTab.closed) {
-            checkoutTab.location.replace(order.checkoutUrl);
-            checkoutTab.focus();
+          // Also send postMessages in case the bridge page just finished loading
+          let attempts = 0;
+          const msgInterval = setInterval(() => {
+            attempts++;
+            try {
+              if (targetTab && !targetTab.closed) {
+                targetTab.postMessage({ type: 'CHECKOUT_URL', url: order.checkoutUrl }, '*');
+              }
+            } catch (e) {}
+            if (attempts >= 15) clearInterval(msgInterval);
+          }, 100);
+        }
+
+        // 5. If popup was blocked or failed to navigate, automatically open new tab now
+        if (!tabNavigated && (!targetTab || targetTab.closed)) {
+          try {
+            const fallbackWin = window.open(order.checkoutUrl, '_blank');
+            if (!fallbackWin) {
+              const a = document.createElement('a');
+              a.href = order.checkoutUrl;
+              a.target = '_blank';
+              a.rel = 'noopener noreferrer';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            }
+          } catch (openErr) {
+            console.warn('Auto open fallback error:', openErr);
           }
-        } catch (navErr) {
-          console.log('Location redirect handled by bridge page:', navErr);
         }
       } else {
         // Direct mobile push without a checkout URL: close the redirect tab cleanly
@@ -404,9 +460,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setStep('awaiting_payment');
       startPollingPaymentStatus(order.paymentId, order.providerTransactionId);
     } catch (err: any) {
-      if (checkoutTab && !checkoutTab.closed) {
+      const targetTab = checkoutTab || checkoutTabRef.current;
+      if (targetTab && !targetTab.closed) {
         try {
-          checkoutTab.close();
+          targetTab.close();
         } catch (e) {}
       }
       console.error('Payment order creation error:', err);
@@ -961,8 +1018,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    try {
+                      (window as any).efCurrentCheckoutUrl = checkoutUrl;
+                    } catch (e) {}
+                  }}
                 >
-                  <span>Re-Open Checkout Page in New Tab</span>
+                  <span>Open Checkout in New Tab</span>
                   <ExternalLink className="w-4 h-4" />
                 </a>
               </div>
