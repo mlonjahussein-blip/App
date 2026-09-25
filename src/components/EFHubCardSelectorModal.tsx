@@ -361,126 +361,29 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
         <div className="relative flex-1 bg-neutral-950 overflow-hidden flex flex-col">
           
           {activeTab === 'live_web' ? (
-            /* Top-Level Tab Companion Window (Bypasses Cloudflare & Anti-Bot Blocking) */
-            <div className="relative w-full h-full overflow-y-auto p-6 flex flex-col items-center justify-center text-center">
-              
-              <div className="max-w-3xl w-full mx-auto space-y-6 py-8">
-                
-                <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-emerald-500/20 via-teal-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center shadow-2xl shadow-emerald-500/10">
-                  <Globe className="w-10 h-10 text-emerald-400 animate-pulse" />
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                    Top-Level Browser Tab Mode (Anti-Cloudflare Bypass)
-                  </h3>
-                  <p className="text-sm text-neutral-400 max-w-xl mx-auto leading-relaxed">
-                    Official databases like <strong className="text-white">PESDB (`pesdb.net`)</strong> and <strong className="text-white">eFHUB (`efhub.com`)</strong> enforce strict Cloudflare WAF firewalls and block iframe embedding. Opening them as a <strong className="text-emerald-400">top-level browser tab</strong> gives you 100% unblocked full-speed browsing.
+            /* Live Web Window (Opens pesdb.net or efhub.com directly inside the modal window via proxy) */
+            <div className="relative w-full h-full">
+              {isLoadingIframe && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-neutral-950/80 backdrop-blur-sm space-y-3">
+                  <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-xs font-bold text-neutral-300">
+                    Loading live database {currentWebUrl}...
+                  </p>
+                  <p className="text-[11px] text-neutral-500">
+                    Bypassing frame restrictions & loading in-window
                   </p>
                 </div>
+              )}
 
-                {/* Direct Launch Buttons */}
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                  <a
-                    href="https://pesdb.net/efootball/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-6 py-3.5 rounded-2xl text-sm font-black bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-xl shadow-emerald-500/25 flex items-center gap-2 transition-all transform hover:scale-105"
-                  >
-                    <span>Launch PESDB in New Tab</span>
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-
-                  <a
-                    href="https://efhub.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-6 py-3.5 rounded-2xl text-sm font-black bg-neutral-900 hover:bg-neutral-800 text-white border border-neutral-700 shadow-xl flex items-center gap-2 transition-all transform hover:scale-105"
-                  >
-                    <span>Launch eFHUB in New Tab</span>
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </div>
-
-                {/* Workflow Guide Card */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 text-left">
-                  <div className="p-4 rounded-2xl bg-neutral-900/90 border border-neutral-800">
-                    <div className="w-7 h-7 rounded-xl bg-emerald-500/20 text-emerald-400 font-black text-xs flex items-center justify-center mb-2.5">
-                      1
-                    </div>
-                    <h4 className="text-xs font-black text-white">Open Database Tab</h4>
-                    <p className="text-[11px] text-neutral-400 mt-1">
-                      Click the button above to open PESDB or eFHUB in your browser.
-                    </p>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-neutral-900/90 border border-neutral-800">
-                    <div className="w-7 h-7 rounded-xl bg-teal-500/20 text-teal-400 font-black text-xs flex items-center justify-center mb-2.5">
-                      2
-                    </div>
-                    <h4 className="text-xs font-black text-white">Find Your Player</h4>
-                    <p className="text-[11px] text-neutral-400 mt-1">
-                      Browse or search for any Epic, Big Time, or Show Time card.
-                    </p>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-neutral-900/90 border border-neutral-800">
-                    <div className="w-7 h-7 rounded-xl bg-cyan-500/20 text-cyan-400 font-black text-xs flex items-center justify-center mb-2.5">
-                      3
-                    </div>
-                    <h4 className="text-xs font-black text-white">Instant Import</h4>
-                    <p className="text-[11px] text-neutral-400 mt-1">
-                      Type the player name below in Quick Search and click "Select This Card".
-                    </p>
-                  </div>
-                </div>
-
-                {/* Quick Card Search & Gallery Preview Bar */}
-                <div className="pt-4 border-t border-neutral-800/80 w-full">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-bold text-neutral-400 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Or select instantly from pre-loaded database:</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('cards_gallery')}
-                      className="text-xs font-black text-emerald-400 hover:underline flex items-center gap-1"
-                    >
-                      <LayoutGrid className="w-3.5 h-3.5" />
-                      <span>Open Full Cards Grid ({quickCards.length}+ Cards)</span>
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    {quickCards.slice(0, 6).map((player) => {
-                      const isSelected = selectedCard?.id === player.id;
-                      return (
-                        <button
-                          key={player.id}
-                          type="button"
-                          onClick={() => setSelectedCard(player)}
-                          className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${
-                            isSelected
-                              ? 'bg-emerald-500 text-neutral-950 font-black border-emerald-400 shadow-lg'
-                              : 'bg-neutral-900 text-neutral-200 hover:text-white border-neutral-800 hover:border-neutral-700'
-                          }`}
-                        >
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] ${isSelected ? 'bg-neutral-950 text-amber-300' : 'text-amber-400'}`}>
-                            {player.maxRating}
-                          </span>
-                          <span>{player.commonName || player.fullName}</span>
-                          <span className={`text-[10px] ${isSelected ? 'text-neutral-900 font-extrabold' : 'text-neutral-400'}`}>
-                            [{player.primaryPosition}]
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-              </div>
-
+              <iframe
+                ref={iframeRef}
+                key={iframeKey}
+                src={proxySrc}
+                title="PESDB & eFHUB Live Database Window"
+                className="w-full h-full border-0 bg-[#13151d]"
+                onLoad={() => setIsLoadingIframe(false)}
+                sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+              />
             </div>
           ) : (
             /* Pre-cached Cards Grid View */
