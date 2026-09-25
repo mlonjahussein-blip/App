@@ -134,12 +134,17 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const [subTeam, setSubTeam] = useState('');
   const [subLiveUpdate, setSubLiveUpdate] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('C');
 
-  // eFHUB Card Selection Modal State
+  // eFHUB Card Selection Modal State & Selected Card Objects
   const [isEfhubModalOpen, setIsEfhubModalOpen] = useState(false);
   const [efhubModalTarget, setEfhubModalTarget] = useState<'pure23' | 'xi' | 'sub'>('pure23');
 
+  const [activeEfhubCardPure23, setActiveEfhubCardPure23] = useState<EFootballMasterPlayer | null>(null);
+  const [activeEfhubCardXI, setActiveEfhubCardXI] = useState<EFootballMasterPlayer | null>(null);
+  const [activeEfhubCardSub, setActiveEfhubCardSub] = useState<EFootballMasterPlayer | null>(null);
+
   const handleSelectEfhubCard = (card: EFootballMasterPlayer) => {
     if (efhubModalTarget === 'pure23') {
+      setActiveEfhubCardPure23(card);
       setSquadPlayerName(card.fullName || card.commonName);
       setSquadPlayerPos(card.primaryPosition);
       setSquadSecondaryPositions(card.secondaryPositions || []);
@@ -148,6 +153,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       setSquadPlayerRating(card.maxRating || card.baseRating);
       setSquadPlayerTeam(card.club);
     } else if (efhubModalTarget === 'xi') {
+      setActiveEfhubCardXI(card);
       setXiName(card.fullName || card.commonName);
       setXiPos(card.primaryPosition);
       setXiSecondaryPositions(card.secondaryPositions || []);
@@ -156,6 +162,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       setXiRating(card.maxRating || card.baseRating);
       setXiTeam(card.club);
     } else if (efhubModalTarget === 'sub') {
+      setActiveEfhubCardSub(card);
       setSubName(card.fullName || card.commonName);
       setSubPos(card.primaryPosition);
       setSubSecondaryPositions(card.secondaryPositions || []);
@@ -208,12 +215,18 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       id: 'sq_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
       name: squadPlayerName.trim(),
       position: squadPlayerPos,
-      secondaryPositions: squadSecondaryPositions.length > 0 ? squadSecondaryPositions : undefined,
+      secondaryPositions: squadSecondaryPositions.length > 0 ? squadSecondaryPositions : (activeEfhubCardPure23?.secondaryPositions || undefined),
       playablePositions: [squadPlayerPos, ...squadSecondaryPositions],
       cardType: squadPlayerCardType,
+      cardTitle: activeEfhubCardPure23?.cardTitle,
+      boosterName: activeEfhubCardPure23?.boosterName,
       playstyle: squadPlayerPlaystyle,
       rating: Math.min(110, Math.max(20, Number(squadPlayerRating) || 90)),
-      club: squadPlayerTeam.trim() || undefined,
+      club: squadPlayerTeam.trim() || activeEfhubCardPure23?.club || undefined,
+      nationality: activeEfhubCardPure23?.nationality,
+      keyAttributes: activeEfhubCardPure23?.keyAttributes,
+      skills: activeEfhubCardPure23?.skills,
+      efhubUrl: activeEfhubCardPure23?.efhubUrl,
       role: typedPlayers.length < 11 ? 'starting_xi' : 'substitute',
       liveUpdate: squadPlayerLiveUpdate
     };
@@ -222,6 +235,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     setSquadPlayerName('');
     setSquadPlayerTeam('');
     setSquadSecondaryPositions([]);
+    setActiveEfhubCardPure23(null);
     setSquadPlayerLiveUpdate('C');
   };
 
@@ -234,12 +248,18 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       id: 'xi_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
       name: xiName.trim(),
       position: xiPos,
-      secondaryPositions: xiSecondaryPositions.length > 0 ? xiSecondaryPositions : undefined,
+      secondaryPositions: xiSecondaryPositions.length > 0 ? xiSecondaryPositions : (activeEfhubCardXI?.secondaryPositions || undefined),
       playablePositions: [xiPos, ...xiSecondaryPositions],
       cardType: xiCardType,
+      cardTitle: activeEfhubCardXI?.cardTitle,
+      boosterName: activeEfhubCardXI?.boosterName,
       playstyle: xiPlaystyle,
       rating: Math.min(110, Math.max(20, Number(xiRating) || 90)),
-      club: xiTeam.trim() || undefined,
+      club: xiTeam.trim() || activeEfhubCardXI?.club || undefined,
+      nationality: activeEfhubCardXI?.nationality,
+      keyAttributes: activeEfhubCardXI?.keyAttributes,
+      skills: activeEfhubCardXI?.skills,
+      efhubUrl: activeEfhubCardXI?.efhubUrl,
       role: 'starting_xi',
       liveUpdate: xiLiveUpdate
     };
@@ -248,6 +268,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     setXiName('');
     setXiTeam('');
     setXiSecondaryPositions([]);
+    setActiveEfhubCardXI(null);
     setXiLiveUpdate('C');
   };
 
@@ -260,12 +281,18 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       id: 'sub_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
       name: subName.trim(),
       position: subPos,
-      secondaryPositions: subSecondaryPositions.length > 0 ? subSecondaryPositions : undefined,
+      secondaryPositions: subSecondaryPositions.length > 0 ? subSecondaryPositions : (activeEfhubCardSub?.secondaryPositions || undefined),
       playablePositions: [subPos, ...subSecondaryPositions],
       cardType: subCardType,
+      cardTitle: activeEfhubCardSub?.cardTitle,
+      boosterName: activeEfhubCardSub?.boosterName,
       playstyle: subPlaystyle,
       rating: Math.min(110, Math.max(20, Number(subRating) || 90)),
-      club: subTeam.trim() || undefined,
+      club: subTeam.trim() || activeEfhubCardSub?.club || undefined,
+      nationality: activeEfhubCardSub?.nationality,
+      keyAttributes: activeEfhubCardSub?.keyAttributes,
+      skills: activeEfhubCardSub?.skills,
+      efhubUrl: activeEfhubCardSub?.efhubUrl,
       role: 'substitute',
       liveUpdate: subLiveUpdate
     };
@@ -274,6 +301,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     setSubName('');
     setSubTeam('');
     setSubSecondaryPositions([]);
+    setActiveEfhubCardSub(null);
     setSubLiveUpdate('C');
   };
 

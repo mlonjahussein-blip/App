@@ -539,10 +539,14 @@ export interface TypedPlayerInput {
   playablePositions?: string[];
   rating: number | string;
   cardType?: string;
+  cardTitle?: string;
+  boosterName?: string;
   playstyle?: string;
   club?: string;
   nationality?: string;
+  keyAttributes?: Record<string, number | string>;
   skills?: string[];
+  efhubUrl?: string;
   role?: 'starting_xi' | 'substitute';
   liveUpdate?: 'A' | 'B' | 'C' | 'D' | 'E' | string;
 }
