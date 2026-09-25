@@ -20,7 +20,7 @@ import { NetworkErrorShutdownView } from './components/NetworkErrorShutdownView.
 import { OfflineIndicator } from './components/OfflineIndicator.tsx';
 
 // Temporary shutdown flag: set to false to make website public and live
-export const IS_SYSTEM_SHUTDOWN = false;
+export const IS_SYSTEM_SHUTDOWN = true;
 
 // Temporary maintenance mode flag (set to false to reactivate)
 export const IS_MAINTENANCE_MODE = false;

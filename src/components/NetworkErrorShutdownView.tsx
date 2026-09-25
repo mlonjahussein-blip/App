@@ -28,7 +28,7 @@ export const NetworkErrorShutdownView: React.FC = () => {
               This site can’t be reached
             </h1>
             <p className="text-sm text-[#bdc1c6] leading-relaxed">
-              Check if there is a typo in <span className="font-medium text-white">efootballaihub.com</span> or check your internet connection.
+              Check if there is a typo or error in <span className="font-medium text-white">efootballaihub.com</span>, check if the link is correct, or check your internet connection.
             </p>
           </div>
 
@@ -38,9 +38,10 @@ export const NetworkErrorShutdownView: React.FC = () => {
               Try the following steps:
             </p>
             <ul className="list-disc list-inside space-y-1.5 pl-1 text-[#bdc1c6]">
-              <li>Check your network cables, modem, and router</li>
-              <li>Verify your link and reconnect to Wi-Fi or mobile data</li>
-              <li>Check your DNS and network proxy settings</li>
+              <li>Check if the web address / link is entered correctly</li>
+              <li>Check your internet connection (Wi-Fi, mobile data, router)</li>
+              <li>Check your network cables and proxy settings</li>
+              <li>Reload the page once your connection is active</li>
             </ul>
           </div>
 
