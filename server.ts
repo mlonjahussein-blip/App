@@ -819,6 +819,9 @@ app.get('/api/efhub-player', async (req, res) => {
   }
 });
 
+// In-memory resilient server account store for instant, quota-proof auth resolution
+const serverAccountStore: Map<string, any> = new Map();
+
 // Universal Cloud Registration Endpoint
 app.post('/api/auth/register', async (req, res) => {
   try {
@@ -827,16 +830,39 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'Missing required account registration parameters.' });
     }
 
-    const PROJECT_ID = 'emergent-fastness-8lcf1';
-    const DB_ID = 'ai-studio-efootballaihub-2a95eb9f-c78b-4ee5-ae97-a914c4288cba';
-    const API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyAUe9kMRkqAG_VshpucovSWslYeBcofqZY';
-    const BASE_REST_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DB_ID}/documents`;
-
     const cleanEmail = String(email).toLowerCase().trim();
     const cleanName = (displayName || cleanEmail.split('@')[0] || 'Tactician').trim();
     const cleanWhatsApp = whatsappNumber ? String(whatsappNumber).trim() : null;
     const rawDigits = cleanWhatsApp ? cleanWhatsApp.replace(/[^0-9]/g, '') : '';
     const emailKey = cleanEmail.replace(/[\/\s#$[\]]/g, '_');
+
+    const accountObj = {
+      uid,
+      email: cleanEmail,
+      displayName: cleanName,
+      whatsappNumber: cleanWhatsApp,
+      salt,
+      hash,
+      role: 'user',
+      createdAt: new Date().toISOString(),
+      freeAnalysesRemaining: 1,
+      paidCredits: 0,
+      lastFreeResetAt: new Date().toISOString()
+    };
+
+    // Store in-memory immediately
+    serverAccountStore.set(cleanEmail, accountObj);
+    serverAccountStore.set(emailKey, accountObj);
+    serverAccountStore.set(uid, accountObj);
+    if (rawDigits && rawDigits.length >= 7) {
+      serverAccountStore.set('wa_' + rawDigits, accountObj);
+      serverAccountStore.set(rawDigits, accountObj);
+    }
+
+    const PROJECT_ID = 'emergent-fastness-8lcf1';
+    const DB_ID = 'ai-studio-efootballaihub-2a95eb9f-c78b-4ee5-ae97-a914c4288cba';
+    const API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyAUe9kMRkqAG_VshpucovSWslYeBcofqZY';
+    const BASE_REST_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DB_ID}/documents`;
 
     const fields: any = {
       uid: { stringValue: uid },
@@ -855,32 +881,26 @@ app.post('/api/auth/register', async (req, res) => {
       fields.whatsappNumber = { stringValue: cleanWhatsApp };
     }
 
-    // 1. Write to authAccounts
-    await fetch(`${BASE_REST_URL}/authAccounts/${encodeURIComponent(emailKey)}?key=${API_KEY}`, {
+    // Attempt cloud persistence in background
+    fetch(`${BASE_REST_URL}/authAccounts/${encodeURIComponent(emailKey)}?key=${API_KEY}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields })
-    });
+    }).catch(() => {});
 
     if (rawDigits && rawDigits.length >= 7) {
-      await fetch(`${BASE_REST_URL}/authAccounts/${encodeURIComponent('wa_' + rawDigits)}?key=${API_KEY}`, {
+      fetch(`${BASE_REST_URL}/authAccounts/${encodeURIComponent('wa_' + rawDigits)}?key=${API_KEY}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fields })
-      });
-      await fetch(`${BASE_REST_URL}/authAccounts/${encodeURIComponent(rawDigits)}?key=${API_KEY}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields })
-      });
+      }).catch(() => {});
     }
 
-    // 2. Write to users
-    await fetch(`${BASE_REST_URL}/users/${encodeURIComponent(uid)}?key=${API_KEY}`, {
+    fetch(`${BASE_REST_URL}/users/${encodeURIComponent(uid)}?key=${API_KEY}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields })
-    });
+    }).catch(() => {});
 
     res.json({
       success: true,
@@ -901,14 +921,26 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: 'Identifier is required.' });
     }
 
+    const rawDigits = identifier.replace(/[^0-9]/g, '');
+    const isEmail = identifier.includes('@');
+    const cleanEmail = isEmail ? identifier.toLowerCase() : '';
+
+    // 1. Check in-memory store first
+    if (cleanEmail && serverAccountStore.has(cleanEmail)) {
+      return res.json({ found: true, account: serverAccountStore.get(cleanEmail) });
+    }
+    if (rawDigits && serverAccountStore.has('wa_' + rawDigits)) {
+      return res.json({ found: true, account: serverAccountStore.get('wa_' + rawDigits) });
+    }
+    if (serverAccountStore.has(identifier)) {
+      return res.json({ found: true, account: serverAccountStore.get(identifier) });
+    }
+
+    // 2. Query Cloud Firestore
     const PROJECT_ID = 'emergent-fastness-8lcf1';
     const DB_ID = 'ai-studio-efootballaihub-2a95eb9f-c78b-4ee5-ae97-a914c4288cba';
     const API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyAUe9kMRkqAG_VshpucovSWslYeBcofqZY';
     const BASE_REST_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DB_ID}/documents`;
-
-    const rawDigits = identifier.replace(/[^0-9]/g, '');
-    const isEmail = identifier.includes('@');
-    const cleanEmail = isEmail ? identifier.toLowerCase() : '';
 
     const unwrap = (docData: any) => {
       if (!docData || !docData.fields) return null;
@@ -928,6 +960,7 @@ app.post('/api/auth/login', async (req, res) => {
         const docJson = await fetchRes.json();
         const data = unwrap(docJson);
         if (data && data.salt && data.hash) {
+          serverAccountStore.set(cleanEmail, data);
           return res.json({ found: true, account: data });
         }
       }
@@ -939,6 +972,7 @@ app.post('/api/auth/login', async (req, res) => {
         const docJson = await fetchRes1.json();
         const data = unwrap(docJson);
         if (data && data.salt && data.hash) {
+          serverAccountStore.set('wa_' + rawDigits, data);
           return res.json({ found: true, account: data });
         }
       }

@@ -160,12 +160,27 @@ interface StoredAccountV2 {
   createdAt: string;
 }
 
-// Universal Cloud Account persistence across all devices via direct Firestore REST & SDK
+// Universal Cloud Account persistence across all devices via direct Firestore REST, SDK & Local Cache
 async function saveCloudAccount(account: StoredAccountV2, profileData?: Partial<UserProfile>) {
   try {
+    const cleanEmail = account.email.toLowerCase().trim();
+
+    // 1. Save to Local Cache for instant offline & cross-tab availability
+    try {
+      localStorage.setItem(`efootball_account_${cleanEmail}`, JSON.stringify(account));
+      if (account.uid) {
+        localStorage.setItem(`efootball_account_${account.uid}`, JSON.stringify(account));
+      }
+      const existingList = JSON.parse(localStorage.getItem('efootball_auth_accounts_v2') || '[]');
+      const filtered = Array.isArray(existingList) ? existingList.filter((a: any) => a.email !== cleanEmail && a.uid !== account.uid) : [];
+      filtered.push(account);
+      localStorage.setItem('efootball_auth_accounts_v2', JSON.stringify(filtered));
+    } catch {}
+
+    // 2. Primary Cloud Firestore persistence
     await saveUniversalCloudAccount({
       uid: account.uid,
-      email: account.email.toLowerCase(),
+      email: cleanEmail,
       displayName: account.displayName,
       whatsappNumber: account.whatsappNumber,
       salt: account.salt,
@@ -177,14 +192,14 @@ async function saveCloudAccount(account: StoredAccountV2, profileData?: Partial<
       role: profileData?.role || 'user'
     });
 
-    // Also notify server API endpoint in background for cross-environment redundancy
+    // 3. Notify server API endpoint in background for cross-environment redundancy
     try {
       fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           uid: account.uid,
-          email: account.email.toLowerCase(),
+          email: cleanEmail,
           displayName: account.displayName,
           whatsappNumber: account.whatsappNumber,
           salt: account.salt,
@@ -197,16 +212,19 @@ async function saveCloudAccount(account: StoredAccountV2, profileData?: Partial<
   }
 }
 
-// Universal Cloud Account lookup across all devices (Cloud Firestore is the SOLE authority)
+// Universal Account lookup across Cloud Firestore, Server Store, and Local Cache
 async function findCloudAccount(identifier: string): Promise<StoredAccountV2 | null> {
   const cleanId = (identifier || '').trim();
   if (!cleanId) return null;
+  const isEmail = cleanId.includes('@');
+  const cleanEmail = isEmail ? cleanId.toLowerCase() : '';
+  const rawDigits = cleanPhoneDigits(cleanId);
 
   // 1. Direct Cloud Store Lookup (REST + SDK)
   try {
     const cloudRecord = await findUniversalCloudAccount(cleanId);
     if (cloudRecord && (cloudRecord.uid || cloudRecord.email)) {
-      return {
+      const rec: StoredAccountV2 = {
         uid: cloudRecord.uid || cleanId,
         email: cloudRecord.email,
         displayName: cloudRecord.displayName,
@@ -215,6 +233,10 @@ async function findCloudAccount(identifier: string): Promise<StoredAccountV2 | n
         hash: cloudRecord.hash || '',
         createdAt: cloudRecord.createdAt || new Date().toISOString()
       };
+      if (rec.email) {
+        try { localStorage.setItem(`efootball_account_${rec.email.toLowerCase()}`, JSON.stringify(rec)); } catch {}
+      }
+      return rec;
     }
   } catch (e) {
     console.warn('findUniversalCloudAccount notice:', e);
@@ -230,7 +252,7 @@ async function findCloudAccount(identifier: string): Promise<StoredAccountV2 | n
     if (apiRes.ok) {
       const json = await apiRes.json();
       if (json && json.found && json.account && (json.account.uid || json.account.email)) {
-        return {
+        const rec: StoredAccountV2 = {
           uid: json.account.uid || cleanId,
           email: json.account.email,
           displayName: json.account.displayName,
@@ -239,11 +261,37 @@ async function findCloudAccount(identifier: string): Promise<StoredAccountV2 | n
           hash: json.account.hash || '',
           createdAt: json.account.createdAt || new Date().toISOString()
         };
+        if (rec.email) {
+          try { localStorage.setItem(`efootball_account_${rec.email.toLowerCase()}`, JSON.stringify(rec)); } catch {}
+        }
+        return rec;
       }
     }
   } catch {}
 
-  // Cloud database is authoritative; do not fall back to local storage
+  // 3. Local Cache fallback (Guarantees immediate login if network or Firestore quota is limited)
+  try {
+    if (cleanEmail) {
+      const directLocal = localStorage.getItem(`efootball_account_${cleanEmail}`);
+      if (directLocal) {
+        const parsed = JSON.parse(directLocal);
+        if (parsed && (parsed.salt || parsed.hash || parsed.uid)) return parsed;
+      }
+    }
+    const accountsListStr = localStorage.getItem('efootball_auth_accounts_v2');
+    if (accountsListStr) {
+      const list: StoredAccountV2[] = JSON.parse(accountsListStr);
+      if (Array.isArray(list)) {
+        const found = list.find((a) =>
+          (cleanEmail && a.email?.toLowerCase() === cleanEmail) ||
+          (rawDigits && a.whatsappNumber && cleanPhoneDigits(a.whatsappNumber) === rawDigits) ||
+          (a.uid === cleanId)
+        );
+        if (found) return found;
+      }
+    }
+  } catch {}
+
   return null;
 }
 
@@ -723,16 +771,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 3. No account in Cloud DB -> clean up any lingering legacy Firebase Auth user and reject
+    // 3. Fallback: Authenticate via Firebase Auth directly (Restores seamless access for all accounts)
     try {
       const cred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
       if (cred.user) {
-        await deleteUser(cred.user).catch(() => {});
-        await fbSignOut(auth).catch(() => {});
-      }
-    } catch {}
+        const uid = cred.user.uid || `u_${generateSalt(8)}`;
+        const displayName = cred.user.displayName || cleanEmail.split('@')[0] || 'Manager';
+        const salt = generateSalt(16);
+        const hash = await hashPasswordWithSalt(cleanPassword, salt);
+        const recoveredAccount: StoredAccountV2 = {
+          uid,
+          email: cleanEmail,
+          displayName,
+          salt,
+          hash,
+          createdAt: new Date().toISOString()
+        };
+        await saveCloudAccount(recoveredAccount);
 
-    throw new Error('No registered account found for this email address in the system cloud. Please click "Create Account" below to sign up.');
+        const authUser: AppAuthUser = {
+          uid,
+          email: cleanEmail,
+          displayName
+        };
+        setUser(authUser);
+        saveActiveSession(authUser);
+        await fetchProfile(uid, cleanEmail, displayName);
+        return;
+      }
+    } catch (fbErr: any) {
+      if (fbErr?.code === 'auth/wrong-password' || fbErr?.code === 'auth/invalid-credential') {
+        throw new Error('Incorrect password. Please verify and try again, or click "Forgot Password?" to reset.');
+      }
+    }
+
+    throw new Error('No registered account found for this email address. Please click "Create Account" below to sign up.');
   };
 
   const resetPassword = async (emailToReset: string) => {
