@@ -14,6 +14,11 @@ import {
   handlePaymentWebhook
 } from './server/payment/paymentService.ts';
 import { getPaymentConfig } from './server/payment/config.ts';
+import {
+  EFOOTBALL_MASTER_PLAYERS,
+  normalizeString,
+  getAllEfhubCardsForPlayer
+} from './src/lib/efootballDatabase.ts';
 
 dotenv.config();
 
@@ -33,7 +38,7 @@ app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://apis.google.com https://*.firebaseapp.com https://*.lemonsqueezy.com https://js.paystack.co https://checkout.flutterwave.com https://www.paypal.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: http:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://api.lemonsqueezy.com https://api.paystack.co https://api.flutterwave.com https://api.paypal.com https://*.run.app https://*.vercel.app; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://*.lemonsqueezy.com https://checkout.flutterwave.com https://www.paypal.com; frame-ancestors 'self' https://*.google.com https://*.run.app; object-src 'none'; base-uri 'self'; upgrade-insecure-requests;"
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://apis.google.com https://*.firebaseapp.com https://*.lemonsqueezy.com https://js.paystack.co https://checkout.flutterwave.com https://www.paypal.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: http:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://api.lemonsqueezy.com https://api.paystack.co https://api.flutterwave.com https://api.paypal.com https://*.run.app https://*.vercel.app https://efhub.com https://*.efhub.com; frame-src 'self' https://efhub.com https://*.efhub.com https://*.firebaseapp.com https://accounts.google.com https://*.lemonsqueezy.com https://checkout.flutterwave.com https://www.paypal.com; frame-ancestors 'self' https://*.google.com https://*.run.app; object-src 'none'; base-uri 'self'; upgrade-insecure-requests;"
   );
 
   // For API endpoints, prevent any downstream or browser proxy caching of dynamic data
@@ -314,6 +319,204 @@ app.post('/api/feedback', async (req, res) => {
   } catch (error: any) {
     console.error('Error handling /api/feedback:', error);
     res.status(500).json({ error: error?.message || 'Failed to submit feedback. Please try again.' });
+  }
+});
+
+// Live eFHUB Reverse Proxy Endpoint
+// Strips frame-ancestors and x-frame-options so the official efhub.com website opens inside the modal window
+app.get('/api/efhub-proxy', async (req, res) => {
+  try {
+    let target = (req.query.url as string) || 'https://efhub.com/players';
+    if (!target.startsWith('http://') && !target.startsWith('https://')) {
+      target = 'https://efhub.com' + (target.startsWith('/') ? target : '/' + target);
+    }
+
+    const parsedUrl = new URL(target);
+    if (!parsedUrl.hostname.endsWith('efhub.com') && !parsedUrl.hostname.endsWith('efimg.com')) {
+      return res.status(403).send('Forbidden: Proxy target domain not permitted.');
+    }
+
+    const response = await fetch(target, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9'
+      }
+    });
+
+    const contentType = response.headers.get('content-type') || 'text/html';
+    res.setHeader('content-type', contentType);
+
+    // Remove frame blocking headers
+    res.removeHeader('x-frame-options');
+    res.removeHeader('content-security-policy');
+    res.removeHeader('content-security-policy-report-only');
+
+    if (contentType.includes('text/html')) {
+      let html = await response.text();
+
+      // Inject base href so relative scripts, styles, and images load directly
+      const baseTag = '<base href="https://efhub.com/">';
+      if (html.includes('<head>')) {
+        html = html.replace('<head>', `<head>${baseTag}`);
+      } else if (html.includes('<head ')) {
+        html = html.replace(/<head[^>]*>/, `$&${baseTag}`);
+      }
+
+      // Inject communication script that detects card selections and navigations
+      const scriptTag = `
+<script>
+(function() {
+  function notifyParent(type, payload) {
+    try {
+      window.parent.postMessage({ source: 'EFHUB_EMBED', type: type, ...payload }, '*');
+    } catch (e) {}
+  }
+
+  // Intercept click on player cards or links
+  document.addEventListener('click', function(e) {
+    var anchor = e.target.closest('a[href*="/players/"]') || e.target.closest('[data-player-id]');
+    if (anchor) {
+      var href = anchor.getAttribute('href') || window.location.pathname;
+      var text = (anchor.innerText || '').trim();
+      notifyParent('CARD_CLICKED', { href: href, fullUrl: anchor.href || window.location.href, text: text });
+    }
+  }, true);
+
+  // Monitor location changes
+  function checkUrlChange() {
+    notifyParent('URL_CHANGED', { url: window.location.href, pathname: window.location.pathname });
+  }
+
+  var origPush = history.pushState;
+  if (origPush) {
+    history.pushState = function() {
+      origPush.apply(this, arguments);
+      checkUrlChange();
+    };
+  }
+
+  window.addEventListener('popstate', checkUrlChange);
+  setTimeout(checkUrlChange, 1200);
+})();
+</script>
+`;
+      if (html.includes('</body>')) {
+        html = html.replace('</body>', `${scriptTag}</body>`);
+      } else {
+        html += scriptTag;
+      }
+
+      return res.send(html);
+    } else {
+      const buffer = await response.arrayBuffer();
+      return res.send(Buffer.from(buffer));
+    }
+  } catch (err: any) {
+    console.error('Error in /api/efhub-proxy:', err);
+    res.status(500).send('Unable to load live eFHUB website frame. Please use the fallback search or open directly.');
+  }
+});
+
+// Endpoint to fetch player card details from an eFHUB URL or ID
+app.get('/api/efhub-player', async (req, res) => {
+  try {
+    const input = (req.query.id || req.query.url) as string;
+    if (!input) {
+      return res.status(400).json({ error: 'Player ID or URL is required.' });
+    }
+
+    let targetUrl = input;
+    if (!input.startsWith('http://') && !input.startsWith('https://')) {
+      targetUrl = `https://efhub.com/players/${input}`;
+    }
+
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      return res.status(404).json({ error: `eFHUB returned status ${response.status}` });
+    }
+
+    const html = await response.text();
+
+    // Parse title e.g. "Giorgio Chiellini — 87 OVR | eFHUB" or "Lionel Messi — 104 OVR | eFHUB"
+    const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+    // Parse meta description e.g. "Giorgio Chiellini is a 87-rated CB in eFootball. Playing style: Build Up. View full stats..."
+    const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
+    const imgMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
+
+    let name = 'Unknown Player';
+    let rating = 90;
+    let position = 'CF';
+    let playstyle = 'Goal Poacher';
+
+    if (titleMatch) {
+      const parts = titleMatch[1].split('—');
+      if (parts[0]) name = parts[0].trim();
+      if (parts[1]) {
+        const ovrMatch = parts[1].match(/(\d+)\s*OVR/i);
+        if (ovrMatch) rating = parseInt(ovrMatch[1], 10);
+      }
+    }
+
+    if (descMatch) {
+      const desc = descMatch[1];
+      const mRate = desc.match(/is a (\d+)-rated/i);
+      if (mRate) rating = parseInt(mRate[1], 10);
+
+      const mPos = desc.match(/rated ([A-Z]{2,3}) in eFootball/i);
+      if (mPos) position = mPos[1].toUpperCase();
+
+      const mStyle = desc.match(/Playing style:\s*([^.]+)\./i);
+      if (mStyle) playstyle = mStyle[1].trim();
+    }
+
+    // Match with local master database if possible to get rich attributes, or generate
+    const matched = EFOOTBALL_MASTER_PLAYERS.find(p => 
+      normalizeString(p.fullName) === normalizeString(name) ||
+      normalizeString(p.commonName) === normalizeString(name) ||
+      p.aliases.some(a => normalizeString(a) === normalizeString(name))
+    );
+
+    const generated = getAllEfhubCardsForPlayer(name);
+    const chosen = generated.find(c => c.primaryPosition === position) || generated[0] || {
+      id: `efhub_${Date.now()}`,
+      fullName: name,
+      commonName: name,
+      aliases: [name.toUpperCase()],
+      primaryPosition: position,
+      secondaryPositions: position === 'CF' ? ['SS'] : position === 'CB' ? ['RB'] : ['CMF'],
+      baseRating: Math.max(70, rating - 8),
+      maxRating: rating,
+      playstyle: playstyle,
+      club: matched?.club || 'eFootball Club',
+      nationality: matched?.nationality || 'International',
+      cardType: rating >= 102 ? 'Big Time' : rating >= 100 ? 'Epic' : rating >= 98 ? 'Show Time' : rating >= 95 ? 'Highlight' : 'Standard',
+      cardTitle: `${name} Official eFHUB Card`,
+      keyAttributes: {},
+      skills: matched?.skills || ['Double Touch', 'First-time Shot', 'One-touch Pass'],
+      efhubUrl: targetUrl
+    };
+
+    const finalPlayer = {
+      ...chosen,
+      fullName: name,
+      commonName: name,
+      primaryPosition: position,
+      maxRating: rating,
+      playstyle: playstyle || chosen.playstyle,
+      efhubUrl: targetUrl,
+      imageUrl: imgMatch ? imgMatch[1] : undefined
+    };
+
+    res.json({ success: true, player: finalPlayer });
+  } catch (err: any) {
+    console.error('Error in /api/efhub-player:', err);
+    res.status(500).json({ error: err?.message || 'Failed to fetch player data' });
   }
 });
 
