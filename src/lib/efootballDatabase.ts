@@ -1762,22 +1762,20 @@ export function findDatabaseCoach(ocrText: string): EFootballMasterCoach | null 
  */
 export function getAllEfhubCardsForPlayer(query: string): EFootballMasterPlayer[] {
   const clean = normalizeString(query.trim());
-  if (!clean) {
-    // Return default star cards pool when query is empty
-    return EFOOTBALL_MASTER_PLAYERS;
-  }
 
-  // 1. Find all base master players matching the query
-  const baseMatches = EFOOTBALL_MASTER_PLAYERS.filter(player => {
-    const normName = normalizeString(player.fullName);
-    const normCommon = normalizeString(player.commonName);
-    const normClub = normalizeString(player.club);
-    const normNat = normalizeString(player.nationality);
-    if (normName.includes(clean) || normCommon.includes(clean) || normClub.includes(clean) || normNat.includes(clean)) {
-      return true;
-    }
-    return player.aliases.some(a => normalizeString(a).includes(clean));
-  });
+  // 1. Find all base master players matching the query (or all master players if empty)
+  const baseMatches = !clean
+    ? EFOOTBALL_MASTER_PLAYERS
+    : EFOOTBALL_MASTER_PLAYERS.filter(player => {
+        const normName = normalizeString(player.fullName);
+        const normCommon = normalizeString(player.commonName);
+        const normClub = normalizeString(player.club);
+        const normNat = normalizeString(player.nationality);
+        if (normName.includes(clean) || normCommon.includes(clean) || normClub.includes(clean) || normNat.includes(clean)) {
+          return true;
+        }
+        return player.aliases.some(a => normalizeString(a).includes(clean));
+      });
 
   const allCards: EFootballMasterPlayer[] = [];
 
@@ -2009,6 +2007,6 @@ export function getAllEfhubCardsForPlayer(query: string): EFootballMasterPlayer[
     });
   }
 
-  return allCards;
+  return allCards.sort((a, b) => b.maxRating - a.maxRating);
 }
 

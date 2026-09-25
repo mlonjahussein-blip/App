@@ -588,6 +588,55 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             </div>
           </div>
 
+          {/* Active Linked eFHUB Card Banner */}
+          {activeEfhubCardPure23 && (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-neutral-950 to-teal-950/60 border border-emerald-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in shadow-xl">
+              <div className="flex items-center gap-3">
+                <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-400 to-teal-300 text-neutral-950 shadow-md shrink-0">
+                  {activeEfhubCardPure23.maxRating} OVR · {activeEfhubCardPure23.primaryPosition}
+                </span>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-black text-white text-sm">
+                      {activeEfhubCardPure23.fullName}
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-neutral-900 text-amber-300 border border-neutral-700">
+                      {activeEfhubCardPure23.cardType}
+                    </span>
+                    {activeEfhubCardPure23.boosterName && (
+                      <span className="px-2 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        {activeEfhubCardPure23.boosterName}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-emerald-400 font-semibold mt-0.5">
+                    ✓ Full 22+ attribute stats, skills, and playstyle linked from eFHUB database for analysis
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEfhubModalTarget('pure23');
+                    setIsEfhubModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-neutral-900 border border-neutral-800 hover:border-cyan-500/40 transition-colors"
+                >
+                  Change Card
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveEfhubCardPure23(null)}
+                  className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-neutral-400 hover:text-rose-400 bg-neutral-900 border border-neutral-800 transition-colors"
+                >
+                  Unlink
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Unified Add Player Input Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 items-end">
             
@@ -753,6 +802,55 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
               </div>
             </div>
 
+            {/* Active Linked eFHUB Card Banner (Starting XI) */}
+            {activeEfhubCardXI && (
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-neutral-950 to-teal-950/60 border border-emerald-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in shadow-xl">
+                <div className="flex items-center gap-3">
+                  <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-400 to-teal-300 text-neutral-950 shadow-md shrink-0">
+                    {activeEfhubCardXI.maxRating} OVR · {activeEfhubCardXI.primaryPosition}
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black text-white text-sm">
+                        {activeEfhubCardXI.fullName}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-neutral-900 text-amber-300 border border-neutral-700">
+                        {activeEfhubCardXI.cardType}
+                      </span>
+                      {activeEfhubCardXI.boosterName && (
+                        <span className="px-2 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          {activeEfhubCardXI.boosterName}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-emerald-400 font-semibold mt-0.5">
+                      ✓ Full 22+ attribute stats & skills linked from eFHUB database for analysis
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEfhubModalTarget('xi');
+                      setIsEfhubModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-neutral-900 border border-neutral-800 transition-colors"
+                  >
+                    Change Card
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveEfhubCardXI(null)}
+                    className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-neutral-400 hover:text-rose-400 bg-neutral-900 border border-neutral-800 transition-colors"
+                  >
+                    Unlink
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
                 <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
@@ -901,6 +999,55 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                 </span>
               </div>
             </div>
+
+            {/* Active Linked eFHUB Card Banner (Substitutes) */}
+            {activeEfhubCardSub && (
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-cyan-950/70 via-neutral-950 to-blue-950/60 border border-cyan-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in shadow-xl">
+                <div className="flex items-center gap-3">
+                  <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-cyan-400 to-blue-400 text-neutral-950 shadow-md shrink-0">
+                    {activeEfhubCardSub.maxRating} OVR · {activeEfhubCardSub.primaryPosition}
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black text-white text-sm">
+                        {activeEfhubCardSub.fullName}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-neutral-900 text-amber-300 border border-neutral-700">
+                        {activeEfhubCardSub.cardType}
+                      </span>
+                      {activeEfhubCardSub.boosterName && (
+                        <span className="px-2 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          {activeEfhubCardSub.boosterName}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-cyan-400 font-semibold mt-0.5">
+                      ✓ Full 22+ attribute stats & skills linked from eFHUB database for analysis
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEfhubModalTarget('sub');
+                      setIsEfhubModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-neutral-900 border border-neutral-800 hover:border-cyan-500/40 transition-colors"
+                  >
+                    Change Card
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveEfhubCardSub(null)}
+                    className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-neutral-400 hover:text-rose-400 bg-neutral-900 border border-neutral-800 transition-colors"
+                  >
+                    Unlink
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
@@ -1124,14 +1271,20 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                           </select>
 
                           <div className="min-w-0">
-                            <span className="text-xs font-bold text-white block truncate">
-                              {player.name}
-                            </span>
-                            {player.club && (
-                              <span className="text-[10px] text-neutral-400 block truncate">
-                                {player.club}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold text-white block truncate">
+                                {player.name}
                               </span>
-                            )}
+                              {player.keyAttributes && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" title="Full eFHUB card stats imported">
+                                  eFHUB
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px] text-neutral-400 truncate">
+                              {player.club && <span>{player.club}</span>}
+                              {player.cardTitle && <span className="text-cyan-400">· {player.cardTitle}</span>}
+                            </div>
                           </div>
                         </div>
 
@@ -1261,14 +1414,20 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                               </select>
 
                               <div className="min-w-0">
-                                <span className="text-xs font-bold text-white block truncate">
-                                  {player.name}
-                                </span>
-                                {player.club && (
-                                  <span className="text-[10px] text-neutral-400 block truncate">
-                                    {player.club}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs font-bold text-white block truncate">
+                                    {player.name}
                                   </span>
-                                )}
+                                  {player.keyAttributes && (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" title="Full eFHUB card stats imported">
+                                      eFHUB
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 text-[10px] text-neutral-400 truncate">
+                                  {player.club && <span>{player.club}</span>}
+                                  {player.cardTitle && <span className="text-cyan-400">· {player.cardTitle}</span>}
+                                </div>
                               </div>
                             </div>
 
@@ -1398,14 +1557,20 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                               </select>
 
                               <div className="min-w-0">
-                                <span className="text-xs font-bold text-white block truncate">
-                                  {player.name}
-                                </span>
-                                {player.club && (
-                                  <span className="text-[10px] text-neutral-400 block truncate">
-                                    {player.club}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs font-bold text-white block truncate">
+                                    {player.name}
                                   </span>
-                                )}
+                                  {player.keyAttributes && (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" title="Full eFHUB card stats imported">
+                                      eFHUB
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 text-[10px] text-neutral-400 truncate">
+                                  {player.club && <span>{player.club}</span>}
+                                  {player.cardTitle && <span className="text-cyan-400">· {player.cardTitle}</span>}
+                                </div>
                               </div>
                             </div>
 

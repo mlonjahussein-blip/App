@@ -36,10 +36,14 @@ export interface TypedPlayerInput {
   team?: string;
   role?: 'starting_xi' | 'substitute';
   cardType?: string;
+  cardTitle?: string;
+  boosterName?: string;
   playstyle?: string;
   club?: string;
   nationality?: string;
+  keyAttributes?: Record<string, number | string>;
   skills?: string[];
+  efhubUrl?: string;
   liveUpdate?: 'A' | 'B' | 'C' | 'D' | 'E' | string;
 }
 
@@ -483,7 +487,11 @@ export function crosscheckAndAuditSquadDetails(payload: AnalyzeSquadPayload): Sq
       status: 'verified',
       playerType: cardType,
       cardType: cardType,
+      cardTitle: (raw as any).cardTitle || matched?.cardTitle,
+      boosterName: (raw as any).boosterName || matched?.boosterName,
+      keyAttributes: (raw as any).keyAttributes || matched?.keyAttributes,
       skills: baseSkills,
+      efhubUrl: (raw as any).efhubUrl || matched?.efhubUrl,
       role,
       cardArea: role,
       isBench,
