@@ -346,7 +346,27 @@ app.get('/_next/*', async (req, res) => {
   }
 });
 
-// Live Database Reverse Proxy Endpoint (Supports pesdb.net & efhub.com)
+// Forward Next.js static assets and chunks for live efhub browsing
+app.use('/_next', async (req, res, next) => {
+  try {
+    const targetUrl = `https://efhub.com/_next${req.url}`;
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+      }
+    });
+    if (response.ok) {
+      const contentType = response.headers.get('content-type') || 'application/javascript';
+      res.setHeader('content-type', contentType);
+      res.setHeader('access-control-allow-origin', '*');
+      const buffer = await response.arrayBuffer();
+      return res.send(Buffer.from(buffer));
+    }
+  } catch (e) {}
+  next();
+});
+
+// Live Database Reverse Proxy Endpoint (Supports efhub.com & pesdb.net)
 // Strips frame-ancestors and x-frame-options and rewrites relative resources so official database sites open smoothly
 app.get('/api/efhub-proxy', async (req, res) => {
   try {
@@ -370,6 +390,8 @@ app.get('/api/efhub-proxy', async (req, res) => {
 
     const contentType = response.headers.get('content-type') || 'text/html';
     res.setHeader('content-type', contentType);
+    res.setHeader('access-control-allow-origin', '*');
+    res.setHeader('x-frame-options', 'ALLOWALL');
 
     // Remove frame blocking headers
     res.removeHeader('x-frame-options');
@@ -388,22 +410,34 @@ app.get('/api/efhub-proxy', async (req, res) => {
       html = html.replace(/src="\/favicon/g, `src="${baseOrigin}/favicon`);
       html = html.replace(/href="\/manifest\.json"/g, `href="${baseOrigin}/manifest.json"`);
 
-      // 2. Inject anti-redirect and communication script at the VERY TOP of <head>
+      // 2. Inject anti-redirect, anti-framebust and card extractor script at the VERY TOP of <head>
       const headScriptTag = `
 <base href="${baseOrigin}/">
 <script>
 (function() {
+  // 1. Completely disable frame-busting so host app is NEVER redirected to system home
+  try {
+    Object.defineProperty(window, 'top', {
+      get: function() { return window.self; },
+      set: function() {}
+    });
+  } catch(e) {}
+
   function notifyParent(type, payload) {
     try {
       window.parent.postMessage({ source: 'EFHUB_EMBED', type: type, ...payload }, '*');
     } catch (e) {}
   }
 
-  // Intercept client-side router redirects so it never escapes to root "/"
+  // 2. Intercept router history methods
   var origReplaceState = history.replaceState;
   history.replaceState = function(state, title, url) {
     if (url === '/' || url === window.location.origin + '/' || url === '') {
       return;
+    }
+    if (typeof url === 'string') {
+      var fullUrl = url.startsWith('http') ? url : '${baseOrigin}' + (url.startsWith('/') ? url : '/' + url);
+      notifyParent('URL_CHANGED', { url: fullUrl, pathname: url });
     }
     return origReplaceState.apply(this, arguments);
   };
@@ -416,7 +450,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
     if (typeof url === 'string') {
       var fullUrl = url.startsWith('http') ? url : '${baseOrigin}' + (url.startsWith('/') ? url : '/' + url);
       notifyParent('URL_CHANGED', { url: fullUrl, pathname: url });
-      if (url.includes('/players/') || url.includes('/players?') || url.includes('player.php')) {
+      if (url.includes('/players/') || url.includes('/players?') || url.includes('player.php') || url.includes('/player/')) {
         window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(fullUrl);
         return;
       }
@@ -424,7 +458,91 @@ app.get('/api/efhub-proxy', async (req, res) => {
     return origPushState.apply(this, arguments);
   };
 
-  // Intercept all form submissions so search and filters stay inside the proxy
+  // 3. Intercept fetch & XMLHttpRequest to proxy relative asset and API requests to target origin
+  var origFetch = window.fetch;
+  if (origFetch) {
+    window.fetch = function(input, init) {
+      if (typeof input === 'string' && input.startsWith('/')) {
+        input = '${baseOrigin}' + input;
+      }
+      return origFetch.call(this, input, init);
+    };
+  }
+
+  var origXhrOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url) {
+    if (typeof url === 'string' && url.startsWith('/')) {
+      url = '${baseOrigin}' + url;
+    }
+    return origXhrOpen.apply(this, [method, url].concat(Array.prototype.slice.call(arguments, 2)));
+  };
+
+  // Helper to extract player card details from clicked element / row
+  function extractCardFromElement(targetEl) {
+    if (!targetEl) return null;
+    var container = targetEl.closest('a, tr, div[class*="player"], div[class*="card"], div[class*="item"]');
+    if (!container) return null;
+
+    var text = (container.innerText || '').trim();
+    if (!text || text.length < 2) return null;
+
+    // Detect OVR rating (e.g. 102, 100, 98, 96, 95...)
+    var ovrMatch = text.match(/\\b(10[0-9]|9[0-9]|8[0-9]|7[0-9])\\b/);
+    var ovr = ovrMatch ? parseInt(ovrMatch[1], 10) : 90;
+
+    // Detect position
+    var posMatch = text.match(/\\b(GK|CB|LB|RB|LWB|RWB|DMF|CMF|AMF|LMF|RMF|LWF|RWF|SS|CF)\\b/);
+    var pos = posMatch ? posMatch[1] : 'CF';
+
+    // Detect Card Type
+    var cardType = 'Highlight';
+    if (/show\\s*time/i.test(text)) cardType = 'Show Time';
+    else if (/epic/i.test(text)) cardType = 'Epic';
+    else if (/big\\s*time/i.test(text)) cardType = 'Big Time';
+    else if (/potw/i.test(text)) cardType = 'POTW';
+    else if (/booster/i.test(text)) cardType = 'Booster';
+    else if (/legendary/i.test(text)) cardType = 'Legendary';
+    else if (/featured/i.test(text)) cardType = 'Featured';
+
+    // Detect Playstyle
+    var playstyle = 'Goal Poacher';
+    var styles = [
+      'Goal Poacher', 'Hole Player', 'Box-to-Box', 'Anchor Man', 'Build Up', 'Destroyer',
+      'Orchestrator', 'Creative Playmaker', 'Proficient Winger', 'Roaming Flank', 
+      'Target Man', 'Fox in the Box', 'Offensive Fullback', 'Defensive Fullback',
+      'Fullback Finisher', 'Extra Frontman', 'Offensive Goalkeeper', 'Defensive Goalkeeper', 'Cross Specialist'
+    ];
+    for (var i = 0; i < styles.length; i++) {
+      if (new RegExp(styles[i], 'i').test(text)) {
+        playstyle = styles[i];
+        break;
+      }
+    }
+
+    // Detect Name
+    var lines = text.split('\\n').map(function(l) { return l.trim(); }).filter(Boolean);
+    var name = lines[0] || 'Selected Player';
+    for (var j = 0; j < lines.length; j++) {
+      var line = lines[j];
+      if (line.length > 2 && !/^\\d+$/.test(line) && !/^(GK|CB|LB|RB|DMF|CMF|AMF|LMF|RMF|LWF|RWF|SS|CF)$/.test(line)) {
+        name = line;
+        break;
+      }
+    }
+
+    return {
+      fullName: name,
+      commonName: name,
+      primaryPosition: pos,
+      maxRating: ovr,
+      baseRating: Math.max(70, ovr - 10),
+      cardType: cardType,
+      playstyle: playstyle,
+      rawText: text.substring(0, 200)
+    };
+  }
+
+  // 4. Intercept all form submissions so search and filters stay inside the proxy
   document.addEventListener('submit', function(e) {
     var form = e.target;
     if (!form) return;
@@ -444,12 +562,19 @@ app.get('/api/efhub-proxy', async (req, res) => {
       target += (target.includes('?') ? '&' : '?') + queryString;
     }
 
+    notifyParent('URL_CHANGED', { url: target });
     window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
   }, true);
 
-  // Intercept all link clicks so navigation stays within the proxy browser
+  // 5. Intercept all link and card clicks so navigation stays within the proxy browser
   document.addEventListener('click', function(e) {
     var anchor = e.target.closest('a');
+    var cardData = extractCardFromElement(e.target);
+    
+    if (cardData) {
+      notifyParent('CARD_DETECTED', { player: cardData });
+    }
+
     if (!anchor) return;
 
     var href = anchor.getAttribute('href');
@@ -458,34 +583,31 @@ app.get('/api/efhub-proxy', async (req, res) => {
     if (href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('javascript:')) return;
 
     // Check for player selection or card click
-    var efhubPlayerMatch = (href || '').match(/\/(?:efootball\/)?players\/([0-9a-zA-Z_\-]+)/);
-    var pesdbPlayerMatch = (href || '').match(/player\.php\?id=([0-9]+)/);
+    var efhubPlayerMatch = (href || '').match(/\\/(?:efootball\\/)?(?:players|player)\\/([0-9a-zA-Z_\\-]+)/);
+    var pesdbPlayerMatch = (href || '').match(/player\\.php\\?id=([0-9]+)/);
     var playerId = (efhubPlayerMatch && efhubPlayerMatch[1]) || (pesdbPlayerMatch && pesdbPlayerMatch[1]);
     var text = (anchor.innerText || '').trim();
+
+    var fullTarget = href.startsWith('http://') || href.startsWith('https://')
+      ? href
+      : (href.startsWith('/') ? ('${baseOrigin}' + href) : ('${baseOrigin}/' + href.replace(/^\\.\\//, '')));
+
+    notifyParent('URL_CHANGED', { url: fullTarget, pathname: href });
 
     if (playerId) {
       notifyParent('CARD_CLICKED', { 
         href: href, 
-        fullUrl: anchor.href || ('${baseOrigin}' + href), 
+        fullUrl: fullTarget, 
         playerId: playerId, 
-        text: text 
+        text: text,
+        player: cardData 
       });
     }
 
     e.preventDefault();
     e.stopPropagation();
 
-    var target = '';
-    if (href.startsWith('http://') || href.startsWith('https://')) {
-      target = href;
-    } else if (href.startsWith('/')) {
-      target = '${baseOrigin}' + href;
-    } else {
-      var currentDir = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
-      target = '${baseOrigin}' + (currentDir.startsWith('/') ? currentDir : '/' + currentDir) + href.replace(/^\.\//, '');
-    }
-
-    window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
+    window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(fullTarget);
   }, true);
 
   // Monitor URL on load

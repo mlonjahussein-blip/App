@@ -84,16 +84,68 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
   useEffect(() => {
     const handleWindowMessage = async (event: MessageEvent) => {
       if (event.data && event.data.source === 'EFHUB_EMBED') {
-        const { type, href, url, pathname, text, playerId: msgPlayerId } = event.data;
+        const { type, href, url, pathname, text, playerId: msgPlayerId, player: embeddedPlayer } = event.data;
 
         if (url && url !== currentWebUrl) {
           setCurrentWebUrl(url);
-          setHistoryStack(prev => [...prev.slice(0, historyIndex + 1), url]);
+          setHistoryStack(prev => {
+            if (prev[prev.length - 1] === url) return prev;
+            return [...prev.slice(0, historyIndex + 1), url];
+          });
           setHistoryIndex(prev => prev + 1);
         }
 
+        // Direct player data sent from DOM detection
+        if (embeddedPlayer && embeddedPlayer.fullName) {
+          const matched = getAllEfhubCardsForPlayer(embeddedPlayer.fullName);
+          if (matched.length > 0) {
+            const found = matched[0];
+            setSelectedCard({
+              ...found,
+              primaryPosition: embeddedPlayer.primaryPosition || found.primaryPosition,
+              maxRating: embeddedPlayer.maxRating || found.maxRating,
+              cardType: embeddedPlayer.cardType || found.cardType,
+              playstyle: embeddedPlayer.playstyle || found.playstyle
+            });
+            return;
+          } else {
+            // Synthesize player
+            const synthesized: EFootballMasterPlayer = {
+              id: `efhub_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+              fullName: embeddedPlayer.fullName,
+              commonName: embeddedPlayer.commonName || embeddedPlayer.fullName,
+              aliases: [embeddedPlayer.fullName.toUpperCase()],
+              primaryPosition: embeddedPlayer.primaryPosition || 'CF',
+              secondaryPositions: embeddedPlayer.primaryPosition === 'CF' ? ['SS'] : embeddedPlayer.primaryPosition === 'CB' ? ['RB'] : ['CMF'],
+              baseRating: embeddedPlayer.baseRating || 88,
+              maxRating: embeddedPlayer.maxRating || 98,
+              playstyle: embeddedPlayer.playstyle || 'Goal Poacher',
+              club: embeddedPlayer.club || 'eFootball Club',
+              nationality: embeddedPlayer.nationality || 'International',
+              cardType: embeddedPlayer.cardType || 'Highlight',
+              keyAttributes: {
+                OffensiveAwareness: embeddedPlayer.maxRating ? embeddedPlayer.maxRating - 3 : 92,
+                BallControl: 90,
+                Dribbling: 92,
+                TightPossession: 90,
+                LowPass: 86,
+                LoftedPass: 82,
+                Finishing: 92,
+                Speed: 93,
+                Acceleration: 92,
+                KickingPower: 90,
+                PhysicalContact: 85,
+                Stamina: 88
+              },
+              skills: ['Double Touch', 'First-time Shot', 'One-touch Pass', 'Through Passing']
+            };
+            setSelectedCard(synthesized);
+            return;
+          }
+        }
+
         // Detect player ID from URL or message
-        const efhubMatch = (href || pathname || url || '').match(/\/(?:efootball\/)?players\/([0-9a-zA-Z_\-]+)/);
+        const efhubMatch = (href || pathname || url || '').match(/\/(?:efootball\/)?(?:players|player)\/([0-9a-zA-Z_\-]+)/);
         const pesdbMatch = (href || pathname || url || '').match(/player\.php\?id=([0-9]+)/);
         const playerId = msgPlayerId || (efhubMatch && efhubMatch[1]) || (pesdbMatch && pesdbMatch[1]);
         
