@@ -430,6 +430,29 @@ app.get('/api/efhub-proxy', async (req, res) => {
     return origPushState.apply(this, arguments);
   };
 
+  // Intercept all form submissions so search and filters stay inside the proxy
+  document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (!form) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    var action = form.getAttribute('action') || window.location.pathname;
+    var formData = new FormData(form);
+    var params = new URLSearchParams();
+    for (var pair of formData.entries()) {
+      params.append(pair[0], pair[1]);
+    }
+    var queryString = params.toString();
+
+    var target = action.startsWith('http') ? action : ('${baseOrigin}' + (action.startsWith('/') ? action : '/' + action));
+    if (queryString) {
+      target += (target.includes('?') ? '&' : '?') + queryString;
+    }
+
+    window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
+  }, true);
+
   // Intercept all link clicks so none escape to the host app
   document.addEventListener('click', function(e) {
     var anchor = e.target.closest('a');
@@ -439,20 +462,27 @@ app.get('/api/efhub-proxy', async (req, res) => {
     if (!href) return;
 
     // Check for player selection or card click on PESDB or eFHUB
-    var playerMatch = (href || '').match(/\/(?:efootball\/)?players\/([0-9a-zA-Z_\-]+)/);
+    var efhubPlayerMatch = (href || '').match(/\/(?:efootball\/)?players\/([0-9a-zA-Z_\-]+)/);
+    var pesdbPlayerMatch = (href || '').match(/player\.php\?id=([0-9]+)/);
+    var playerId = (efhubPlayerMatch && efhubPlayerMatch[1]) || (pesdbPlayerMatch && pesdbPlayerMatch[1]);
     var text = (anchor.innerText || '').trim();
 
-    if (playerMatch && playerMatch[1]) {
+    if (playerId) {
       notifyParent('CARD_CLICKED', { 
         href: href, 
         fullUrl: anchor.href || ('${baseOrigin}' + href), 
-        playerId: playerMatch[1], 
+        playerId: playerId, 
         text: text 
       });
     }
 
-    // Always keep relative links inside proxy
-    if (href.startsWith('/') && !href.startsWith('/api/efhub-proxy')) {
+    // Always keep relative links inside proxy (whether starting with / or relative like player.php, search.php, etc.)
+    if (!href.startsWith('http') && !href.startsWith('mailto:') && !href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('/api/efhub-proxy')) {
+      e.preventDefault();
+      e.stopPropagation();
+      var target = href.startsWith('/') ? ('${baseOrigin}' + href) : ('${baseOrigin}/efootball/' + href.replace(/^\.\//, ''));
+      window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
+    } else if (href.startsWith('/') && !href.startsWith('/api/efhub-proxy')) {
       e.preventDefault();
       e.stopPropagation();
       var target = '${baseOrigin}' + href;

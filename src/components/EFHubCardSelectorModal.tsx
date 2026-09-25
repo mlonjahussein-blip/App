@@ -67,16 +67,17 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
     const handleWindowMessage = async (event: MessageEvent) => {
       // Check message from our injected proxy script
       if (event.data && event.data.source === 'EFHUB_EMBED') {
-        const { type, href, url, pathname, text } = event.data;
+        const { type, href, url, pathname, text, playerId: msgPlayerId } = event.data;
 
         if (url) {
           setCurrentWebUrl(url);
         }
 
-        // If user clicked or navigated to a specific player page: e.g. /efootball/players/... or /players/...
+        // If user clicked or navigated to a specific player page: e.g. /efootball/players/... or player.php?id=...
         const playerMatch = (href || pathname || url || '').match(/\/(?:efootball\/)?players\/([0-9a-zA-Z_\-]+)/);
-        if (playerMatch && playerMatch[1]) {
-          const playerId = playerMatch[1];
+        const pesdbMatch = (href || pathname || url || '').match(/player\.php\?id=([0-9]+)/);
+        const playerId = msgPlayerId || (playerMatch && playerMatch[1]) || (pesdbMatch && pesdbMatch[1]);
+        if (playerId) {
           try {
             // Fetch live parsed player card data from backend endpoint
             const res = await fetch(`/api/efhub-player?id=${encodeURIComponent(playerId)}`);
