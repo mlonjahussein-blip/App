@@ -358,9 +358,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
     }
 
     const parsedUrl = new URL(target);
-    if (!parsedUrl.hostname.endsWith('pesdb.net') && !parsedUrl.hostname.endsWith('efhub.com') && !parsedUrl.hostname.endsWith('efimg.com')) {
-      target = 'https://pesdb.net/efootball/';
-    }
+    const baseOrigin = parsedUrl.origin;
 
     const response = await fetch(target, {
       headers: {
@@ -381,15 +379,11 @@ app.get('/api/efhub-proxy', async (req, res) => {
     if (contentType.includes('text/html')) {
       let html = await response.text();
 
-      const isPesdb = parsedUrl.hostname.includes('pesdb.net');
-      const baseOrigin = isPesdb ? 'https://pesdb.net' : 'https://efhub.com';
-
       // 1. Rewrite relative paths for scripts, styles, manifests, assets
-      html = html.replace(/href="\/assets\//g, 'href="https://pesdb.net/assets/');
-      html = html.replace(/src="\/assets\//g, 'src="https://pesdb.net/assets/');
-      html = html.replace(/href="\/_next\//g, 'href="https://efhub.com/_next/');
-      html = html.replace(/src="\/_next\//g, 'src="https://efhub.com/_next/');
-      html = html.replace(/src="\/efhub/g, 'src="https://efhub.com/efhub');
+      html = html.replace(/href="\/assets\//g, `href="${baseOrigin}/assets/`);
+      html = html.replace(/src="\/assets\//g, `src="${baseOrigin}/assets/`);
+      html = html.replace(/href="\/_next\//g, `href="${baseOrigin}/_next/`);
+      html = html.replace(/src="\/_next\//g, `src="${baseOrigin}/_next/`);
       html = html.replace(/href="\/favicon/g, `href="${baseOrigin}/favicon`);
       html = html.replace(/src="\/favicon/g, `src="${baseOrigin}/favicon`);
       html = html.replace(/href="\/manifest\.json"/g, `href="${baseOrigin}/manifest.json"`);
@@ -422,7 +416,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
     if (typeof url === 'string') {
       var fullUrl = url.startsWith('http') ? url : '${baseOrigin}' + (url.startsWith('/') ? url : '/' + url);
       notifyParent('URL_CHANGED', { url: fullUrl, pathname: url });
-      if (url.includes('/players/') || url.includes('/players?')) {
+      if (url.includes('/players/') || url.includes('/players?') || url.includes('player.php')) {
         window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(fullUrl);
         return;
       }
@@ -453,7 +447,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
     window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
   }, true);
 
-  // Intercept all link clicks so none escape to the host app or open system pages
+  // Intercept all link clicks so navigation stays within the proxy browser
   document.addEventListener('click', function(e) {
     var anchor = e.target.closest('a');
     if (!anchor) return;
@@ -463,7 +457,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
 
     if (href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('javascript:')) return;
 
-    // Check for player selection or card click on PESDB or eFHUB
+    // Check for player selection or card click
     var efhubPlayerMatch = (href || '').match(/\/(?:efootball\/)?players\/([0-9a-zA-Z_\-]+)/);
     var pesdbPlayerMatch = (href || '').match(/player\.php\?id=([0-9]+)/);
     var playerId = (efhubPlayerMatch && efhubPlayerMatch[1]) || (pesdbPlayerMatch && pesdbPlayerMatch[1]);
@@ -487,7 +481,8 @@ app.get('/api/efhub-proxy', async (req, res) => {
     } else if (href.startsWith('/')) {
       target = '${baseOrigin}' + href;
     } else {
-      target = '${baseOrigin}/efootball/' + href.replace(/^\.\//, '');
+      var currentDir = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+      target = '${baseOrigin}' + (currentDir.startsWith('/') ? currentDir : '/' + currentDir) + href.replace(/^\.\//, '');
     }
 
     window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
