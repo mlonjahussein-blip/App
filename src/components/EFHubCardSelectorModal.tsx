@@ -43,7 +43,7 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
   const [currentWebUrl, setCurrentWebUrl] = useState('https://pesdb.net/efootball/');
   const [iframeKey, setIframeKey] = useState(1);
   const [isLoadingIframe, setIsLoadingIframe] = useState(true);
-  const [activeTab, setActiveTab] = useState<'live_web' | 'cards_gallery'>('live_web');
+  const [activeTab, setActiveTab] = useState<'live_web' | 'cards_gallery'>('cards_gallery');
   
   // Card Selection & Quick Search State
   const [selectedCard, setSelectedCard] = useState<EFootballMasterPlayer | null>(null);
