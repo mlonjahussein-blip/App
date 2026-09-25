@@ -2198,7 +2198,22 @@ function solveOptimalLineupPlacement(formation, candidatePlayers) {
     });
   }
   const costMatrix = outfieldSlots.map(
-    (slot) => outfieldCandidates.map((player) => calculatePlayerSlotSuitability(player, slot))
+    (slot) => outfieldCandidates.map((player) => {
+      const suitability = calculatePlayerSlotSuitability(player, slot);
+      const userPos = (player.position || "").toUpperCase();
+      const slotPos = slot.pos.toUpperCase();
+      const isUserAttacker = ["CF", "SS", "LWF", "RWF"].includes(userPos);
+      const isUserDefender = ["CB", "LB", "RB", "LWB", "RWB"].includes(userPos);
+      const isUserMidfielder = ["CMF", "DMF", "AMF", "LMF", "RMF"].includes(userPos);
+      const isSlotDefender = ["CB", "LB", "RB", "LWB", "RWB"].includes(slotPos);
+      const isSlotAttacker = ["CF", "SS", "LWF", "RWF"].includes(slotPos);
+      const isSlotMidfielder = ["CMF", "DMF", "AMF", "LMF", "RMF"].includes(slotPos);
+      if (isUserAttacker && isSlotDefender) return -5e5;
+      if (isUserDefender && isSlotAttacker) return -5e5;
+      if (isUserAttacker && isSlotMidfielder && !["AMF", "LMF", "RMF"].includes(slotPos)) return -5e4;
+      if (userPos === slotPos) return suitability + 1e4;
+      return suitability;
+    })
   );
   const assignment = solveHungarianMaximumWeight(costMatrix);
   const assignedOutfield = [];
@@ -2212,14 +2227,12 @@ function solveOptimalLineupPlacement(formation, candidatePlayers) {
     if (playerIdx >= 0 && playerIdx < outfieldCandidates.length) {
       usedPlayerIndices.add(playerIdx);
       const player = outfieldCandidates[playerIdx];
-      const enteredPos = (player.position || player.registeredPosition || "CMF").toUpperCase();
-      const secondaries = (player.secondaryPositions || []).map((s) => s.toUpperCase());
-      const displayPos = enteredPos === slot.pos || secondaries.includes(slot.pos) ? slot.pos : enteredPos;
+      const userEnteredPos = (player.position || player.registeredPosition || "CMF").toUpperCase();
       assignedOutfield.push({
         ...player,
-        position: displayPos,
-        // Preserves user's entered position (e.g. CF stays CF)
-        registeredPosition: enteredPos,
+        position: userEnteredPos,
+        // Exactly as entered by the user (e.g. CF stays CF)
+        registeredPosition: userEnteredPos,
         secondaryPositions: player.secondaryPositions,
         pitchX: slot.x,
         pitchY: slot.y,

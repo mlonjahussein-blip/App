@@ -8,10 +8,15 @@ import {
   Users,
   ShieldAlert,
   Sparkles,
-  Award
+  Award,
+  Zap,
+  ExternalLink,
+  Search
 } from 'lucide-react';
 import { TypedPlayerInput, ManagerInputDetails, AnalysisResult, SavedSquad, ALL_EFOOTBALL_PLAYSTYLES } from '../types.ts';
 import { ManagerDetailsInput } from './ManagerDetailsInput.tsx';
+import { EFHubCardSelectorModal } from './EFHubCardSelectorModal.tsx';
+import { EFootballMasterPlayer } from '../lib/efootballDatabase.ts';
 import { useAuth } from '../lib/AuthContext.tsx';
 import { db } from '../lib/firebase.ts';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -128,6 +133,38 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const [subRating, setSubRating] = useState<number | string>(92);
   const [subTeam, setSubTeam] = useState('');
   const [subLiveUpdate, setSubLiveUpdate] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('C');
+
+  // eFHUB Card Selection Modal State
+  const [isEfhubModalOpen, setIsEfhubModalOpen] = useState(false);
+  const [efhubModalTarget, setEfhubModalTarget] = useState<'pure23' | 'xi' | 'sub'>('pure23');
+
+  const handleSelectEfhubCard = (card: EFootballMasterPlayer) => {
+    if (efhubModalTarget === 'pure23') {
+      setSquadPlayerName(card.fullName || card.commonName);
+      setSquadPlayerPos(card.primaryPosition);
+      setSquadSecondaryPositions(card.secondaryPositions || []);
+      setSquadPlayerCardType(card.cardType);
+      setSquadPlayerPlaystyle(card.playstyle);
+      setSquadPlayerRating(card.maxRating || card.baseRating);
+      setSquadPlayerTeam(card.club);
+    } else if (efhubModalTarget === 'xi') {
+      setXiName(card.fullName || card.commonName);
+      setXiPos(card.primaryPosition);
+      setXiSecondaryPositions(card.secondaryPositions || []);
+      setXiCardType(card.cardType);
+      setXiPlaystyle(card.playstyle);
+      setXiRating(card.maxRating || card.baseRating);
+      setXiTeam(card.club);
+    } else if (efhubModalTarget === 'sub') {
+      setSubName(card.fullName || card.commonName);
+      setSubPos(card.primaryPosition);
+      setSubSecondaryPositions(card.secondaryPositions || []);
+      setSubCardType(card.cardType);
+      setSubPlaystyle(card.playstyle);
+      setSubRating(card.maxRating || card.baseRating);
+      setSubTeam(card.club);
+    }
+  };
 
   // Quick Inline Editing State
   const [editingSecondaryForId, setEditingSecondaryForId] = useState<string | null>(null);
@@ -493,19 +530,34 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                   Add Squad Player ({typedPlayers.length} / 23)
                 </h3>
                 <p className="text-xs text-neutral-400">
-                  Enter up to 23 squad players. The AI will automatically build your starting lineup, formation, playstyle and tactics.
+                  Enter up to 23 squad players manually or pick from official eFHUB database.
                 </p>
               </div>
             </div>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold border self-start sm:self-auto ${
-              typedPlayers.length >= 23 
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' 
-                : typedPlayers.length >= 11
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                : 'bg-neutral-800 text-neutral-400 border-neutral-700'
-            }`}>
-              {typedPlayers.length}/23 Players Entered
-            </span>
+            
+            <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setEfhubModalTarget('pure23');
+                  setIsEfhubModalOpen(true);
+                }}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-neutral-950 flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+              >
+                <Zap className="w-4 h-4 fill-neutral-950" />
+                Select Card from eFHUB Database (efhub.com)
+              </button>
+
+              <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                typedPlayers.length >= 23 
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' 
+                  : typedPlayers.length >= 11
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  : 'bg-neutral-800 text-neutral-400 border-neutral-700'
+              }`}>
+                {typedPlayers.length}/23 Players Entered
+              </span>
+            </div>
           </div>
 
           {/* Unified Add Player Input Grid */}
@@ -644,7 +696,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           
           {/* Starting XI Form */}
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 shadow-xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-neutral-800">
               <div className="flex items-center gap-2">
                 <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
                   <UserPlus className="w-4 h-4" />
@@ -653,9 +705,24 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                   Add Starting XI Player
                 </h3>
               </div>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${startingXI.length >= 11 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
-                {startingXI.length} / 11 XI
-              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEfhubModalTarget('xi');
+                    setIsEfhubModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-neutral-950 flex items-center gap-1 shadow-sm transition-all cursor-pointer shrink-0"
+                >
+                  <Zap className="w-3.5 h-3.5 fill-neutral-950" />
+                  Select Card from eFHUB
+                </button>
+
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${startingXI.length >= 11 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                  {startingXI.length} / 11 XI
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -778,7 +845,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
 
           {/* Substitutes Form */}
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 shadow-xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-neutral-800">
               <div className="flex items-center gap-2">
                 <span className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400">
                   <UserPlus className="w-4 h-4" />
@@ -787,9 +854,24 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                   Add Substitute Player
                 </h3>
               </div>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${substitutes.length >= 12 ? 'bg-rose-500/20 text-rose-300' : 'bg-cyan-500/20 text-cyan-300'}`}>
-                {substitutes.length} / 12 Subs
-              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEfhubModalTarget('sub');
+                    setIsEfhubModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-neutral-950 flex items-center gap-1 shadow-sm transition-all cursor-pointer shrink-0"
+                >
+                  <Zap className="w-3.5 h-3.5 fill-neutral-950" />
+                  Select Card from eFHUB
+                </button>
+
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${substitutes.length >= 12 ? 'bg-rose-500/20 text-rose-300' : 'bg-cyan-500/20 text-cyan-300'}`}>
+                  {substitutes.length} / 12 Subs
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1387,6 +1469,14 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
         )}
       </div>
+
+      {/* eFHUB Card Selector Modal */}
+      <EFHubCardSelectorModal
+        isOpen={isEfhubModalOpen}
+        onClose={() => setIsEfhubModalOpen(false)}
+        onSelectPlayer={handleSelectEfhubCard}
+        targetRoleLabel={efhubModalTarget === 'pure23' ? 'Squad Player' : efhubModalTarget === 'xi' ? 'Starting XI Player' : 'Substitute Player'}
+      />
 
     </div>
   );

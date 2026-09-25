@@ -827,8 +827,31 @@ export function solveOptimalLineupPlacement(
   }
 
   // Build suitability cost matrix (outfieldSlots x outfieldCandidates)
+  // Give high penalty for cross-category mismatches (e.g. CF assigned to CB slot)
   const costMatrix: number[][] = outfieldSlots.map(slot =>
-    outfieldCandidates.map(player => calculatePlayerSlotSuitability(player, slot))
+    outfieldCandidates.map(player => {
+      const suitability = calculatePlayerSlotSuitability(player, slot);
+      const userPos = (player.position || '').toUpperCase();
+      const slotPos = slot.pos.toUpperCase();
+
+      // Explicit positional category check to prevent CF from ever ending up on CB pitch slot
+      const isUserAttacker = ['CF', 'SS', 'LWF', 'RWF'].includes(userPos);
+      const isUserDefender = ['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(userPos);
+      const isUserMidfielder = ['CMF', 'DMF', 'AMF', 'LMF', 'RMF'].includes(userPos);
+
+      const isSlotDefender = ['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(slotPos);
+      const isSlotAttacker = ['CF', 'SS', 'LWF', 'RWF'].includes(slotPos);
+      const isSlotMidfielder = ['CMF', 'DMF', 'AMF', 'LMF', 'RMF'].includes(slotPos);
+
+      if (isUserAttacker && isSlotDefender) return -500000;
+      if (isUserDefender && isSlotAttacker) return -500000;
+      if (isUserAttacker && isSlotMidfielder && !['AMF', 'LMF', 'RMF'].includes(slotPos)) return -50000;
+
+      // Primary position match gets massive boost so user's exact position dictates pitch location
+      if (userPos === slotPos) return suitability + 10000;
+
+      return suitability;
+    })
   );
 
   const assignment = solveHungarianMaximumWeight(costMatrix);
@@ -849,17 +872,13 @@ export function solveOptimalLineupPlacement(
       usedPlayerIndices.add(playerIdx);
       const player = outfieldCandidates[playerIdx];
 
-      const enteredPos = (player.position || player.registeredPosition || 'CMF').toUpperCase();
-      const secondaries = (player.secondaryPositions || []).map(s => s.toUpperCase());
-      // Keep user's entered position, or if slot matches a secondary position, use slot.pos
-      const displayPos = (enteredPos === slot.pos || secondaries.includes(slot.pos))
-        ? slot.pos
-        : enteredPos;
+      // CRITICAL REQUIREMENT #1: Always preserve the EXACT position entered by the user
+      const userEnteredPos = (player.position || player.registeredPosition || 'CMF').toUpperCase();
 
       assignedOutfield.push({
         ...player,
-        position: displayPos, // Preserves user's entered position (e.g. CF stays CF)
-        registeredPosition: enteredPos,
+        position: userEnteredPos, // Exactly as entered by the user (e.g. CF stays CF)
+        registeredPosition: userEnteredPos,
         secondaryPositions: player.secondaryPositions,
         pitchX: slot.x,
         pitchY: slot.y,
