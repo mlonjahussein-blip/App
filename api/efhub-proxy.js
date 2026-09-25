@@ -1,12 +1,12 @@
 // server/serverless/efhubProxy.ts
 async function handler(req, res) {
   try {
-    let target = req.query.url || "https://efhub.com/";
+    let target = req.query.url || "https://pesdb.net/efootball/";
     if (!target.startsWith("http://") && !target.startsWith("https://")) {
-      target = "https://efhub.com" + (target.startsWith("/") ? target : "/" + target);
+      target = target.startsWith("/efootball") || target.startsWith("/assets") ? "https://pesdb.net" + (target.startsWith("/") ? target : "/" + target) : "https://efhub.com" + (target.startsWith("/") ? target : "/" + target);
     }
     const parsedUrl = new URL(target);
-    if (!parsedUrl.hostname.endsWith("efhub.com") && !parsedUrl.hostname.endsWith("efimg.com")) {
+    if (!parsedUrl.hostname.endsWith("pesdb.net") && !parsedUrl.hostname.endsWith("efhub.com") && !parsedUrl.hostname.endsWith("efimg.com")) {
       return res.status(403).send("Forbidden: Proxy target domain not permitted.");
     }
     const response = await fetch(target, {
@@ -23,16 +23,18 @@ async function handler(req, res) {
     res.removeHeader("content-security-policy-report-only");
     if (contentType.includes("text/html")) {
       let html = await response.text();
+      const isPesdb = parsedUrl.hostname.includes("pesdb.net");
+      const baseOrigin = isPesdb ? "https://pesdb.net" : "https://efhub.com";
+      html = html.replace(/href="\/assets\//g, 'href="https://pesdb.net/assets/');
+      html = html.replace(/src="\/assets\//g, 'src="https://pesdb.net/assets/');
       html = html.replace(/href="\/_next\//g, 'href="https://efhub.com/_next/');
       html = html.replace(/src="\/_next\//g, 'src="https://efhub.com/_next/');
       html = html.replace(/src="\/efhub/g, 'src="https://efhub.com/efhub');
-      html = html.replace(/href="\/favicon/g, 'href="https://efhub.com/favicon');
-      html = html.replace(/src="\/favicon/g, 'src="https://efhub.com/favicon');
-      html = html.replace(/href="\/icons\//g, 'href="https://efhub.com/icons/');
-      html = html.replace(/src="\/icons\//g, 'src="https://efhub.com/icons/');
-      html = html.replace(/href="\/manifest\.json"/g, 'href="https://efhub.com/manifest.json"');
+      html = html.replace(/href="\/favicon/g, `href="${baseOrigin}/favicon`);
+      html = html.replace(/src="\/favicon/g, `src="${baseOrigin}/favicon`);
+      html = html.replace(/href="\/manifest\.json"/g, `href="${baseOrigin}/manifest.json"`);
       const headScriptTag = `
-<base href="https://efhub.com/">
+<base href="${baseOrigin}/">
 <script>
 (function() {
   function notifyParent(type, payload) {
@@ -41,7 +43,7 @@ async function handler(req, res) {
     } catch (e) {}
   }
 
-  // Intercept Next.js client-side router redirects so it never escapes to root "/"
+  // Intercept client-side router redirects so it never escapes to root "/"
   var origReplaceState = history.replaceState;
   history.replaceState = function(state, title, url) {
     if (url === '/' || url === window.location.origin + '/' || url === '') {
@@ -56,10 +58,9 @@ async function handler(req, res) {
       return;
     }
     if (typeof url === 'string') {
-      var fullUrl = url.startsWith('http') ? url : 'https://efhub.com' + (url.startsWith('/') ? url : '/' + url);
+      var fullUrl = url.startsWith('http') ? url : '${baseOrigin}' + (url.startsWith('/') ? url : '/' + url);
       notifyParent('URL_CHANGED', { url: fullUrl, pathname: url });
-      // If navigating to another page/player, load it through proxy
-      if (url.startsWith('/players/') || url.startsWith('/players?')) {
+      if (url.includes('/players/') || url.includes('/players?')) {
         window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(fullUrl);
         return;
       }
@@ -75,15 +76,14 @@ async function handler(req, res) {
     var href = anchor.getAttribute('href');
     if (!href) return;
 
-    // Check for player selection or card click
-    var cardEl = anchor.closest('[data-player-id]') || anchor;
-    var playerMatch = (href || '').match(/\\/players\\/([0-9a-zA-Z_\\-]+)/);
+    // Check for player selection or card click on PESDB or eFHUB
+    var playerMatch = (href || '').match(//(?:efootball/)?players/([0-9a-zA-Z_-]+)/);
     var text = (anchor.innerText || '').trim();
 
     if (playerMatch && playerMatch[1]) {
       notifyParent('CARD_CLICKED', { 
         href: href, 
-        fullUrl: anchor.href || ('https://efhub.com' + href), 
+        fullUrl: anchor.href || ('${baseOrigin}' + href), 
         playerId: playerMatch[1], 
         text: text 
       });
@@ -93,7 +93,7 @@ async function handler(req, res) {
     if (href.startsWith('/') && !href.startsWith('/api/efhub-proxy')) {
       e.preventDefault();
       e.stopPropagation();
-      var target = 'https://efhub.com' + href;
+      var target = '${baseOrigin}' + href;
       window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
     }
   }, true);
@@ -118,8 +118,8 @@ async function handler(req, res) {
       return res.status(200).send(Buffer.from(buffer));
     }
   } catch (err) {
-    console.error("Error in efhubProxy serverless handler:", err);
-    return res.status(500).send("Unable to load live eFHUB frame.");
+    console.error("Error in /api/efhub-proxy serverless:", err);
+    return res.status(500).send("Unable to load live database website frame.");
   }
 }
 export {

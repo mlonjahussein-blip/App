@@ -322,9 +322,12 @@ app.post('/api/feedback', async (req, res) => {
   }
 });
 
-// Route eFHUB subpaths directly through the proxy so no link click in the iframe falls through to index.html
-app.get(['/players', '/players/*', '/articles/*', '/managers/*', '/items/*'], (req, res) => {
-  const fullTarget = 'https://efhub.com' + req.originalUrl;
+// Route PESDB and eFHUB subpaths directly through the proxy so no link click in the iframe falls through to index.html
+app.get(['/efootball', '/efootball/*', '/assets/*', '/pes2021/*', '/players', '/players/*', '/articles/*', '/managers/*', '/items/*'], (req, res) => {
+  const host = req.originalUrl.startsWith('/efootball') || req.originalUrl.startsWith('/assets') || req.originalUrl.startsWith('/pes2021')
+    ? 'https://pesdb.net'
+    : 'https://efhub.com';
+  const fullTarget = host + req.originalUrl;
   res.redirect(`/api/efhub-proxy?url=${encodeURIComponent(fullTarget)}`);
 });
 
@@ -343,17 +346,19 @@ app.get('/_next/*', async (req, res) => {
   }
 });
 
-// Live eFHUB Reverse Proxy Endpoint
-// Strips frame-ancestors and x-frame-options and rewrites relative resources so efhub.com opens smoothly
+// Live Database Reverse Proxy Endpoint (Supports pesdb.net & efhub.com)
+// Strips frame-ancestors and x-frame-options and rewrites relative resources so official database sites open smoothly
 app.get('/api/efhub-proxy', async (req, res) => {
   try {
-    let target = (req.query.url as string) || 'https://efhub.com/';
+    let target = (req.query.url as string) || 'https://pesdb.net/efootball/';
     if (!target.startsWith('http://') && !target.startsWith('https://')) {
-      target = 'https://efhub.com' + (target.startsWith('/') ? target : '/' + target);
+      target = target.startsWith('/efootball') || target.startsWith('/assets')
+        ? 'https://pesdb.net' + (target.startsWith('/') ? target : '/' + target)
+        : 'https://efhub.com' + (target.startsWith('/') ? target : '/' + target);
     }
 
     const parsedUrl = new URL(target);
-    if (!parsedUrl.hostname.endsWith('efhub.com') && !parsedUrl.hostname.endsWith('efimg.com')) {
+    if (!parsedUrl.hostname.endsWith('pesdb.net') && !parsedUrl.hostname.endsWith('efhub.com') && !parsedUrl.hostname.endsWith('efimg.com')) {
       return res.status(403).send('Forbidden: Proxy target domain not permitted.');
     }
 
@@ -376,19 +381,22 @@ app.get('/api/efhub-proxy', async (req, res) => {
     if (contentType.includes('text/html')) {
       let html = await response.text();
 
-      // 1. Rewrite relative paths for scripts, styles, manifests, and static images to absolute efhub.com URLs
+      const isPesdb = parsedUrl.hostname.includes('pesdb.net');
+      const baseOrigin = isPesdb ? 'https://pesdb.net' : 'https://efhub.com';
+
+      // 1. Rewrite relative paths for scripts, styles, manifests, assets
+      html = html.replace(/href="\/assets\//g, 'href="https://pesdb.net/assets/');
+      html = html.replace(/src="\/assets\//g, 'src="https://pesdb.net/assets/');
       html = html.replace(/href="\/_next\//g, 'href="https://efhub.com/_next/');
       html = html.replace(/src="\/_next\//g, 'src="https://efhub.com/_next/');
       html = html.replace(/src="\/efhub/g, 'src="https://efhub.com/efhub');
-      html = html.replace(/href="\/favicon/g, 'href="https://efhub.com/favicon');
-      html = html.replace(/src="\/favicon/g, 'src="https://efhub.com/favicon');
-      html = html.replace(/href="\/icons\//g, 'href="https://efhub.com/icons/');
-      html = html.replace(/src="\/icons\//g, 'src="https://efhub.com/icons/');
-      html = html.replace(/href="\/manifest\.json"/g, 'href="https://efhub.com/manifest.json"');
+      html = html.replace(/href="\/favicon/g, `href="${baseOrigin}/favicon`);
+      html = html.replace(/src="\/favicon/g, `src="${baseOrigin}/favicon`);
+      html = html.replace(/href="\/manifest\.json"/g, `href="${baseOrigin}/manifest.json"`);
 
       // 2. Inject anti-redirect and communication script at the VERY TOP of <head>
       const headScriptTag = `
-<base href="https://efhub.com/">
+<base href="${baseOrigin}/">
 <script>
 (function() {
   function notifyParent(type, payload) {
@@ -397,7 +405,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
     } catch (e) {}
   }
 
-  // Intercept Next.js client-side router redirects so it never escapes to root "/"
+  // Intercept client-side router redirects so it never escapes to root "/"
   var origReplaceState = history.replaceState;
   history.replaceState = function(state, title, url) {
     if (url === '/' || url === window.location.origin + '/' || url === '') {
@@ -412,10 +420,9 @@ app.get('/api/efhub-proxy', async (req, res) => {
       return;
     }
     if (typeof url === 'string') {
-      var fullUrl = url.startsWith('http') ? url : 'https://efhub.com' + (url.startsWith('/') ? url : '/' + url);
+      var fullUrl = url.startsWith('http') ? url : '${baseOrigin}' + (url.startsWith('/') ? url : '/' + url);
       notifyParent('URL_CHANGED', { url: fullUrl, pathname: url });
-      // If navigating to another page/player, load it through proxy
-      if (url.startsWith('/players/') || url.startsWith('/players?')) {
+      if (url.includes('/players/') || url.includes('/players?')) {
         window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(fullUrl);
         return;
       }
@@ -431,15 +438,14 @@ app.get('/api/efhub-proxy', async (req, res) => {
     var href = anchor.getAttribute('href');
     if (!href) return;
 
-    // Check for player selection or card click
-    var cardEl = anchor.closest('[data-player-id]') || anchor;
-    var playerMatch = (href || '').match(/\\/players\\/([0-9a-zA-Z_\\-]+)/);
+    // Check for player selection or card click on PESDB or eFHUB
+    var playerMatch = (href || '').match(/\/(?:efootball\/)?players\/([0-9a-zA-Z_\-]+)/);
     var text = (anchor.innerText || '').trim();
 
     if (playerMatch && playerMatch[1]) {
       notifyParent('CARD_CLICKED', { 
         href: href, 
-        fullUrl: anchor.href || ('https://efhub.com' + href), 
+        fullUrl: anchor.href || ('${baseOrigin}' + href), 
         playerId: playerMatch[1], 
         text: text 
       });
@@ -449,7 +455,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
     if (href.startsWith('/') && !href.startsWith('/api/efhub-proxy')) {
       e.preventDefault();
       e.stopPropagation();
-      var target = 'https://efhub.com' + href;
+      var target = '${baseOrigin}' + href;
       window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
     }
   }, true);
@@ -476,11 +482,11 @@ app.get('/api/efhub-proxy', async (req, res) => {
     }
   } catch (err: any) {
     console.error('Error in /api/efhub-proxy:', err);
-    res.status(500).send('Unable to load live eFHUB website frame. Please use the fallback search or open directly.');
+    res.status(500).send('Unable to load live database website frame. Please use the fallback search or open directly.');
   }
 });
 
-// Endpoint to fetch player card details from an eFHUB URL or ID
+// Endpoint to fetch player card details from a PESDB or eFHUB URL or ID
 app.get('/api/efhub-player', async (req, res) => {
   try {
     const input = (req.query.id || req.query.url) as string;
@@ -490,54 +496,115 @@ app.get('/api/efhub-player', async (req, res) => {
 
     let targetUrl = input;
     if (!input.startsWith('http://') && !input.startsWith('https://')) {
-      targetUrl = `https://efhub.com/players/${input}`;
+      targetUrl = `https://pesdb.net/efootball/players/${input}`;
     }
 
-    const response = await fetch(targetUrl, {
+    let response = await fetch(targetUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
       }
     });
 
+    if (!response.ok && !targetUrl.includes('efhub.com')) {
+      targetUrl = `https://efhub.com/players/${input}`;
+      response = await fetch(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+        }
+      });
+    }
+
     if (!response.ok) {
-      return res.status(404).json({ error: `eFHUB returned status ${response.status}` });
+      return res.status(404).json({ error: `Database returned status ${response.status}` });
     }
 
     const html = await response.text();
 
-    // Parse title e.g. "Giorgio Chiellini — 87 OVR | eFHUB" or "Lionel Messi — 104 OVR | eFHUB"
+    // Try parsing rich PESDB JSON data
+    const pesdbScriptMatch = html.match(/<script[^>]*id="player-progression-data"[^>]*>([\s\S]*?)<\/script>/i);
+    let parsedPesdb: any = null;
+    if (pesdbScriptMatch && pesdbScriptMatch[1]) {
+      try {
+        parsedPesdb = JSON.parse(pesdbScriptMatch[1]);
+      } catch (e) {
+        console.warn('Could not parse pesdb JSON script:', e);
+      }
+    }
+
     const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
-    // Parse meta description e.g. "Giorgio Chiellini is a 87-rated CB in eFootball. Playing style: Build Up. View full stats..."
     const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
     const imgMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
 
-    let name = 'Unknown Player';
-    let rating = 90;
+    let name = parsedPesdb?.compare?.playerName || 'Unknown Player';
+    let maxRating = parsedPesdb?.databaseMaxOverall || parsedPesdb?.baseOverall || 90;
+    let baseRating = parsedPesdb?.baseOverall || Math.max(70, maxRating - 10);
     let position = 'CF';
-    let playstyle = 'Goal Poacher';
+    let playstyle = parsedPesdb?.compare?.attackingPlayingStyle || parsedPesdb?.compare?.defensivePlayingStyle || 'Goal Poacher';
+    let cardType = parsedPesdb?.compare?.cardType || 'Epic';
+    let club = parsedPesdb?.compare?.teamName || 'eFootball Club';
+    let nationality = parsedPesdb?.compare?.nationality || 'International';
+    let skills: string[] = parsedPesdb?.compare?.playerSkills || ['Double Touch', 'First-time Shot', 'One-touch Pass'];
 
-    if (titleMatch) {
-      const parts = titleMatch[1].split('—');
+    if (name === 'Unknown Player' && titleMatch) {
+      const parts = titleMatch[1].split(/—|-|\|/);
       if (parts[0]) name = parts[0].trim();
       if (parts[1]) {
-        const ovrMatch = parts[1].match(/(\d+)\s*OVR/i);
-        if (ovrMatch) rating = parseInt(ovrMatch[1], 10);
+        const ovrMatch = parts[1].match(/(\d+)\s*OVR/i) || parts[1].match(/(\d+)/);
+        if (ovrMatch) maxRating = parseInt(ovrMatch[1], 10);
       }
     }
 
     if (descMatch) {
       const desc = descMatch[1];
-      const mRate = desc.match(/is a (\d+)-rated/i);
-      if (mRate) rating = parseInt(mRate[1], 10);
+      const mRate = desc.match(/Max Overall (\d+)/i) || desc.match(/Overall Rating (\d+)/i) || desc.match(/is a (\d+)-rated/i);
+      if (mRate) maxRating = parseInt(mRate[1], 10);
 
-      const mPos = desc.match(/rated ([A-Z]{2,3}) in eFootball/i);
+      const mPos = desc.match(/rated ([A-Z]{2,3}) in eFootball/i) || desc.match(/\b(GK|CB|LB|RB|LWB|RWB|DMF|CMF|AMF|LMF|RMF|LWF|RWF|SS|CF)\b/);
       if (mPos) position = mPos[1].toUpperCase();
 
       const mStyle = desc.match(/Playing style:\s*([^.]+)\./i);
       if (mStyle) playstyle = mStyle[1].trim();
     }
 
-    // Match with local master database if possible to get rich attributes, or generate
+    // Convert PESDB snake_case baseStats to PascalCase keyAttributes
+    const keyAttributes: Record<string, number> = {};
+    if (parsedPesdb?.baseStats) {
+      const statsObj = parsedPesdb.baseStats;
+      const keyMap: Record<string, string> = {
+        offensive_awareness: 'OffensiveAwareness',
+        ball_control: 'BallControl',
+        dribbling: 'Dribbling',
+        tight_possession: 'TightPossession',
+        low_pass: 'LowPass',
+        lofted_pass: 'LoftedPass',
+        finishing: 'Finishing',
+        heading: 'Heading',
+        set_piece_taking: 'PlaceKicking',
+        curl: 'Curl',
+        speed: 'Speed',
+        acceleration: 'Acceleration',
+        kicking_power: 'KickingPower',
+        jumping: 'Jumping',
+        physical_contact: 'PhysicalContact',
+        balance: 'Balance',
+        stamina: 'Stamina',
+        defensive_awareness: 'DefensiveAwareness',
+        tackling: 'Tackling',
+        aggression: 'Aggression',
+        defensive_engagement: 'DefensiveEngagement',
+        gk_awareness: 'GKAwareness',
+        gk_catching: 'GKCatching',
+        gk_parrying: 'GKParrying',
+        gk_reflexes: 'GKReflexes',
+        gk_reach: 'GKReach'
+      };
+
+      Object.keys(statsObj).forEach(k => {
+        const pasName = keyMap[k] || k;
+        keyAttributes[pasName] = Number(statsObj[k]);
+      });
+    }
+
     const matched = EFOOTBALL_MASTER_PLAYERS.find(p => 
       normalizeString(p.fullName) === normalizeString(name) ||
       normalizeString(p.commonName) === normalizeString(name) ||
@@ -546,21 +613,21 @@ app.get('/api/efhub-player', async (req, res) => {
 
     const generated = getAllEfhubCardsForPlayer(name);
     const chosen = generated.find(c => c.primaryPosition === position) || generated[0] || {
-      id: `efhub_${Date.now()}`,
+      id: `pesdb_${Date.now()}`,
       fullName: name,
       commonName: name,
       aliases: [name.toUpperCase()],
       primaryPosition: position,
       secondaryPositions: position === 'CF' ? ['SS'] : position === 'CB' ? ['RB'] : ['CMF'],
-      baseRating: Math.max(70, rating - 8),
-      maxRating: rating,
+      baseRating: baseRating,
+      maxRating: maxRating,
       playstyle: playstyle,
-      club: matched?.club || 'eFootball Club',
-      nationality: matched?.nationality || 'International',
-      cardType: rating >= 102 ? 'Big Time' : rating >= 100 ? 'Epic' : rating >= 98 ? 'Show Time' : rating >= 95 ? 'Highlight' : 'Standard',
-      cardTitle: `${name} Official eFHUB Card`,
-      keyAttributes: {},
-      skills: matched?.skills || ['Double Touch', 'First-time Shot', 'One-touch Pass'],
+      club: club || matched?.club || 'eFootball Club',
+      nationality: nationality || matched?.nationality || 'International',
+      cardType: cardType || (maxRating >= 102 ? 'Big Time' : maxRating >= 100 ? 'Epic' : maxRating >= 98 ? 'Show Time' : 'Standard'),
+      cardTitle: `${name} Official Card`,
+      keyAttributes: keyAttributes,
+      skills: skills.length > 0 ? skills : (matched?.skills || ['Double Touch', 'First-time Shot', 'One-touch Pass']),
       efhubUrl: targetUrl
     };
 
@@ -568,9 +635,15 @@ app.get('/api/efhub-player', async (req, res) => {
       ...chosen,
       fullName: name,
       commonName: name,
-      primaryPosition: position,
-      maxRating: rating,
+      primaryPosition: position || chosen.primaryPosition,
+      maxRating: maxRating || chosen.maxRating,
+      baseRating: baseRating || chosen.baseRating,
       playstyle: playstyle || chosen.playstyle,
+      cardType: cardType || chosen.cardType,
+      club: club || chosen.club,
+      nationality: nationality || chosen.nationality,
+      keyAttributes: Object.keys(keyAttributes).length > 0 ? keyAttributes : chosen.keyAttributes,
+      skills: skills.length > 0 ? skills : chosen.skills,
       efhubUrl: targetUrl,
       imageUrl: imgMatch ? imgMatch[1] : undefined
     };

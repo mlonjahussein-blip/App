@@ -40,7 +40,7 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
   targetRoleLabel = "Squad Player"
 }) => {
   // Navigation & Browser State for the inner window
-  const [currentWebUrl, setCurrentWebUrl] = useState('https://efhub.com/');
+  const [currentWebUrl, setCurrentWebUrl] = useState('https://pesdb.net/efootball/');
   const [iframeKey, setIframeKey] = useState(1);
   const [isLoadingIframe, setIsLoadingIframe] = useState(true);
   const [activeTab, setActiveTab] = useState<'live_web' | 'cards_gallery'>('live_web');
@@ -73,8 +73,8 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
           setCurrentWebUrl(url);
         }
 
-        // If user clicked or navigated to a specific player page: e.g. /players/88045755835027
-        const playerMatch = (href || pathname || url || '').match(/\/players\/([0-9a-zA-Z_\-]+)/);
+        // If user clicked or navigated to a specific player page: e.g. /efootball/players/... or /players/...
+        const playerMatch = (href || pathname || url || '').match(/\/(?:efootball\/)?players\/([0-9a-zA-Z_\-]+)/);
         if (playerMatch && playerMatch[1]) {
           const playerId = playerMatch[1];
           try {
@@ -178,29 +178,29 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
-                  <span>Official eFHUB Card Database Search</span>
+                  <span>Official eFootball Card Database Search</span>
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>efhub.com Live Window</span>
+                  <span>pesdb.net Live Window</span>
                 </span>
                 <span className="text-xs text-neutral-400 font-semibold hidden md:inline">
                   • Target: <strong className="text-emerald-400">{targetRoleLabel}</strong>
                 </span>
               </div>
               <p className="text-xs text-neutral-400 mt-0.5">
-                Navigate the embedded eFHUB website window below, search for any player card, then click <strong>"Select This Card"</strong> to import all ratings and stats.
+                Navigate the embedded <strong>pesdb.net</strong> database window below, search for any player card, then click <strong>"Select This Card"</strong> to import all ratings and stats.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <a
-              href="https://efhub.com/players"
+              href="https://pesdb.net/efootball/"
               target="_blank"
               rel="noopener noreferrer"
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-neutral-300 hover:text-white bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 transition-colors"
-              title="Open efhub.com in separate tab"
+              title="Open pesdb.net in separate tab"
             >
               <span>Open in New Tab</span>
               <ExternalLink className="w-3.5 h-3.5" />
@@ -209,7 +209,7 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
             <button
               onClick={onClose}
               className="p-2 text-neutral-400 hover:text-white rounded-xl hover:bg-neutral-800 transition-colors"
-              title="Close eFHUB Window"
+              title="Close Database Window"
             >
               <X className="w-5 h-5" />
             </button>
@@ -226,33 +226,45 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
                 type="button"
                 onClick={reloadEmbed}
                 className="p-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white transition-colors"
-                title="Refresh Live eFHUB Window"
+                title="Refresh Live Database Window"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isLoadingIframe ? 'animate-spin text-emerald-400' : ''}`} />
               </button>
               <button
                 type="button"
-                onClick={() => navigateInnerWindow('https://efhub.com/')}
+                onClick={() => navigateInnerWindow('https://pesdb.net/efootball/')}
                 className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${
-                  currentWebUrl === 'https://efhub.com/' || currentWebUrl === 'https://efhub.com'
+                  currentWebUrl.includes('pesdb.net/efootball')
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                     : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
                 }`}
-                title="Go to efhub.com Homepage"
+                title="Go to pesdb.net Homepage"
               >
-                efhub.com
+                pesdb.net
               </button>
               <button
                 type="button"
-                onClick={() => navigateInnerWindow('https://efhub.com/players')}
+                onClick={() => navigateInnerWindow('https://pesdb.net/efootball/players/')}
                 className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${
                   currentWebUrl.includes('/players')
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                     : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
                 }`}
-                title="Go to efhub.com Players Database"
+                title="Go to pesdb.net Players Search"
               >
                 Players DB
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateInnerWindow('https://efhub.com/')}
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                  currentWebUrl.includes('efhub.com')
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
+                }`}
+                title="Go to efhub.com"
+              >
+                efhub.com
               </button>
             </div>
 

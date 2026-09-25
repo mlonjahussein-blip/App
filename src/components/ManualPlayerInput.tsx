@@ -573,7 +573,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                 className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-neutral-950 flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
               >
                 <Zap className="w-4 h-4 fill-neutral-950" />
-                Select Card from eFHUB Database (efhub.com)
+                Select Card from Database (pesdb.net)
               </button>
 
               <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
@@ -793,7 +793,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                   className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-neutral-950 flex items-center gap-1 shadow-sm transition-all cursor-pointer shrink-0"
                 >
                   <Zap className="w-3.5 h-3.5 fill-neutral-950" />
-                  Select Card from eFHUB
+                  Select Card from Database
                 </button>
 
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${startingXI.length >= 11 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
@@ -991,7 +991,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
                   className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-neutral-950 flex items-center gap-1 shadow-sm transition-all cursor-pointer shrink-0"
                 >
                   <Zap className="w-3.5 h-3.5 fill-neutral-950" />
-                  Select Card from eFHUB
+                  Select Card from Database
                 </button>
 
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${substitutes.length >= 12 ? 'bg-rose-500/20 text-rose-300' : 'bg-cyan-500/20 text-cyan-300'}`}>
