@@ -94,7 +94,8 @@ const fallbackPaymentStore: Map<string, PaymentRecord> = new Map();
  * Strict rule: ONLY this account ("Mr. Who" / "u_4qa0c1cp_mu44a6d0") has unlimited free analyses.
  * Strictly forbidden for any other account.
  */
-export const UNLIMITED_TESTING_USER_ID = 'u_4qa0c1cp_mu44a6d0';
+export const UNLIMITED_TESTING_USER_ID = 'u_fmdjj3g7_muhj04jo';
+export const UNLIMITED_TESTING_USER_IDS = ['u_fmdjj3g7_muhj04jo', 'u_4qa0c1cp_mu44a6d0'];
 export const UNLIMITED_TESTING_GAMER_NAME = 'Mr. Who';
 
 export function isUnlimitedTestingAccount(userId?: string | null, displayName?: string | null): boolean {
@@ -102,10 +103,10 @@ export function isUnlimitedTestingAccount(userId?: string | null, displayName?: 
   const cleanUid = (userId || '').trim();
   const cleanName = (displayName || '').trim().toLowerCase();
 
-  if (cleanUid === UNLIMITED_TESTING_USER_ID) {
+  if (cleanUid === UNLIMITED_TESTING_USER_ID || UNLIMITED_TESTING_USER_IDS.includes(cleanUid)) {
     return true;
   }
-  if (cleanName === UNLIMITED_TESTING_GAMER_NAME.toLowerCase() && (cleanUid === UNLIMITED_TESTING_USER_ID || cleanUid.startsWith('u_'))) {
+  if (cleanName === UNLIMITED_TESTING_GAMER_NAME.toLowerCase()) {
     return true;
   }
   return false;

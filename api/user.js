@@ -1106,16 +1106,17 @@ async function writeFirestoreDoc(collection, docId, data) {
   }
 }
 var fallbackUserStore = /* @__PURE__ */ new Map();
-var UNLIMITED_TESTING_USER_ID = "u_4qa0c1cp_mu44a6d0";
+var UNLIMITED_TESTING_USER_ID = "u_fmdjj3g7_muhj04jo";
+var UNLIMITED_TESTING_USER_IDS = ["u_fmdjj3g7_muhj04jo", "u_4qa0c1cp_mu44a6d0"];
 var UNLIMITED_TESTING_GAMER_NAME = "Mr. Who";
 function isUnlimitedTestingAccount(userId, displayName) {
   if (!userId && !displayName) return false;
   const cleanUid = (userId || "").trim();
   const cleanName = (displayName || "").trim().toLowerCase();
-  if (cleanUid === UNLIMITED_TESTING_USER_ID) {
+  if (cleanUid === UNLIMITED_TESTING_USER_ID || UNLIMITED_TESTING_USER_IDS.includes(cleanUid)) {
     return true;
   }
-  if (cleanName === UNLIMITED_TESTING_GAMER_NAME.toLowerCase() && (cleanUid === UNLIMITED_TESTING_USER_ID || cleanUid.startsWith("u_"))) {
+  if (cleanName === UNLIMITED_TESTING_GAMER_NAME.toLowerCase()) {
     return true;
   }
   return false;

@@ -305,7 +305,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           writeDocREST('users', uid, { freeAnalysesRemaining: 1, lastFreeResetAt }).catch(() => {});
         }
 
-        const isTester = uid === 'u_4qa0c1cp_mu44a6d0' || (restDoc.displayName || displayName) === 'Mr. Who' || restDoc.isUnlimitedTestingAccount;
+        const isTester = uid === 'u_fmdjj3g7_muhj04jo' || uid === 'u_4qa0c1cp_mu44a6d0' || (restDoc.displayName || displayName) === 'Mr. Who' || restDoc.isUnlimitedTestingAccount;
         const fullProf: UserProfile = {
           uid: restDoc.uid || uid,
           email: restDoc.email || defaultEmail,
@@ -334,7 +334,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (whatsappNumber && !data.whatsappNumber) {
           data.whatsappNumber = whatsappNumber;
         }
-        if (uid === 'u_4qa0c1cp_mu44a6d0' || data.displayName === 'Mr. Who') {
+        if (uid === 'u_fmdjj3g7_muhj04jo' || uid === 'u_4qa0c1cp_mu44a6d0' || data.displayName === 'Mr. Who') {
           data.isUnlimitedTestingAccount = true;
           data.freeAnalysesRemaining = 999999;
           data.paidCredits = 999999;
@@ -343,7 +343,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem(localProfileKey, JSON.stringify(data));
         return;
       } else {
-        const isTester = uid === 'u_4qa0c1cp_mu44a6d0' || displayName === 'Mr. Who';
+        const isTester = uid === 'u_fmdjj3g7_muhj04jo' || uid === 'u_4qa0c1cp_mu44a6d0' || displayName === 'Mr. Who';
         const newProf: UserProfile = cachedProfile || {
           uid,
           email: defaultEmail,
