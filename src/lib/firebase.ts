@@ -1,11 +1,11 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, setLogLevel, Firestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, setLogLevel } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Silence transient backend retry probe logs
+// Silence transient backend retry probe logs to keep console clean
 try {
-  setLogLevel('error');
+  setLogLevel('silent');
 } catch {}
 
 const appConfig = {
@@ -21,8 +21,18 @@ const app = getApps().length === 0 ? initializeApp(appConfig) : getApps()[0];
 
 export const auth = getAuth(app);
 
-// Simplified Firestore initialization
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Resilient Firestore initialization with long-polling and undefined properties handling
+let firestoreInstance;
+try {
+  firestoreInstance = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+    ignoreUndefinedProperties: true
+  }, firebaseConfig.firestoreDatabaseId);
+} catch (e) {
+  firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+}
+
+export const db = firestoreInstance;
 
 export default app;
 
