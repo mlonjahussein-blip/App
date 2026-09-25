@@ -145,31 +145,31 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const handleSelectEfhubCard = (card: EFootballMasterPlayer) => {
     if (efhubModalTarget === 'pure23') {
       setActiveEfhubCardPure23(card);
-      setSquadPlayerName(card.fullName || card.commonName);
-      setSquadPlayerPos(card.primaryPosition);
-      setSquadSecondaryPositions(card.secondaryPositions || []);
-      setSquadPlayerCardType(card.cardType);
-      setSquadPlayerPlaystyle(card.playstyle);
-      setSquadPlayerRating(card.maxRating || card.baseRating);
-      setSquadPlayerTeam(card.club);
+      setSquadPlayerName(squadPlayerName.trim() || card.fullName || card.commonName);
+      setSquadPlayerPos(squadPlayerPos || card.primaryPosition);
+      setSquadSecondaryPositions(squadSecondaryPositions.length > 0 ? squadSecondaryPositions : (card.secondaryPositions || []));
+      setSquadPlayerCardType(squadPlayerCardType || card.cardType);
+      setSquadPlayerPlaystyle(squadPlayerPlaystyle || card.playstyle);
+      setSquadPlayerRating(squadPlayerRating || card.maxRating || card.baseRating);
+      setSquadPlayerTeam(squadPlayerTeam.trim() || card.club);
     } else if (efhubModalTarget === 'xi') {
       setActiveEfhubCardXI(card);
-      setXiName(card.fullName || card.commonName);
-      setXiPos(card.primaryPosition);
-      setXiSecondaryPositions(card.secondaryPositions || []);
-      setXiCardType(card.cardType);
-      setXiPlaystyle(card.playstyle);
-      setXiRating(card.maxRating || card.baseRating);
-      setXiTeam(card.club);
+      setXiName(xiName.trim() || card.fullName || card.commonName);
+      setXiPos(xiPos || card.primaryPosition);
+      setXiSecondaryPositions(xiSecondaryPositions.length > 0 ? xiSecondaryPositions : (card.secondaryPositions || []));
+      setXiCardType(xiCardType || card.cardType);
+      setXiPlaystyle(xiPlaystyle || card.playstyle);
+      setXiRating(xiRating || card.maxRating || card.baseRating);
+      setXiTeam(xiTeam.trim() || card.club);
     } else if (efhubModalTarget === 'sub') {
       setActiveEfhubCardSub(card);
-      setSubName(card.fullName || card.commonName);
-      setSubPos(card.primaryPosition);
-      setSubSecondaryPositions(card.secondaryPositions || []);
-      setSubCardType(card.cardType);
-      setSubPlaystyle(card.playstyle);
-      setSubRating(card.maxRating || card.baseRating);
-      setSubTeam(card.club);
+      setSubName(subName.trim() || card.fullName || card.commonName);
+      setSubPos(subPos || card.primaryPosition);
+      setSubSecondaryPositions(subSecondaryPositions.length > 0 ? subSecondaryPositions : (card.secondaryPositions || []));
+      setSubCardType(subCardType || card.cardType);
+      setSubPlaystyle(subPlaystyle || card.playstyle);
+      setSubRating(subRating || card.maxRating || card.baseRating);
+      setSubTeam(subTeam.trim() || card.club);
     }
   };
 

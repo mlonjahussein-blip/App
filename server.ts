@@ -350,7 +350,7 @@ app.get('/_next/*', async (req, res) => {
 // Strips frame-ancestors and x-frame-options and rewrites relative resources so official database sites open smoothly
 app.get('/api/efhub-proxy', async (req, res) => {
   try {
-    let target = (req.query.url as string) || 'https://pesdb.net/efootball/';
+    let target = (req.query.url as string) || 'https://efhub.com/';
     if (!target.startsWith('http://') && !target.startsWith('https://')) {
       target = target.startsWith('/efootball') || target.startsWith('/assets')
         ? 'https://pesdb.net' + (target.startsWith('/') ? target : '/' + target)

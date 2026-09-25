@@ -126,9 +126,33 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
     reloadEmbed();
   };
 
-  const handleConfirmSelect = () => {
-    if (selectedCard) {
-      onSelectPlayer(selectedCard);
+  const handleConfirmSelect = async () => {
+    let cardToSelect = selectedCard;
+    
+    // Auto-parse player ID/URL currently visible in the address bar
+    const playerMatch = currentWebUrl.match(/\/(?:efootball\/)?players\/([0-9a-zA-Z_\-]+)/);
+    const pesdbMatch = currentWebUrl.match(/player\.php\?id=([0-9]+)/);
+    const playerId = (playerMatch && playerMatch[1]) || (pesdbMatch && pesdbMatch[1]);
+    
+    if (playerId) {
+      try {
+        setIsLoadingIframe(true);
+        const res = await fetch(`/api/efhub-player?id=${encodeURIComponent(playerId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.player) {
+            cardToSelect = data.player;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not load latest player card from current URL:', e);
+      } finally {
+        setIsLoadingIframe(false);
+      }
+    }
+    
+    if (cardToSelect) {
+      onSelectPlayer(cardToSelect);
       onClose();
     }
   };
@@ -509,7 +533,7 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
             )}
           </div>
 
-          {/* Action Buttons: "Select This Card" */}
+          {/* Action Buttons: "Select the Player" */}
           <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-auto">
             {selectedCard && (
               <button
@@ -522,15 +546,16 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={handleConfirmSelect}
-              disabled={!selectedCard}
-              className="py-2.5 px-6 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-neutral-950 flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/30 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 fill-neutral-950" />
-              <span>Select This Card</span>
-            </button>
+            {!!(selectedCard || currentWebUrl.includes('/players/') || currentWebUrl.includes('player.php')) && (
+              <button
+                type="button"
+                onClick={handleConfirmSelect}
+                className="py-2.5 px-6 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-neutral-950 flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/30 transition-all cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 fill-neutral-950" />
+                <span>Select the Player</span>
+              </button>
+            )}
           </div>
 
         </div>
