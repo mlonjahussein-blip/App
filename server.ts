@@ -366,8 +366,8 @@ app.use('/_next', async (req, res, next) => {
   next();
 });
 
-// Live Database Reverse Proxy Endpoint (Supports universal open browsing including efhub.com, pesdb.net, google.com)
-// Strips frame-ancestors and x-frame-options and rewrites relative resources so official database sites open smoothly
+// Live Database Reverse Proxy Endpoint (Emulates a completely separate browser tab sandbox)
+// Strips frame-ancestors, disables frame-busting, and rewrites relative resources
 app.get('/api/efhub-proxy', async (req, res) => {
   try {
     let target = (req.query.url as string || 'https://efhub.com/').trim();
@@ -381,7 +381,12 @@ app.get('/api/efhub-proxy', async (req, res) => {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9'
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1'
       },
       redirect: 'follow'
     });
@@ -403,6 +408,12 @@ app.get('/api/efhub-proxy', async (req, res) => {
     if (contentType.includes('text/html')) {
       let html = await response.text();
 
+      // Neutralize common frame-busting patterns in raw HTML & scripts
+      html = html.replace(/if\s*\(\s*(?:top\s*!==\s*self|self\s*!==\s*top|window\s*!==\s*top|top\s*!=\s*self|self\s*!=\s*top|window\s*!=\s*top)\s*\)/gi, 'if (false)');
+      html = html.replace(/top\.location\.href\s*=/gi, 'window.location.href =');
+      html = html.replace(/top\.location\s*=/gi, 'window.location =');
+      html = html.replace(/parent\.location\.href\s*=/gi, 'window.location.href =');
+
       // 1. Rewrite relative paths for scripts, styles, manifests, assets
       html = html.replace(/href="\/assets\//g, `href="${finalOrigin}/assets/`);
       html = html.replace(/src="\/assets\//g, `src="${finalOrigin}/assets/`);
@@ -412,17 +423,18 @@ app.get('/api/efhub-proxy', async (req, res) => {
       html = html.replace(/src="\/favicon/g, `src="${finalOrigin}/favicon`);
       html = html.replace(/href="\/manifest\.json"/g, `href="${finalOrigin}/manifest.json"`);
 
-      // 2. Inject anti-redirect, anti-framebust and card extractor script at the VERY TOP of <head>
+      // 2. Inject Virtual Separate Tab Environment script at the VERY TOP of <head>
       const headScriptTag = `
 <base href="${finalOrigin}/">
 <script>
 (function() {
-  // 1. Completely disable frame-busting so host app is NEVER redirected to system home
+  // Emulate completely separate, standalone browser tab environment
   try {
-    Object.defineProperty(window, 'top', {
-      get: function() { return window.self; },
-      set: function() {}
-    });
+    Object.defineProperty(window, 'top', { get: function() { return window.self; }, configurable: true });
+    Object.defineProperty(window, 'parent', { get: function() { return window.self; }, configurable: true });
+    Object.defineProperty(window, 'frameElement', { get: function() { return null; }, configurable: true });
+    Object.defineProperty(document, 'referrer', { get: function() { return ''; }, configurable: true });
+    window.opener = null;
   } catch(e) {}
 
   function notifyParent(type, payload) {

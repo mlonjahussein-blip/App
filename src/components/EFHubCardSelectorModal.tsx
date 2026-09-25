@@ -326,9 +326,9 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
             >
               <Globe className="w-3.5 h-3.5 text-emerald-400" />
               <span className="truncate max-w-[140px] sm:max-w-[200px]">
-                eFHUB.com Live Browser
+                Isolated Tab • eFHUB.com
               </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" title="Separate Tab Sandbox Active" />
             </button>
 
             {/* Browser Tab 2: Visual Card Catalog */}
@@ -545,10 +545,11 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
                 ref={iframeRef}
                 key={iframeKey}
                 src={proxySrc}
-                title="eFHUB Live Browser Window"
+                title="eFHUB Isolated Tab Browser Window"
                 className="w-full h-full border-0 bg-[#13151d]"
                 onLoad={() => setIsLoadingIframe(false)}
-                sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                allow="autoplay; camera; microphone; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-downloads"
               />
             </div>
           ) : (
