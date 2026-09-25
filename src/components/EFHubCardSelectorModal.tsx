@@ -189,7 +189,7 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-neutral-400 mt-0.5">
-                Navigate the embedded <strong>pesdb.net</strong> database window below, search for any player card, then click <strong>"Select This Card"</strong> to import all ratings and stats.
+                External websites block iframe embedding. Click <strong className="text-emerald-400">"Open in New Tab"</strong> to browse pesdb.net / efhub.com, or select any card instantly below!
               </p>
             </div>
           </div>
@@ -199,11 +199,11 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
               href="https://pesdb.net/efootball/"
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-neutral-300 hover:text-white bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-lg shadow-emerald-500/20 transition-all"
               title="Open pesdb.net in separate tab"
             >
               <span>Open in New Tab</span>
-              <ExternalLink className="w-3.5 h-3.5" />
+              <ExternalLink className="w-4 h-4" />
             </a>
 
             <button
