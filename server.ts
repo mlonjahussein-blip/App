@@ -359,7 +359,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
 
     const parsedUrl = new URL(target);
     if (!parsedUrl.hostname.endsWith('pesdb.net') && !parsedUrl.hostname.endsWith('efhub.com') && !parsedUrl.hostname.endsWith('efimg.com')) {
-      return res.status(403).send('Forbidden: Proxy target domain not permitted.');
+      target = 'https://pesdb.net/efootball/';
     }
 
     const response = await fetch(target, {
@@ -453,13 +453,15 @@ app.get('/api/efhub-proxy', async (req, res) => {
     window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
   }, true);
 
-  // Intercept all link clicks so none escape to the host app
+  // Intercept all link clicks so none escape to the host app or open system pages
   document.addEventListener('click', function(e) {
     var anchor = e.target.closest('a');
     if (!anchor) return;
 
     var href = anchor.getAttribute('href');
     if (!href) return;
+
+    if (href.startsWith('mailto:') || href.startsWith('#') || href.startsWith('javascript:')) return;
 
     // Check for player selection or card click on PESDB or eFHUB
     var efhubPlayerMatch = (href || '').match(/\/(?:efootball\/)?players\/([0-9a-zA-Z_\-]+)/);
@@ -476,18 +478,19 @@ app.get('/api/efhub-proxy', async (req, res) => {
       });
     }
 
-    // Always keep relative links inside proxy (whether starting with / or relative like player.php, search.php, etc.)
-    if (!href.startsWith('http') && !href.startsWith('mailto:') && !href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('/api/efhub-proxy')) {
-      e.preventDefault();
-      e.stopPropagation();
-      var target = href.startsWith('/') ? ('${baseOrigin}' + href) : ('${baseOrigin}/efootball/' + href.replace(/^\.\//, ''));
-      window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
-    } else if (href.startsWith('/') && !href.startsWith('/api/efhub-proxy')) {
-      e.preventDefault();
-      e.stopPropagation();
-      var target = '${baseOrigin}' + href;
-      window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
+    e.preventDefault();
+    e.stopPropagation();
+
+    var target = '';
+    if (href.startsWith('http://') || href.startsWith('https://')) {
+      target = href;
+    } else if (href.startsWith('/')) {
+      target = '${baseOrigin}' + href;
+    } else {
+      target = '${baseOrigin}/efootball/' + href.replace(/^\.\//, '');
     }
+
+    window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
   }, true);
 
   // Monitor URL on load
