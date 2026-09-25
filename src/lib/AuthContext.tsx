@@ -648,7 +648,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const pseudoEmail = `${rawDigits}@whatsapp.efootballaihub.com`;
 
-    // 1. Primary: Lookup account from Universal Cloud Database (Firestore)
+    // 1. Primary: Lookup account from Universal Cloud Database (Firestore, Server, Local Storage)
     const cloudAcc = await findCloudAccount(cleanPhone) || await findCloudAccount(rawDigits);
     if (cloudAcc && cloudAcc.salt && cloudAcc.hash) {
       const computedHash = await hashPasswordWithSalt(cleanPassword, cloudAcc.salt);
@@ -663,21 +663,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         saveActiveSession(authUser);
         await fetchProfile(cloudAcc.uid, authUser.email || '', cloudAcc.displayName, undefined, authUser.whatsappNumber);
         return;
-      } else {
-        throw new Error('Incorrect password. Please verify your password and try again.');
       }
     }
 
-    // 2. If no cloud account exists in Firestore, purge any lingering Firebase auth user and reject
+    // 2. Fallback: Authenticate via Firebase Auth
     try {
       const cred = await signInWithEmailAndPassword(auth, pseudoEmail, cleanPassword);
       if (cred.user) {
-        await deleteUser(cred.user).catch(() => {});
-        await fbSignOut(auth).catch(() => {});
+        const fbUid = `wa_${rawDigits}`;
+        const salt = generateSalt();
+        const hash = await hashPasswordWithSalt(cleanPassword, salt);
+        const recoveredAccount: StoredAccountV2 = {
+          uid: fbUid,
+          email: pseudoEmail,
+          displayName: cred.user.displayName || `Manager_${rawDigits.slice(-4)}`,
+          whatsappNumber: cleanPhone,
+          salt,
+          hash,
+          createdAt: new Date().toISOString()
+        };
+        await saveCloudAccount(recoveredAccount);
+
+        const authUser: AppAuthUser = {
+          uid: fbUid,
+          email: pseudoEmail,
+          displayName: recoveredAccount.displayName,
+          whatsappNumber: cleanPhone
+        };
+        setUser(authUser);
+        saveActiveSession(authUser);
+        await fetchProfile(fbUid, pseudoEmail, recoveredAccount.displayName, undefined, cleanPhone);
+        return;
       }
     } catch {}
 
-    throw new Error('No registered account found for this WhatsApp number in the system cloud. Please click "Sign up with WhatsApp" below to create your account.');
+    throw new Error('Incorrect password or no registered account found for this WhatsApp number. Please check your credentials or click "Sign up with WhatsApp" below.');
   };
 
   /**
@@ -686,30 +706,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithWhatsAppOtp = async (phoneNumber: string, otpCode: string) => {
     const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : '+' + cleanPhoneDigits(phoneNumber);
     const rawDigits = cleanPhoneDigits(cleanPhone);
+    const cleanCode = (otpCode || '').trim();
 
     if (!rawDigits || rawDigits.length < 7) {
       throw new Error('Please enter a valid WhatsApp phone number.');
     }
+    if (!cleanCode || cleanCode.length !== 6) {
+      throw new Error('Please enter the 6-digit verification code.');
+    }
 
-    const isValid = verifyWhatsAppCode(cleanPhone, otpCode);
+    const isValid = verifyWhatsAppCode(cleanPhone, cleanCode);
     if (!isValid) {
       throw new Error('Invalid or expired 6-digit verification code. Please request a new code.');
     }
 
-    // Lookup registered account in cloud
-    const cloudAcc = await findCloudAccount(cleanPhone) || await findCloudAccount(rawDigits);
+    // Lookup registered account in cloud / cache or create automatically
+    let cloudAcc = await findCloudAccount(cleanPhone) || await findCloudAccount(rawDigits);
+    const pseudoEmail = `${rawDigits}@whatsapp.efootballaihub.com`;
+    const defaultName = `Manager_${rawDigits.slice(-4)}`;
+
     if (!cloudAcc) {
-      throw new Error('No registered account found with this WhatsApp number. Please click "Sign up with WhatsApp" to register first.');
+      const fbUid = `wa_${rawDigits}`;
+      const salt = generateSalt();
+      const hash = await hashPasswordWithSalt('OTP_SECURE_WA_' + fbUid, salt);
+      cloudAcc = {
+        uid: fbUid,
+        email: pseudoEmail,
+        displayName: defaultName,
+        whatsappNumber: cleanPhone,
+        salt,
+        hash,
+        createdAt: new Date().toISOString()
+      };
+      await saveCloudAccount(cloudAcc);
     }
 
     const uid = cloudAcc.uid;
-    const displayName = cloudAcc.displayName || `Manager_${rawDigits.slice(-4)}`;
-    const pseudoEmail = cloudAcc.email || `${rawDigits}@whatsapp.efootballaihub.com`;
+    const displayName = cloudAcc.displayName || defaultName;
     const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10b981&color=ffffff&bold=true`;
 
     const authUser: AppAuthUser = {
       uid,
-      email: pseudoEmail,
+      email: cloudAcc.email || pseudoEmail,
       displayName,
       photoURL: avatarUrl,
       whatsappNumber: cleanPhone
@@ -741,7 +779,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Please enter your password.');
     }
 
-    // 2. Primary: Universal Cloud Account Verification (Firestore authAccounts / users)
+    // 2. Primary: Universal Account Verification (Firestore, Server Memory, LocalStorage)
     const cloudAcc = await findCloudAccount(cleanEmail);
     if (cloudAcc && cloudAcc.salt && cloudAcc.hash) {
       const computedHash = await hashPasswordWithSalt(cleanPassword, cloudAcc.salt);
@@ -766,8 +804,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         await fetchProfile(cloudAcc.uid, cloudAcc.email, cloudAcc.displayName, undefined, cloudAcc.whatsappNumber);
         return;
-      } else {
-        throw new Error('Incorrect password. Please verify and try again, or click "Forgot Password?" to reset.');
       }
     }
 
@@ -776,13 +812,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const cred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
       if (cred.user) {
         const uid = cred.user.uid || `u_${generateSalt(8)}`;
-        const displayName = cred.user.displayName || cleanEmail.split('@')[0] || 'Manager';
+        const displayName = cred.user.displayName || (cloudAcc?.displayName) || cleanEmail.split('@')[0] || 'Manager';
         const salt = generateSalt(16);
         const hash = await hashPasswordWithSalt(cleanPassword, salt);
         const recoveredAccount: StoredAccountV2 = {
           uid,
           email: cleanEmail,
           displayName,
+          whatsappNumber: cloudAcc?.whatsappNumber,
           salt,
           hash,
           createdAt: new Date().toISOString()
@@ -792,11 +829,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const authUser: AppAuthUser = {
           uid,
           email: cleanEmail,
-          displayName
+          displayName,
+          whatsappNumber: cloudAcc?.whatsappNumber
         };
         setUser(authUser);
         saveActiveSession(authUser);
-        await fetchProfile(uid, cleanEmail, displayName);
+        await fetchProfile(uid, cleanEmail, displayName, undefined, cloudAcc?.whatsappNumber);
         return;
       }
     } catch (fbErr: any) {
@@ -805,7 +843,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    throw new Error('No registered account found for this email address. Please click "Create Account" below to sign up.');
+    // 4. Local storage direct verification
+    try {
+      const localDirect = localStorage.getItem(`efootball_account_${cleanEmail}`);
+      if (localDirect) {
+        const parsed = JSON.parse(localDirect);
+        if (parsed && parsed.uid) {
+          const computedHash = parsed.salt ? await hashPasswordWithSalt(cleanPassword, parsed.salt) : null;
+          if (!parsed.hash || computedHash === parsed.hash) {
+            const authUser: AppAuthUser = {
+              uid: parsed.uid,
+              email: cleanEmail,
+              displayName: parsed.displayName || cleanEmail.split('@')[0],
+              whatsappNumber: parsed.whatsappNumber
+            };
+            setUser(authUser);
+            saveActiveSession(authUser);
+            await fetchProfile(parsed.uid, cleanEmail, parsed.displayName, undefined, parsed.whatsappNumber);
+            return;
+          }
+        }
+      }
+    } catch {}
+
+    throw new Error('Incorrect password or account not found. Please verify your credentials, or click "Create Account" below.');
   };
 
   const resetPassword = async (emailToReset: string) => {
@@ -941,10 +1002,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Invalid or expired 6-digit email code. Please check your inbox or click Resend.');
     }
 
-    // Lookup existing account in cloud
-    const cloudAcc = await findCloudAccount(cleanEmail);
+    // Lookup existing account in cloud/cache or auto-initialize
+    let cloudAcc = await findCloudAccount(cleanEmail);
     if (!cloudAcc) {
-      throw new Error('No registered account found with this email in the system cloud. Please sign up to create your account.');
+      const finalUid = 'u_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+      const defaultName = cleanEmail.split('@')[0] || 'Tactician';
+      const salt = generateSalt();
+      const hash = await hashPasswordWithSalt('OTP_SECURE_AUTH_' + finalUid, salt);
+      cloudAcc = {
+        uid: finalUid,
+        email: cleanEmail,
+        displayName: defaultName,
+        salt,
+        hash,
+        createdAt: new Date().toISOString()
+      };
+      await saveCloudAccount(cloudAcc);
     }
 
     const uid = cloudAcc.uid;
@@ -999,10 +1072,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Invalid or expired 6-digit email verification code. Please check your inbox or click Resend.');
     }
 
-    // Check if account already exists in cloud
+    // If account already exists in cloud/cache, update credentials & log in
     const existingCloud = await findCloudAccount(cleanEmail);
     if (existingCloud) {
-      throw new Error('An account with this email address already exists. Please sign in instead.');
+      const salt = generateSalt();
+      const hash = await hashPasswordWithSalt(cleanPassword, salt);
+      const updatedAccount: StoredAccountV2 = {
+        uid: existingCloud.uid,
+        email: cleanEmail,
+        displayName: cleanName || existingCloud.displayName,
+        whatsappNumber: cleanWhatsApp || existingCloud.whatsappNumber,
+        salt,
+        hash,
+        createdAt: existingCloud.createdAt || new Date().toISOString()
+      };
+      await saveCloudAccount(updatedAccount);
+      const authUser: AppAuthUser = {
+        uid: existingCloud.uid,
+        email: cleanEmail,
+        displayName: cleanName || existingCloud.displayName,
+        whatsappNumber: cleanWhatsApp || existingCloud.whatsappNumber
+      };
+      setUser(authUser);
+      saveActiveSession(authUser);
+      await fetchProfile(existingCloud.uid, cleanEmail, cleanName || existingCloud.displayName);
+      return;
     }
 
     const finalUid = 'u_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
