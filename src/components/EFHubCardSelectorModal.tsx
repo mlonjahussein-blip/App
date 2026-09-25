@@ -40,10 +40,10 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
   targetRoleLabel = "Squad Player"
 }) => {
   // Navigation & Browser State for the inner window
-  const [currentWebUrl, setCurrentWebUrl] = useState('https://pesdb.net/efootball/');
+  const [currentWebUrl, setCurrentWebUrl] = useState('https://efhub.com/');
   const [iframeKey, setIframeKey] = useState(1);
   const [isLoadingIframe, setIsLoadingIframe] = useState(true);
-  const [activeTab, setActiveTab] = useState<'live_web' | 'cards_gallery'>('cards_gallery');
+  const [activeTab, setActiveTab] = useState<'live_web' | 'cards_gallery'>('live_web');
   
   // Card Selection & Quick Search State
   const [selectedCard, setSelectedCard] = useState<EFootballMasterPlayer | null>(null);
