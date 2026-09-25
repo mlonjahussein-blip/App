@@ -366,27 +366,29 @@ app.use('/_next', async (req, res, next) => {
   next();
 });
 
-// Live Database Reverse Proxy Endpoint (Supports efhub.com & pesdb.net)
+// Live Database Reverse Proxy Endpoint (Supports universal open browsing including efhub.com, pesdb.net, google.com)
 // Strips frame-ancestors and x-frame-options and rewrites relative resources so official database sites open smoothly
 app.get('/api/efhub-proxy', async (req, res) => {
   try {
-    let target = (req.query.url as string) || 'https://efhub.com/';
+    let target = (req.query.url as string || 'https://efhub.com/').trim();
     if (!target.startsWith('http://') && !target.startsWith('https://')) {
       target = target.startsWith('/efootball') || target.startsWith('/assets')
         ? 'https://pesdb.net' + (target.startsWith('/') ? target : '/' + target)
-        : 'https://efhub.com' + (target.startsWith('/') ? target : '/' + target);
+        : (target.includes('.') ? 'https://' + target : 'https://efhub.com' + (target.startsWith('/') ? target : '/' + target));
     }
-
-    const parsedUrl = new URL(target);
-    const baseOrigin = parsedUrl.origin;
 
     const response = await fetch(target, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9'
-      }
+      },
+      redirect: 'follow'
     });
+
+    const finalUrl = response.url || target;
+    const finalParsed = new URL(finalUrl);
+    const finalOrigin = finalParsed.origin;
 
     const contentType = response.headers.get('content-type') || 'text/html';
     res.setHeader('content-type', contentType);
@@ -402,17 +404,17 @@ app.get('/api/efhub-proxy', async (req, res) => {
       let html = await response.text();
 
       // 1. Rewrite relative paths for scripts, styles, manifests, assets
-      html = html.replace(/href="\/assets\//g, `href="${baseOrigin}/assets/`);
-      html = html.replace(/src="\/assets\//g, `src="${baseOrigin}/assets/`);
-      html = html.replace(/href="\/_next\//g, `href="${baseOrigin}/_next/`);
-      html = html.replace(/src="\/_next\//g, `src="${baseOrigin}/_next/`);
-      html = html.replace(/href="\/favicon/g, `href="${baseOrigin}/favicon`);
-      html = html.replace(/src="\/favicon/g, `src="${baseOrigin}/favicon`);
-      html = html.replace(/href="\/manifest\.json"/g, `href="${baseOrigin}/manifest.json"`);
+      html = html.replace(/href="\/assets\//g, `href="${finalOrigin}/assets/`);
+      html = html.replace(/src="\/assets\//g, `src="${finalOrigin}/assets/`);
+      html = html.replace(/href="\/_next\//g, `href="${finalOrigin}/_next/`);
+      html = html.replace(/src="\/_next\//g, `src="${finalOrigin}/_next/`);
+      html = html.replace(/href="\/favicon/g, `href="${finalOrigin}/favicon`);
+      html = html.replace(/src="\/favicon/g, `src="${finalOrigin}/favicon`);
+      html = html.replace(/href="\/manifest\.json"/g, `href="${finalOrigin}/manifest.json"`);
 
       // 2. Inject anti-redirect, anti-framebust and card extractor script at the VERY TOP of <head>
       const headScriptTag = `
-<base href="${baseOrigin}/">
+<base href="${finalOrigin}/">
 <script>
 (function() {
   // 1. Completely disable frame-busting so host app is NEVER redirected to system home
@@ -436,7 +438,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
       return;
     }
     if (typeof url === 'string') {
-      var fullUrl = url.startsWith('http') ? url : '${baseOrigin}' + (url.startsWith('/') ? url : '/' + url);
+      var fullUrl = url.startsWith('http') ? url : '${finalOrigin}' + (url.startsWith('/') ? url : '/' + url);
       notifyParent('URL_CHANGED', { url: fullUrl, pathname: url });
     }
     return origReplaceState.apply(this, arguments);
@@ -448,7 +450,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
       return;
     }
     if (typeof url === 'string') {
-      var fullUrl = url.startsWith('http') ? url : '${baseOrigin}' + (url.startsWith('/') ? url : '/' + url);
+      var fullUrl = url.startsWith('http') ? url : '${finalOrigin}' + (url.startsWith('/') ? url : '/' + url);
       notifyParent('URL_CHANGED', { url: fullUrl, pathname: url });
       if (url.includes('/players/') || url.includes('/players?') || url.includes('player.php') || url.includes('/player/')) {
         window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(fullUrl);
@@ -463,7 +465,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
   if (origFetch) {
     window.fetch = function(input, init) {
       if (typeof input === 'string' && input.startsWith('/')) {
-        input = '${baseOrigin}' + input;
+        input = '${finalOrigin}' + input;
       }
       return origFetch.call(this, input, init);
     };
@@ -472,7 +474,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
   var origXhrOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function(method, url) {
     if (typeof url === 'string' && url.startsWith('/')) {
-      url = '${baseOrigin}' + url;
+      url = '${finalOrigin}' + url;
     }
     return origXhrOpen.apply(this, [method, url].concat(Array.prototype.slice.call(arguments, 2)));
   };
@@ -557,7 +559,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
     }
     var queryString = params.toString();
 
-    var target = action.startsWith('http') ? action : ('${baseOrigin}' + (action.startsWith('/') ? action : '/' + action));
+    var target = action.startsWith('http') ? action : ('${finalOrigin}' + (action.startsWith('/') ? action : '/' + action));
     if (queryString) {
       target += (target.includes('?') ? '&' : '?') + queryString;
     }
@@ -590,7 +592,7 @@ app.get('/api/efhub-proxy', async (req, res) => {
 
     var fullTarget = href.startsWith('http://') || href.startsWith('https://')
       ? href
-      : (href.startsWith('/') ? ('${baseOrigin}' + href) : ('${baseOrigin}/' + href.replace(/^\\.\\//, '')));
+      : (href.startsWith('/') ? ('${finalOrigin}' + href) : ('${finalOrigin}/' + href.replace(/^\\.\\//, '')));
 
     notifyParent('URL_CHANGED', { url: fullTarget, pathname: href });
 
