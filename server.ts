@@ -38,7 +38,7 @@ app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://apis.google.com https://*.firebaseapp.com https://*.lemonsqueezy.com https://js.paystack.co https://checkout.flutterwave.com https://www.paypal.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: http:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://api.lemonsqueezy.com https://api.paystack.co https://api.flutterwave.com https://api.paypal.com https://*.run.app https://*.vercel.app https://efhub.com https://*.efhub.com; frame-src 'self' https://efhub.com https://*.efhub.com https://*.firebaseapp.com https://accounts.google.com https://*.lemonsqueezy.com https://checkout.flutterwave.com https://www.paypal.com; frame-ancestors 'self' https://*.google.com https://*.run.app; object-src 'none'; base-uri 'self'; upgrade-insecure-requests;"
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://apis.google.com https://*.firebaseapp.com https://*.lemonsqueezy.com https://js.paystack.co https://checkout.flutterwave.com https://www.paypal.com https://efhub.com https://*.efhub.com https://cdn.efhub.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://efhub.com https://*.efhub.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: http: https://efhub.com https://*.efhub.com https://cdn.efhub.com https://img.efhub.com https://efimg.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://api.lemonsqueezy.com https://api.paystack.co https://api.flutterwave.com https://api.paypal.com https://*.run.app https://*.vercel.app https://efhub.com https://*.efhub.com https://cdn.efhub.com https://img.efhub.com https://efimg.com; frame-src 'self' https://efhub.com https://*.efhub.com https://*.firebaseapp.com https://accounts.google.com https://*.lemonsqueezy.com https://checkout.flutterwave.com https://www.paypal.com; frame-ancestors 'self' https://*.google.com https://*.run.app; object-src 'none'; base-uri 'self'; upgrade-insecure-requests;"
   );
 
   // For API endpoints, prevent any downstream or browser proxy caching of dynamic data
@@ -322,11 +322,32 @@ app.post('/api/feedback', async (req, res) => {
   }
 });
 
+// Route eFHUB subpaths directly through the proxy so no link click in the iframe falls through to index.html
+app.get(['/players', '/players/*', '/articles/*', '/managers/*', '/items/*'], (req, res) => {
+  const fullTarget = 'https://efhub.com' + req.originalUrl;
+  res.redirect(`/api/efhub-proxy?url=${encodeURIComponent(fullTarget)}`);
+});
+
+// Proxy Next.js assets if requested on host domain
+app.get('/_next/*', async (req, res) => {
+  try {
+    const targetUrl = 'https://efhub.com' + req.originalUrl;
+    const response = await fetch(targetUrl);
+    const contentType = response.headers.get('content-type') || 'application/javascript';
+    res.setHeader('content-type', contentType);
+    res.setHeader('access-control-allow-origin', '*');
+    const buffer = await response.arrayBuffer();
+    return res.send(Buffer.from(buffer));
+  } catch {
+    res.status(404).send('Asset not found');
+  }
+});
+
 // Live eFHUB Reverse Proxy Endpoint
-// Strips frame-ancestors and x-frame-options so the official efhub.com website opens inside the modal window
+// Strips frame-ancestors and x-frame-options and rewrites relative resources so efhub.com opens smoothly
 app.get('/api/efhub-proxy', async (req, res) => {
   try {
-    let target = (req.query.url as string) || 'https://efhub.com/players';
+    let target = (req.query.url as string) || 'https://efhub.com/';
     if (!target.startsWith('http://') && !target.startsWith('https://')) {
       target = 'https://efhub.com' + (target.startsWith('/') ? target : '/' + target);
     }
@@ -355,16 +376,19 @@ app.get('/api/efhub-proxy', async (req, res) => {
     if (contentType.includes('text/html')) {
       let html = await response.text();
 
-      // Inject base href so relative scripts, styles, and images load directly
-      const baseTag = '<base href="https://efhub.com/">';
-      if (html.includes('<head>')) {
-        html = html.replace('<head>', `<head>${baseTag}`);
-      } else if (html.includes('<head ')) {
-        html = html.replace(/<head[^>]*>/, `$&${baseTag}`);
-      }
+      // 1. Rewrite relative paths for scripts, styles, manifests, and static images to absolute efhub.com URLs
+      html = html.replace(/href="\/_next\//g, 'href="https://efhub.com/_next/');
+      html = html.replace(/src="\/_next\//g, 'src="https://efhub.com/_next/');
+      html = html.replace(/src="\/efhub/g, 'src="https://efhub.com/efhub');
+      html = html.replace(/href="\/favicon/g, 'href="https://efhub.com/favicon');
+      html = html.replace(/src="\/favicon/g, 'src="https://efhub.com/favicon');
+      html = html.replace(/href="\/icons\//g, 'href="https://efhub.com/icons/');
+      html = html.replace(/src="\/icons\//g, 'src="https://efhub.com/icons/');
+      html = html.replace(/href="\/manifest\.json"/g, 'href="https://efhub.com/manifest.json"');
 
-      // Inject communication script that detects card selections and navigations
-      const scriptTag = `
+      // 2. Inject anti-redirect and communication script at the VERY TOP of <head>
+      const headScriptTag = `
+<base href="https://efhub.com/">
 <script>
 (function() {
   function notifyParent(type, payload) {
@@ -373,38 +397,76 @@ app.get('/api/efhub-proxy', async (req, res) => {
     } catch (e) {}
   }
 
-  // Intercept click on player cards or links
+  // Intercept Next.js client-side router redirects so it never escapes to root "/"
+  var origReplaceState = history.replaceState;
+  history.replaceState = function(state, title, url) {
+    if (url === '/' || url === window.location.origin + '/' || url === '') {
+      return;
+    }
+    return origReplaceState.apply(this, arguments);
+  };
+
+  var origPushState = history.pushState;
+  history.pushState = function(state, title, url) {
+    if (url === '/' || url === window.location.origin + '/' || url === '') {
+      return;
+    }
+    if (typeof url === 'string') {
+      var fullUrl = url.startsWith('http') ? url : 'https://efhub.com' + (url.startsWith('/') ? url : '/' + url);
+      notifyParent('URL_CHANGED', { url: fullUrl, pathname: url });
+      // If navigating to another page/player, load it through proxy
+      if (url.startsWith('/players/') || url.startsWith('/players?')) {
+        window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(fullUrl);
+        return;
+      }
+    }
+    return origPushState.apply(this, arguments);
+  };
+
+  // Intercept all link clicks so none escape to the host app
   document.addEventListener('click', function(e) {
-    var anchor = e.target.closest('a[href*="/players/"]') || e.target.closest('[data-player-id]');
-    if (anchor) {
-      var href = anchor.getAttribute('href') || window.location.pathname;
-      var text = (anchor.innerText || '').trim();
-      notifyParent('CARD_CLICKED', { href: href, fullUrl: anchor.href || window.location.href, text: text });
+    var anchor = e.target.closest('a');
+    if (!anchor) return;
+
+    var href = anchor.getAttribute('href');
+    if (!href) return;
+
+    // Check for player selection or card click
+    var cardEl = anchor.closest('[data-player-id]') || anchor;
+    var playerMatch = (href || '').match(/\\/players\\/([0-9a-zA-Z_\\-]+)/);
+    var text = (anchor.innerText || '').trim();
+
+    if (playerMatch && playerMatch[1]) {
+      notifyParent('CARD_CLICKED', { 
+        href: href, 
+        fullUrl: anchor.href || ('https://efhub.com' + href), 
+        playerId: playerMatch[1], 
+        text: text 
+      });
+    }
+
+    // Always keep relative links inside proxy
+    if (href.startsWith('/') && !href.startsWith('/api/efhub-proxy')) {
+      e.preventDefault();
+      e.stopPropagation();
+      var target = 'https://efhub.com' + href;
+      window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
     }
   }, true);
 
-  // Monitor location changes
-  function checkUrlChange() {
+  // Monitor URL on load
+  setTimeout(function() {
     notifyParent('URL_CHANGED', { url: window.location.href, pathname: window.location.pathname });
-  }
-
-  var origPush = history.pushState;
-  if (origPush) {
-    history.pushState = function() {
-      origPush.apply(this, arguments);
-      checkUrlChange();
-    };
-  }
-
-  window.addEventListener('popstate', checkUrlChange);
-  setTimeout(checkUrlChange, 1200);
+  }, 1000);
 })();
 </script>
 `;
-      if (html.includes('</body>')) {
-        html = html.replace('</body>', `${scriptTag}</body>`);
+      if (html.includes('<head>')) {
+        html = html.replace('<head>', `<head>${headScriptTag}`);
+      } else if (html.includes('<head ')) {
+        html = html.replace(/<head[^>]*>/, `$&${headScriptTag}`);
       } else {
-        html += scriptTag;
+        html = headScriptTag + html;
       }
 
       return res.send(html);

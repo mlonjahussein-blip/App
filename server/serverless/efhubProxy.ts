@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    let target = (req.query.url as string) || 'https://efhub.com/players';
+    let target = (req.query.url as string) || 'https://efhub.com/';
     if (!target.startsWith('http://') && !target.startsWith('https://')) {
       target = 'https://efhub.com' + (target.startsWith('/') ? target : '/' + target);
     }
@@ -31,16 +31,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (contentType.includes('text/html')) {
       let html = await response.text();
 
-      // Inject base href so relative resources resolve from efhub.com
-      const baseTag = '<base href="https://efhub.com/">';
-      if (html.includes('<head>')) {
-        html = html.replace('<head>', `<head>${baseTag}`);
-      } else if (html.includes('<head ')) {
-        html = html.replace(/<head[^>]*>/, `$&${baseTag}`);
-      }
+      // 1. Rewrite relative paths for scripts, styles, manifests, and static images to absolute efhub.com URLs
+      html = html.replace(/href="\/_next\//g, 'href="https://efhub.com/_next/');
+      html = html.replace(/src="\/_next\//g, 'src="https://efhub.com/_next/');
+      html = html.replace(/src="\/efhub/g, 'src="https://efhub.com/efhub');
+      html = html.replace(/href="\/favicon/g, 'href="https://efhub.com/favicon');
+      html = html.replace(/src="\/favicon/g, 'src="https://efhub.com/favicon');
+      html = html.replace(/href="\/icons\//g, 'href="https://efhub.com/icons/');
+      html = html.replace(/src="\/icons\//g, 'src="https://efhub.com/icons/');
+      html = html.replace(/href="\/manifest\.json"/g, 'href="https://efhub.com/manifest.json"');
 
-      // Inject communication script
-      const scriptTag = `
+      // 2. Inject anti-redirect and communication script at the VERY TOP of <head>
+      const headScriptTag = `
+<base href="https://efhub.com/">
 <script>
 (function() {
   function notifyParent(type, payload) {
@@ -49,38 +52,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (e) {}
   }
 
-  // Intercept click on player cards or links
+  // Intercept Next.js client-side router redirects so it never escapes to root "/"
+  var origReplaceState = history.replaceState;
+  history.replaceState = function(state, title, url) {
+    if (url === '/' || url === window.location.origin + '/' || url === '') {
+      return;
+    }
+    return origReplaceState.apply(this, arguments);
+  };
+
+  var origPushState = history.pushState;
+  history.pushState = function(state, title, url) {
+    if (url === '/' || url === window.location.origin + '/' || url === '') {
+      return;
+    }
+    if (typeof url === 'string') {
+      var fullUrl = url.startsWith('http') ? url : 'https://efhub.com' + (url.startsWith('/') ? url : '/' + url);
+      notifyParent('URL_CHANGED', { url: fullUrl, pathname: url });
+      // If navigating to another page/player, load it through proxy
+      if (url.startsWith('/players/') || url.startsWith('/players?')) {
+        window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(fullUrl);
+        return;
+      }
+    }
+    return origPushState.apply(this, arguments);
+  };
+
+  // Intercept all link clicks so none escape to the host app
   document.addEventListener('click', function(e) {
-    var anchor = e.target.closest('a[href*="/players/"]') || e.target.closest('[data-player-id]');
-    if (anchor) {
-      var href = anchor.getAttribute('href') || window.location.pathname;
-      var text = (anchor.innerText || '').trim();
-      notifyParent('CARD_CLICKED', { href: href, fullUrl: anchor.href || window.location.href, text: text });
+    var anchor = e.target.closest('a');
+    if (!anchor) return;
+
+    var href = anchor.getAttribute('href');
+    if (!href) return;
+
+    // Check for player selection or card click
+    var cardEl = anchor.closest('[data-player-id]') || anchor;
+    var playerMatch = (href || '').match(/\\/players\\/([0-9a-zA-Z_\\-]+)/);
+    var text = (anchor.innerText || '').trim();
+
+    if (playerMatch && playerMatch[1]) {
+      notifyParent('CARD_CLICKED', { 
+        href: href, 
+        fullUrl: anchor.href || ('https://efhub.com' + href), 
+        playerId: playerMatch[1], 
+        text: text 
+      });
+    }
+
+    // Always keep relative links inside proxy
+    if (href.startsWith('/') && !href.startsWith('/api/efhub-proxy')) {
+      e.preventDefault();
+      e.stopPropagation();
+      var target = 'https://efhub.com' + href;
+      window.location.href = '/api/efhub-proxy?url=' + encodeURIComponent(target);
     }
   }, true);
 
-  // Monitor location changes
-  function checkUrlChange() {
+  // Monitor URL on load
+  setTimeout(function() {
     notifyParent('URL_CHANGED', { url: window.location.href, pathname: window.location.pathname });
-  }
-
-  var origPush = history.pushState;
-  if (origPush) {
-    history.pushState = function() {
-      origPush.apply(this, arguments);
-      checkUrlChange();
-    };
-  }
-
-  window.addEventListener('popstate', checkUrlChange);
-  setTimeout(checkUrlChange, 1200);
+  }, 1000);
 })();
 </script>
 `;
-      if (html.includes('</body>')) {
-        html = html.replace('</body>', `${scriptTag}</body>`);
+      if (html.includes('<head>')) {
+        html = html.replace('<head>', `<head>${headScriptTag}`);
+      } else if (html.includes('<head ')) {
+        html = html.replace(/<head[^>]*>/, `$&${headScriptTag}`);
       } else {
-        html += scriptTag;
+        html = headScriptTag + html;
       }
 
       return res.status(200).send(html);

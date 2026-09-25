@@ -40,7 +40,7 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
   targetRoleLabel = "Squad Player"
 }) => {
   // Navigation & Browser State for the inner window
-  const [currentWebUrl, setCurrentWebUrl] = useState('https://efhub.com/players');
+  const [currentWebUrl, setCurrentWebUrl] = useState('https://efhub.com/');
   const [iframeKey, setIframeKey] = useState(1);
   const [isLoadingIframe, setIsLoadingIframe] = useState(true);
   const [activeTab, setActiveTab] = useState<'live_web' | 'cards_gallery'>('live_web');
@@ -230,6 +230,30 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isLoadingIframe ? 'animate-spin text-emerald-400' : ''}`} />
               </button>
+              <button
+                type="button"
+                onClick={() => navigateInnerWindow('https://efhub.com/')}
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                  currentWebUrl === 'https://efhub.com/' || currentWebUrl === 'https://efhub.com'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
+                }`}
+                title="Go to efhub.com Homepage"
+              >
+                efhub.com
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateInnerWindow('https://efhub.com/players')}
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                  currentWebUrl.includes('/players')
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
+                }`}
+                title="Go to efhub.com Players Database"
+              >
+                Players DB
+              </button>
             </div>
 
             {/* Simulated Address Bar */}
@@ -331,7 +355,7 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-neutral-950/80 backdrop-blur-sm space-y-3">
                   <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                   <p className="text-xs font-bold text-neutral-300">
-                    Loading live website https://efhub.com/players...
+                    Loading live website {currentWebUrl}...
                   </p>
                   <p className="text-[11px] text-neutral-500">
                     Connecting to official eFootball database
