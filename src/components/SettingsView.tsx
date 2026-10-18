@@ -548,7 +548,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               </div>
               <p className="text-xs text-neutral-500">
                 {entitlements?.isUnlimitedTestingAccount || profile?.isUnlimitedTestingAccount 
-                  ? 'Unlimited testing account pass active (Mr. Who).' 
+                  ? `Unlimited testing account pass active (${profile?.displayName || 'Tester'}).` 
                   : 'Resets every 7 days automatically for your account.'}
               </p>
               {(() => {

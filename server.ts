@@ -836,6 +836,15 @@ app.post('/api/auth/register', async (req, res) => {
     const rawDigits = cleanWhatsApp ? cleanWhatsApp.replace(/[^0-9]/g, '') : '';
     const emailKey = cleanEmail.replace(/[\/\s#$[\]]/g, '_');
 
+    const isTester = 
+      cleanEmail === 'mlonjahussein@gmail.com' ||
+      cleanName.toLowerCase() === 'tester' ||
+      cleanName.toLowerCase() === 'mr. who' ||
+      cleanName.toLowerCase() === 'mr who' ||
+      rawDigits.includes('786427711') ||
+      uid === 'u_fmdjj3g7_muhj04jo' ||
+      uid === 'u_4qa0c1cp_mu44a6d0';
+
     const accountObj = {
       uid,
       email: cleanEmail,
@@ -845,8 +854,9 @@ app.post('/api/auth/register', async (req, res) => {
       hash,
       role: 'user',
       createdAt: new Date().toISOString(),
-      freeAnalysesRemaining: 1,
-      paidCredits: 0,
+      freeAnalysesRemaining: isTester ? 999999 : 1,
+      paidCredits: isTester ? 999999 : 0,
+      isUnlimitedTestingAccount: isTester ? true : undefined,
       lastFreeResetAt: new Date().toISOString()
     };
 
@@ -873,10 +883,13 @@ app.post('/api/auth/register', async (req, res) => {
       createdAt: { stringValue: new Date().toISOString() },
       updatedAt: { stringValue: new Date().toISOString() },
       role: { stringValue: 'user' },
-      freeAnalysesRemaining: { integerValue: '1' },
-      paidCredits: { integerValue: '0' },
+      freeAnalysesRemaining: { integerValue: isTester ? '999999' : '1' },
+      paidCredits: { integerValue: isTester ? '999999' : '0' },
       lastFreeResetAt: { stringValue: new Date().toISOString() }
     };
+    if (isTester) {
+      fields.isUnlimitedTestingAccount = { booleanValue: true };
+    }
     if (cleanWhatsApp) {
       fields.whatsappNumber = { stringValue: cleanWhatsApp };
     }

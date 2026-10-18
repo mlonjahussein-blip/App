@@ -95,20 +95,54 @@ const fallbackPaymentStore: Map<string, PaymentRecord> = new Map();
  * Strictly forbidden for any other account.
  */
 export const UNLIMITED_TESTING_USER_ID = 'u_fmdjj3g7_muhj04jo';
-export const UNLIMITED_TESTING_USER_IDS = ['u_fmdjj3g7_muhj04jo', 'u_4qa0c1cp_mu44a6d0'];
-export const UNLIMITED_TESTING_GAMER_NAME = 'Mr. Who';
+export const UNLIMITED_TESTING_USER_IDS = [
+  'u_fmdjj3g7_muhj04jo',
+  'u_4qa0c1cp_mu44a6d0',
+  'mlonjahussein@gmail.com'
+];
+export const UNLIMITED_TESTING_GAMER_NAMES = ['mr. who', 'mr who', 'tester'];
+export const UNLIMITED_TESTING_EMAILS = ['mlonjahussein@gmail.com'];
+export const UNLIMITED_TESTING_PHONES = ['255786427711', '+255786427711'];
 
-export function isUnlimitedTestingAccount(userId?: string | null, displayName?: string | null): boolean {
-  if (!userId && !displayName) return false;
-  const cleanUid = (userId || '').trim();
+export function isUnlimitedTestingAccount(
+  userId?: string | null,
+  displayName?: string | null,
+  email?: string | null,
+  whatsappNumber?: string | null
+): boolean {
+  if (!userId && !displayName && !email && !whatsappNumber) return false;
+  const cleanUid = (userId || '').trim().toLowerCase();
   const cleanName = (displayName || '').trim().toLowerCase();
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const rawDigits = (whatsappNumber || '').replace(/[^0-9]/g, '');
 
-  if (cleanUid === UNLIMITED_TESTING_USER_ID || UNLIMITED_TESTING_USER_IDS.includes(cleanUid)) {
+  if (cleanUid) {
+    if (UNLIMITED_TESTING_USER_IDS.some(id => cleanUid === id.toLowerCase() || cleanUid.includes(id.toLowerCase()))) {
+      return true;
+    }
+    if (UNLIMITED_TESTING_EMAILS.some(e => cleanUid === e.toLowerCase())) {
+      return true;
+    }
+    if (UNLIMITED_TESTING_GAMER_NAMES.includes(cleanUid)) {
+      return true;
+    }
+    if (cleanUid.includes('786427711') || cleanUid.includes('255786427711')) {
+      return true;
+    }
+  }
+
+  if (cleanName && UNLIMITED_TESTING_GAMER_NAMES.includes(cleanName)) {
     return true;
   }
-  if (cleanName === UNLIMITED_TESTING_GAMER_NAME.toLowerCase()) {
+
+  if (cleanEmail && UNLIMITED_TESTING_EMAILS.includes(cleanEmail)) {
     return true;
   }
+
+  if (rawDigits && UNLIMITED_TESTING_PHONES.some(p => p.includes(rawDigits) || rawDigits.includes(p.replace(/[^0-9]/g, '')))) {
+    return true;
+  }
+
   return false;
 }
 
@@ -139,8 +173,8 @@ export async function getUserEntitlements(userId: string): Promise<UserEntitleme
 
   let userDoc = await fetchFirestoreDoc('users', cleanUid);
 
-  // Secondary verification if document contains Mr. Who
-  if (userDoc && isUnlimitedTestingAccount(cleanUid, userDoc.displayName)) {
+  // Secondary verification if document contains tester identity
+  if (userDoc && isUnlimitedTestingAccount(cleanUid, userDoc.displayName, userDoc.email, userDoc.whatsappNumber)) {
     return {
       userId: cleanUid,
       weeklyFreeAnalysisAvailable: true,

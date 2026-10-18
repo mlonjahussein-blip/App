@@ -240,6 +240,7 @@ async function handler(req, res) {
       const cleanName = (displayName || cleanEmail.split("@")[0] || "Tactician").trim();
       const cleanWhatsApp = whatsappNumber ? String(whatsappNumber).trim() : null;
       const rawDigits = cleanWhatsApp ? cleanPhoneDigits(cleanWhatsApp) : "";
+      const isTester = cleanEmail === "mlonjahussein@gmail.com" || cleanName.toLowerCase() === "tester" || cleanName.toLowerCase() === "mr. who" || cleanName.toLowerCase() === "mr who" || rawDigits.includes("786427711") || uid === "u_fmdjj3g7_muhj04jo" || uid === "u_4qa0c1cp_mu44a6d0";
       const payload = {
         uid,
         email: cleanEmail,
@@ -249,8 +250,9 @@ async function handler(req, res) {
         hash,
         createdAt: (/* @__PURE__ */ new Date()).toISOString(),
         updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        freeAnalysesRemaining: 1,
-        paidCredits: 0,
+        freeAnalysesRemaining: isTester ? 999999 : 1,
+        paidCredits: isTester ? 999999 : 0,
+        isUnlimitedTestingAccount: isTester ? true : void 0,
         lastFreeResetAt: (/* @__PURE__ */ new Date()).toISOString(),
         role: "user"
       };

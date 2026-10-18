@@ -353,7 +353,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           writeDocREST('users', uid, { freeAnalysesRemaining: 1, lastFreeResetAt }).catch(() => {});
         }
 
-        const isTester = uid === 'u_fmdjj3g7_muhj04jo' || uid === 'u_4qa0c1cp_mu44a6d0' || (restDoc.displayName || displayName) === 'Mr. Who' || restDoc.isUnlimitedTestingAccount;
+        const isTester = 
+          uid === 'u_fmdjj3g7_muhj04jo' || 
+          uid === 'u_4qa0c1cp_mu44a6d0' || 
+          uid === 'mlonjahussein@gmail.com' ||
+          (restDoc.email || defaultEmail || '').toLowerCase() === 'mlonjahussein@gmail.com' ||
+          (restDoc.displayName || displayName || '').toLowerCase() === 'tester' ||
+          (restDoc.displayName || displayName || '').toLowerCase() === 'mr. who' ||
+          (restDoc.displayName || displayName || '').toLowerCase() === 'mr who' ||
+          (restDoc.whatsappNumber || whatsappNumber || '').replace(/[^0-9]/g, '').includes('786427711') ||
+          restDoc.isUnlimitedTestingAccount;
+
         const fullProf: UserProfile = {
           uid: restDoc.uid || uid,
           email: restDoc.email || defaultEmail,
@@ -382,7 +392,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (whatsappNumber && !data.whatsappNumber) {
           data.whatsappNumber = whatsappNumber;
         }
-        if (uid === 'u_fmdjj3g7_muhj04jo' || uid === 'u_4qa0c1cp_mu44a6d0' || data.displayName === 'Mr. Who') {
+        const isTester = 
+          uid === 'u_fmdjj3g7_muhj04jo' || 
+          uid === 'u_4qa0c1cp_mu44a6d0' || 
+          uid === 'mlonjahussein@gmail.com' ||
+          (data.email || defaultEmail || '').toLowerCase() === 'mlonjahussein@gmail.com' ||
+          (data.displayName || displayName || '').toLowerCase() === 'tester' ||
+          (data.displayName || displayName || '').toLowerCase() === 'mr. who' ||
+          (data.displayName || displayName || '').toLowerCase() === 'mr who' ||
+          (data.whatsappNumber || whatsappNumber || '').replace(/[^0-9]/g, '').includes('786427711') ||
+          data.isUnlimitedTestingAccount;
+
+        if (isTester) {
           data.isUnlimitedTestingAccount = true;
           data.freeAnalysesRemaining = 999999;
           data.paidCredits = 999999;
@@ -391,7 +412,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem(localProfileKey, JSON.stringify(data));
         return;
       } else {
-        const isTester = uid === 'u_fmdjj3g7_muhj04jo' || uid === 'u_4qa0c1cp_mu44a6d0' || displayName === 'Mr. Who';
+        const isTester = 
+          uid === 'u_fmdjj3g7_muhj04jo' || 
+          uid === 'u_4qa0c1cp_mu44a6d0' || 
+          uid === 'mlonjahussein@gmail.com' ||
+          (defaultEmail || '').toLowerCase() === 'mlonjahussein@gmail.com' ||
+          (displayName || '').toLowerCase() === 'tester' ||
+          (displayName || '').toLowerCase() === 'mr. who' ||
+          (displayName || '').toLowerCase() === 'mr who' ||
+          (whatsappNumber || '').replace(/[^0-9]/g, '').includes('786427711');
+
         const newProf: UserProfile = cachedProfile || {
           uid,
           email: defaultEmail,

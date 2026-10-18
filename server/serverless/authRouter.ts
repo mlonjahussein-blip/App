@@ -196,6 +196,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const cleanWhatsApp = whatsappNumber ? String(whatsappNumber).trim() : null;
       const rawDigits = cleanWhatsApp ? cleanPhoneDigits(cleanWhatsApp) : '';
 
+      const isTester = 
+        cleanEmail === 'mlonjahussein@gmail.com' ||
+        cleanName.toLowerCase() === 'tester' ||
+        cleanName.toLowerCase() === 'mr. who' ||
+        cleanName.toLowerCase() === 'mr who' ||
+        rawDigits.includes('786427711') ||
+        uid === 'u_fmdjj3g7_muhj04jo' ||
+        uid === 'u_4qa0c1cp_mu44a6d0';
+
       const payload = {
         uid,
         email: cleanEmail,
@@ -205,8 +214,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         hash,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        freeAnalysesRemaining: 1,
-        paidCredits: 0,
+        freeAnalysesRemaining: isTester ? 999999 : 1,
+        paidCredits: isTester ? 999999 : 0,
+        isUnlimitedTestingAccount: isTester ? true : undefined,
         lastFreeResetAt: new Date().toISOString(),
         role: 'user'
       };

@@ -315,7 +315,7 @@ export const SquadAnalyzer: React.FC<AnalyzerProps> = ({ onAnalysisCompleted, on
             {entitlements?.isUnlimitedTestingAccount || profile?.isUnlimitedTestingAccount ? (
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 text-xs font-bold shadow-sm shadow-cyan-500/10">
                 <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-                Unlimited Tester Pass (Mr. Who)
+                Unlimited Tester Pass ({profile?.displayName || 'Tester'})
               </div>
             ) : entitlements?.weeklyFreeAnalysisAvailable ? (
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
