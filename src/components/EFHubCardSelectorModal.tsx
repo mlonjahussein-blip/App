@@ -1,36 +1,21 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   Search, 
   Sparkles, 
   ExternalLink, 
   CheckCircle2, 
-  Award,
-  Zap,
-  Globe,
-  RefreshCw,
-  ArrowLeft,
-  ArrowRight,
-  Maximize2,
-  Check,
-  ChevronRight,
-  LayoutGrid,
-  Eye,
-  SlidersHorizontal,
-  Info,
-  Lock,
+  Globe, 
+  RefreshCw, 
+  ArrowLeft, 
+  ArrowRight, 
+  Lock, 
   Compass,
-  Layers,
-  Flame,
-  Shield,
-  Target,
-  Plus
+  Check
 } from 'lucide-react';
 import { 
-  getAllEfhubCardsForPlayer,
-  EFootballMasterPlayer, 
-  normalizeString,
-  EFOOTBALL_MASTER_PLAYERS 
+  getAllEfhubCardsForPlayer, 
+  EFootballMasterPlayer 
 } from '../lib/efootballDatabase.ts';
 
 interface EFHubCardSelectorModalProps {
@@ -46,7 +31,7 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
   onSelectPlayer,
   targetRoleLabel = "Squad Player"
 }) => {
-  // Browser Navigation & Address Bar State
+  // Browser Navigation & Address Bar State (Only 1 Tab Opening efhub.com)
   const [addressBarInput, setAddressBarInput] = useState('https://efhub.com/');
   const [currentWebUrl, setCurrentWebUrl] = useState('https://efhub.com/');
   const [historyStack, setHistoryStack] = useState<string[]>(['https://efhub.com/']);
@@ -54,37 +39,30 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
   
   const [iframeKey, setIframeKey] = useState(1);
   const [isLoadingIframe, setIsLoadingIframe] = useState(true);
-  const [activeTab, setActiveTab] = useState<'live_browser' | 'cards_catalog'>('live_browser');
   
-  // Selected Card & Quick Search State
+  // Selected Card State (Starts empty, no default Messi or player details displayed)
   const [selectedCard, setSelectedCard] = useState<EFootballMasterPlayer | null>(null);
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
-  const [filterPosition, setFilterPosition] = useState<string>('ALL');
-  const [filterCardType, setFilterCardType] = useState<string>('ALL');
-  const [inspectingPlayer, setInspectingPlayer] = useState<EFootballMasterPlayer | null>(null);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // Set default initial star player
-  useEffect(() => {
-    if (!selectedCard) {
-      const topCards = getAllEfhubCardsForPlayer('');
-      if (topCards.length > 0) {
-        setSelectedCard(topCards[0]);
-      }
-    }
-  }, [selectedCard]);
 
   // Sync address bar input when current URL changes
   useEffect(() => {
     setAddressBarInput(currentWebUrl);
   }, [currentWebUrl]);
 
+  // Reset or initialize on open
+  useEffect(() => {
+    if (isOpen) {
+      setIsLoadingIframe(true);
+    }
+  }, [isOpen]);
+
   // Listen for navigation messages and card clicks from the embedded proxy window
   useEffect(() => {
     const handleWindowMessage = async (event: MessageEvent) => {
       if (event.data && event.data.source === 'EFHUB_EMBED') {
-        const { type, href, url, pathname, text, playerId: msgPlayerId, player: embeddedPlayer } = event.data;
+        const { href, url, pathname, text, playerId: msgPlayerId, player: embeddedPlayer } = event.data;
 
         if (url && url !== currentWebUrl) {
           setCurrentWebUrl(url);
@@ -109,7 +87,7 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
             });
             return;
           } else {
-            // Synthesize player
+            // Synthesize player from clicked element
             const synthesized: EFootballMasterPlayer = {
               id: `efhub_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
               fullName: embeddedPlayer.fullName,
@@ -178,18 +156,6 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
     return () => window.removeEventListener('message', handleWindowMessage);
   }, [currentWebUrl, historyIndex]);
 
-  // Filtered Cards for Catalog View
-  const catalogCards = useMemo(() => {
-    let list = getAllEfhubCardsForPlayer(quickSearchQuery);
-    if (filterPosition !== 'ALL') {
-      list = list.filter(p => p.primaryPosition === filterPosition || (p.secondaryPositions && p.secondaryPositions.includes(filterPosition)));
-    }
-    if (filterCardType !== 'ALL') {
-      list = list.filter(p => (p.cardType || '').toLowerCase().includes(filterCardType.toLowerCase()));
-    }
-    return list.slice(0, 48);
-  }, [quickSearchQuery, filterPosition, filterCardType]);
-
   if (!isOpen) return null;
 
   // Browser navigation handlers
@@ -234,7 +200,7 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
     let cardToSelect = selectedCard;
 
     // Check if current URL in address bar is a player card page
-    const efhubMatch = currentWebUrl.match(/\/(?:efootball\/)?players\/([0-9a-zA-Z_\-]+)/);
+    const efhubMatch = currentWebUrl.match(/\/(?:efootball\/)?(?:players|player)\/([0-9a-zA-Z_\-]+)/);
     const pesdbMatch = currentWebUrl.match(/player\.php\?id=([0-9]+)/);
     const playerId = (efhubMatch && efhubMatch[1]) || (pesdbMatch && pesdbMatch[1]);
 
@@ -258,35 +224,9 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
     if (cardToSelect) {
       onSelectPlayer(cardToSelect);
       onClose();
+    } else {
+      onClose();
     }
-  };
-
-  const getPosBadgeColor = (pos: string) => {
-    switch (pos) {
-      case 'GK': return 'text-amber-300 bg-amber-500/20 border-amber-400/50 font-black';
-      case 'CB':
-      case 'LB':
-      case 'RB':
-      case 'LWB':
-      case 'RWB': return 'text-sky-300 bg-sky-500/20 border-sky-400/50 font-black';
-      case 'DMF':
-      case 'CMF':
-      case 'AMF':
-      case 'LMF':
-      case 'RMF': return 'text-emerald-300 bg-emerald-500/20 border-emerald-400/50 font-black';
-      case 'CF':
-      case 'SS':
-      case 'LWF':
-      case 'RWF': return 'text-rose-300 bg-rose-500/20 border-rose-400/50 font-black';
-      default: return 'text-neutral-300 bg-neutral-800 border-neutral-700 font-bold';
-    }
-  };
-
-  const getStatBadgeColor = (val: number) => {
-    if (val >= 90) return 'bg-rose-500/20 text-rose-300 border-rose-500/40 font-black';
-    if (val >= 80) return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-black';
-    if (val >= 70) return 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold';
-    return 'bg-neutral-900 text-neutral-400 border-neutral-800 font-medium';
   };
 
   const proxySrc = `/api/efhub-proxy?url=${encodeURIComponent(currentWebUrl)}`;
@@ -297,13 +237,13 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
       {/* IN-BUILT SYSTEM BROWSER WINDOW */}
       <div className="relative w-full max-w-7xl h-[94vh] bg-neutral-950 border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col font-sans">
         
-        {/* 1. BROWSER WINDOW TITLEBAR & TAB STRIP */}
+        {/* 1. BROWSER WINDOW TITLEBAR & SINGLE TAB STRIP */}
         <div className="bg-[#12141a] px-3 pt-2.5 pb-0 border-b border-neutral-800 flex items-center justify-between gap-2 select-none">
           
-          {/* Window Control Buttons & Active Tabs */}
+          {/* Window Control Buttons & ONLY 1 TAB */}
           <div className="flex items-center gap-2 min-w-0 overflow-x-auto scrollbar-none">
             
-            {/* Window Dots (macOS/Modern Browser style) */}
+            {/* Window Dots (macOS style) */}
             <div className="flex items-center gap-1.5 mr-2 shrink-0">
               <button 
                 onClick={onClose}
@@ -314,41 +254,14 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
               <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
             </div>
 
-            {/* Browser Tab 1: Live Web View */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('live_browser')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-t-xl text-xs font-bold transition-all border-t border-x shrink-0 ${
-                activeTab === 'live_browser'
-                  ? 'bg-neutral-900 text-white border-neutral-700 shadow-md'
-                  : 'bg-neutral-950/60 text-neutral-400 hover:text-neutral-200 border-transparent hover:bg-neutral-900/50'
-              }`}
-            >
+            {/* ONLY 1 Tab Opening efhub.com */}
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-t-xl text-xs font-bold bg-neutral-900 text-white border-t border-x border-neutral-700 shadow-md shrink-0">
               <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="truncate max-w-[140px] sm:max-w-[200px]">
-                Isolated Tab • eFHUB.com
+              <span className="truncate max-w-[160px] sm:max-w-[240px]">
+                eFHUB.com • Football Database
               </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" title="Separate Tab Sandbox Active" />
-            </button>
-
-            {/* Browser Tab 2: Visual Card Catalog */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('cards_catalog')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-t-xl text-xs font-bold transition-all border-t border-x shrink-0 ${
-                activeTab === 'cards_catalog'
-                  ? 'bg-neutral-900 text-white border-neutral-700 shadow-md'
-                  : 'bg-neutral-950/60 text-neutral-400 hover:text-neutral-200 border-transparent hover:bg-neutral-900/50'
-              }`}
-            >
-              <LayoutGrid className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="truncate max-w-[140px] sm:max-w-[200px]">
-                eFHUB Player Cards Catalog
-              </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-neutral-800 text-amber-300 font-black">
-                100+ OVR
-              </span>
-            </button>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" title="Live efhub.com Active" />
+            </div>
           </div>
 
           {/* Right Header Status & Close */}
@@ -361,7 +274,7 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-neutral-800 hover:bg-neutral-700 text-neutral-200 transition-colors"
-              title="Open efhub.com in separate browser window"
+              title="Open efhub.com in external tab"
             >
               <span>External</span>
               <ExternalLink className="w-3 h-3 text-neutral-400" />
@@ -369,6 +282,7 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
             <button
               onClick={onClose}
               className="p-1.5 text-neutral-400 hover:text-white rounded-lg hover:bg-neutral-800 transition-colors"
+              title="Close"
             >
               <X className="w-4 h-4" />
             </button>
@@ -444,25 +358,33 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
             )}
           </form>
 
-          {/* Quick Player Search in Browser Toolbar */}
-          <div className="relative shrink-0">
+          {/* Search on efhub.com */}
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (quickSearchQuery.trim()) {
+                navigateTo(`https://efhub.com/players?name=${encodeURIComponent(quickSearchQuery.trim())}`);
+              }
+            }}
+            className="relative shrink-0 flex items-center"
+          >
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
             <input
               type="text"
               value={quickSearchQuery}
               onChange={(e) => setQuickSearchQuery(e.target.value)}
-              placeholder="Quick search player card..."
+              placeholder="Search player on efhub..."
               className="bg-neutral-950 border border-neutral-700/80 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 w-full sm:w-48 md:w-56"
             />
-          </div>
+          </form>
 
         </div>
 
-        {/* 3. BOOKMARKS / QUICK NAVIGATION SHORTCUT STRIP */}
+        {/* 3. BOOKMARKS STRIP (Direct URLs on efhub.com) */}
         <div className="px-3 py-1.5 bg-neutral-950 border-b border-neutral-800/80 flex items-center gap-1.5 overflow-x-auto scrollbar-none text-xs select-none">
           <span className="text-[10px] font-black text-neutral-500 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
             <Sparkles className="w-3 h-3 text-amber-400" />
-            Bookmarks:
+            Quick Links:
           </span>
           <button
             type="button"
@@ -473,249 +395,88 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => {
-              setActiveTab('cards_catalog');
-              setFilterCardType('Show Time');
-            }}
+            onClick={() => navigateTo('https://efhub.com/players?card_type=epic')}
             className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-800/40 transition-colors shrink-0"
           >
-            ⭐ Show Time & Epic Cards
+            ⭐ Epic & Show Time
           </button>
           <button
             type="button"
-            onClick={() => {
-              setActiveTab('cards_catalog');
-              setFilterCardType('POTW');
-            }}
+            onClick={() => navigateTo('https://efhub.com/players?card_type=potw')}
             className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-800/40 transition-colors shrink-0"
           >
             🔥 POTW & Highlights
           </button>
           <button
             type="button"
-            onClick={() => {
-              setActiveTab('cards_catalog');
-              setFilterPosition('CF');
-            }}
-            className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40 transition-colors shrink-0"
-          >
-            ⚡ Forwards (CF/SS/W)
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('cards_catalog');
-              setFilterPosition('CB');
-            }}
-            className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-sky-950/40 hover:bg-sky-900/50 text-sky-300 border border-sky-800/40 transition-colors shrink-0"
-          >
-            🛡️ Defenders (CB/FB)
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('cards_catalog');
-              setFilterPosition('GK');
-            }}
+            onClick={() => navigateTo('https://efhub.com/managers')}
             className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border border-amber-800/40 transition-colors shrink-0"
           >
-            🧤 Goalkeepers (GK)
+            👔 Managers
           </button>
         </div>
 
-        {/* 4. MAIN BROWSER CONTENT AREA */}
+        {/* 4. MAIN BROWSER CONTENT AREA (Single Live efhub.com Web View) */}
         <div className="relative flex-1 bg-neutral-950 overflow-hidden flex flex-col">
-          
-          {activeTab === 'live_browser' ? (
-            /* LIVE WEB VIEW (Proxy iframe with unblocked navigation) */
-            <div className="relative w-full h-full">
-              {isLoadingIframe && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-neutral-950/80 backdrop-blur-sm space-y-3">
-                  <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-xs font-bold text-neutral-300">
-                    Loading live website {currentWebUrl}...
-                  </p>
-                  <p className="text-[11px] text-neutral-500">
-                    Open access browsing window • Navigating freely
-                  </p>
-                </div>
-              )}
-
-              <iframe
-                ref={iframeRef}
-                key={iframeKey}
-                src={proxySrc}
-                title="eFHUB Isolated Tab Browser Window"
-                className="w-full h-full border-0 bg-[#13151d]"
-                onLoad={() => setIsLoadingIframe(false)}
-                allow="autoplay; camera; microphone; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-downloads"
-              />
-            </div>
-          ) : (
-            /* VISUAL CARDS CATALOG & STATS GRID */
-            <div className="p-4 overflow-y-auto h-full space-y-4">
-              
-              {/* Position and Category Filters */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-bold text-neutral-400">Position:</span>
-                {['ALL', 'CF', 'SS', 'LWF', 'RWF', 'AMF', 'CMF', 'DMF', 'LB', 'CB', 'RB', 'GK'].map(pos => (
-                  <button
-                    key={pos}
-                    type="button"
-                    onClick={() => setFilterPosition(pos)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
-                      filterPosition === pos
-                        ? 'bg-emerald-500 text-neutral-950 border-emerald-400 font-black'
-                        : 'bg-neutral-900 text-neutral-400 hover:text-white border-neutral-800'
-                    }`}
-                  >
-                    {pos}
-                  </button>
-                ))}
+          <div className="relative w-full h-full">
+            {isLoadingIframe && (
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-neutral-950/80 backdrop-blur-sm space-y-3">
+                <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-xs font-bold text-neutral-300">
+                  Loading efhub.com...
+                </p>
+                <p className="text-[11px] text-neutral-500">
+                  In-built system browser • Full navigation & search enabled
+                </p>
               </div>
+            )}
 
-              {/* Cards Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
-                {catalogCards.map((player) => {
-                  const isSelected = selectedCard?.id === player.id;
-                  return (
-                    <div
-                      key={player.id}
-                      onClick={() => setSelectedCard(player)}
-                      className={`rounded-2xl p-3.5 border transition-all duration-200 cursor-pointer flex flex-col justify-between space-y-3 ${
-                        isSelected
-                          ? 'bg-neutral-900 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] ring-1 ring-emerald-500'
-                          : 'bg-neutral-900/80 border-neutral-800 hover:border-neutral-700'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl font-black text-amber-400">
-                              {player.maxRating} <span className="text-[10px] text-neutral-500">OVR</span>
-                            </span>
-                            <span className={`px-2 py-0.5 rounded text-xs border ${getPosBadgeColor(player.primaryPosition)}`}>
-                              {player.primaryPosition}
-                            </span>
-                          </div>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-800 text-neutral-300">
-                            {player.cardType}
-                          </span>
-                        </div>
-
-                        <div className="mt-2.5">
-                          <h4 className="text-sm font-black text-white">
-                            {player.fullName}
-                          </h4>
-                          <p className="text-xs text-neutral-400 mt-0.5">
-                            {player.club} • {player.nationality}
-                          </p>
-                          <p className="text-xs font-semibold text-emerald-400 mt-1">
-                            Style: {player.playstyle}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="pt-2 border-t border-neutral-800 flex items-center justify-between">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setInspectingPlayer(player);
-                          }}
-                          className="text-[11px] font-bold text-cyan-400 hover:underline flex items-center gap-1"
-                        >
-                          <Eye className="w-3 h-3" />
-                          <span>Inspect Stats</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedCard(player);
-                            onSelectPlayer(player);
-                            onClose();
-                          }}
-                          className="px-3 py-1 rounded-lg text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-neutral-950 transition-colors"
-                        >
-                          Select
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
+            <iframe
+              ref={iframeRef}
+              key={iframeKey}
+              src={proxySrc}
+              title="eFHUB Live Database Browser"
+              className="w-full h-full border-0 bg-[#13151d]"
+              onLoad={() => setIsLoadingIframe(false)}
+              allow="autoplay; camera; microphone; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-downloads"
+            />
+          </div>
         </div>
 
-        {/* 5. BOTTOM SELECTION BAR & FLOATING GREEN "Select the Player" BUTTON */}
-        <div className="p-3.5 sm:p-4 bg-[#12141a] border-t border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xl z-30">
+        {/* 5. BOTTOM SELECTION BAR (Player details and Inspect Stats Sheet button removed) */}
+        <div className="p-3 sm:p-4 bg-[#12141a] border-t border-neutral-800 flex items-center justify-between gap-3 shadow-2xl z-30 shrink-0">
           
-          {/* Active Player Card Detection Information */}
-          <div className="flex items-center gap-3 min-w-0">
-            {selectedCard ? (
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="flex items-baseline gap-1 bg-neutral-950 px-3 py-1.5 rounded-xl border border-neutral-800 shrink-0">
-                  <span className="text-2xl font-black text-amber-400 leading-none">
-                    {selectedCard.maxRating}
-                  </span>
-                  <span className="text-[9px] font-bold text-neutral-500 uppercase">
-                    OVR
-                  </span>
-                </div>
-
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`px-2 py-0.5 rounded text-[11px] border shrink-0 ${getPosBadgeColor(selectedCard.primaryPosition)}`}>
-                      {selectedCard.primaryPosition}
-                    </span>
-                    <h4 className="text-sm font-black text-white truncate">
-                      {selectedCard.fullName || selectedCard.commonName}
-                    </h4>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-800 text-neutral-300 shrink-0">
-                      {selectedCard.cardType}
-                    </span>
-                    {selectedCard.cardTitle && (
-                      <span className="text-xs font-semibold text-cyan-300 truncate hidden md:inline">
-                        🏆 {selectedCard.cardTitle}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-emerald-400 font-semibold mt-0.5 flex items-center gap-1.5 truncate">
-                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Selected Player Card Ready • Captures all stats, ratings & skills into {targetRoleLabel}</span>
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="text-xs text-neutral-400">
-                Navigate or click on any player card in the eFHUB website above.
-              </div>
-            )}
+          <div className="flex items-center gap-2 min-w-0 text-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="text-neutral-300 font-semibold truncate">
+              {selectedCard ? (
+                <span className="flex items-center gap-1.5 text-emerald-400">
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>Card ready: <strong>{selectedCard.fullName || selectedCard.commonName}</strong> ({selectedCard.primaryPosition} · {selectedCard.maxRating} OVR)</span>
+                </span>
+              ) : (
+                <span className="text-neutral-400">
+                  Navigate or search <strong className="text-neutral-200">efhub.com</strong> and click any player card to select for <strong className="text-emerald-400">{targetRoleLabel}</strong>
+                </span>
+              )}
+            </span>
           </div>
 
-          {/* Action Buttons: Inspect Stats & GREEN "Select the Player" Button */}
-          <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-auto">
-            {selectedCard && (
-              <button
-                type="button"
-                onClick={() => setInspectingPlayer(selectedCard)}
-                className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors flex items-center gap-1.5"
-              >
-                <Eye className="w-4 h-4 text-cyan-400" />
-                <span className="hidden sm:inline">Inspect Stats Sheet</span>
-              </button>
-            )}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors"
+            >
+              Cancel
+            </button>
 
             {/* THE GREEN "Select the Player" BUTTON */}
             <button
               type="button"
               onClick={handleConfirmSelect}
-              className="py-2.5 px-6 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-neutral-950 flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/30 transition-all cursor-pointer ring-2 ring-emerald-400/40"
+              className="py-2.5 px-6 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-neutral-950 flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/30 transition-all cursor-pointer ring-2 ring-emerald-400/40 hover:scale-[1.01] active:scale-[0.99]"
             >
               <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 fill-neutral-950" />
               <span>Select the Player</span>
@@ -725,119 +486,6 @@ export const EFHubCardSelectorModal: React.FC<EFHubCardSelectorModalProps> = ({
         </div>
 
       </div>
-
-      {/* STATS SHEET MODAL */}
-      {inspectingPlayer && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-5 bg-black/90 backdrop-blur-lg animate-fade-in overflow-y-auto">
-          <div className="relative w-full max-w-4xl bg-neutral-950 border border-neutral-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-            
-            <div className="p-4 sm:p-5 border-b border-neutral-800 bg-neutral-900 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className={`px-2.5 py-1 rounded-xl text-xs border ${getPosBadgeColor(inspectingPlayer.primaryPosition)}`}>
-                  {inspectingPlayer.primaryPosition}
-                </span>
-                <div>
-                  <h3 className="text-lg font-black text-white flex items-center gap-2">
-                    <span>{inspectingPlayer.fullName}</span>
-                    <span className="text-amber-400 text-base font-extrabold">({inspectingPlayer.maxRating} OVR)</span>
-                  </h3>
-                  <p className="text-xs text-neutral-400">
-                    {inspectingPlayer.club} • {inspectingPlayer.nationality} • {inspectingPlayer.cardType} Edition
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setInspectingPlayer(null)}
-                className="p-2 text-neutral-400 hover:text-white rounded-xl hover:bg-neutral-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 sm:p-6 overflow-y-auto space-y-6">
-              <div>
-                <h4 className="text-xs font-black text-neutral-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Complete Player Attributes (Official eFHUB Stats Sheet)</span>
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {Object.entries(inspectingPlayer.keyAttributes || {}).map(([attr, rawVal]) => {
-                    const val = Number(rawVal) || 0;
-                    return (
-                      <div 
-                        key={attr}
-                        className="p-2.5 rounded-xl bg-neutral-900/90 border border-neutral-800 flex items-center justify-between gap-3"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="font-bold text-neutral-300">
-                              {attr.replace(/([A-Z])/g, ' $1').trim()}
-                            </span>
-                            <span className={`px-2 py-0.5 rounded text-[11px] ${getStatBadgeColor(val)}`}>
-                              {val}
-                            </span>
-                          </div>
-                          <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full ${val >= 90 ? 'bg-rose-500' : val >= 80 ? 'bg-emerald-500' : val >= 70 ? 'bg-amber-500' : 'bg-neutral-600'}`}
-                              style={{ width: `${Math.min(100, Math.max(10, val))}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {inspectingPlayer.skills && inspectingPlayer.skills.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-black text-neutral-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                    <Award className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Player Skills ({inspectingPlayer.skills.length})</span>
-                  </h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {inspectingPlayer.skills.map((skill, idx) => (
-                      <span 
-                        key={idx}
-                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-neutral-900 text-neutral-200 border border-neutral-800"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 bg-neutral-900 border-t border-neutral-800 flex items-center justify-between">
-              <button
-                onClick={() => setInspectingPlayer(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors"
-              >
-                Back
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCard(inspectingPlayer);
-                  onSelectPlayer(inspectingPlayer);
-                  setInspectingPlayer(null);
-                  onClose();
-                }}
-                className="px-5 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-400 text-neutral-950 flex items-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
-              >
-                <CheckCircle2 className="w-4 h-4 fill-neutral-950" />
-                <span>Select & Import All Card Stats</span>
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
 
     </div>
   );

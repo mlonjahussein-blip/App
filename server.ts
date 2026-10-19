@@ -323,7 +323,13 @@ app.post('/api/feedback', async (req, res) => {
 });
 
 // Route PESDB and eFHUB subpaths directly through the proxy so no link click in the iframe falls through to index.html
-app.get(['/efootball', '/efootball/*', '/assets/*', '/pes2021/*', '/players', '/players/*', '/articles/*', '/managers/*', '/items/*'], (req, res) => {
+app.get([
+  '/efootball', '/efootball/*', '/assets/*', '/pes2021/*', 
+  '/players', '/players/*', '/player', '/player/*', 
+  '/search', '/search/*', '/articles/*', '/managers/*', '/items/*',
+  '/clubs', '/clubs/*', '/leagues', '/leagues/*', '/skills', '/skills/*',
+  '/database', '/database/*'
+], (req, res) => {
   const host = req.originalUrl.startsWith('/efootball') || req.originalUrl.startsWith('/assets') || req.originalUrl.startsWith('/pes2021')
     ? 'https://pesdb.net'
     : 'https://efhub.com';
