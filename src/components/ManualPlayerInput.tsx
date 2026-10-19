@@ -11,12 +11,23 @@ import {
   Award,
   Zap,
   ExternalLink,
-  Search
+  Search,
+  Download,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { TypedPlayerInput, ManagerInputDetails, AnalysisResult, SavedSquad, ALL_EFOOTBALL_PLAYSTYLES } from '../types.ts';
 import { ManagerDetailsInput } from './ManagerDetailsInput.tsx';
-import { EFHubCardSelectorModal } from './EFHubCardSelectorModal.tsx';
-import { EFootballMasterPlayer } from '../lib/efootballDatabase.ts';
+import { 
+  EFootballMasterPlayer,
+  EFOOTBALL_MASTER_PLAYERS,
+  normalizeString,
+  getAllEfhubCardsForPlayer
+} from '../lib/efootballDatabase.ts';
 import { useAuth } from '../lib/AuthContext.tsx';
 import { db } from '../lib/firebase.ts';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -135,14 +146,28 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
   const [subLiveUpdate, setSubLiveUpdate] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('C');
 
   // eFHUB Card Selection Modal State & Selected Card Objects
-  const [isEfhubModalOpen, setIsEfhubModalOpen] = useState(false);
-  const [efhubModalTarget, setEfhubModalTarget] = useState<'pure23' | 'xi' | 'sub'>('pure23');
-
+  // efHUB Card Selection States & Selected Card Objects
   const [activeEfhubCardPure23, setActiveEfhubCardPure23] = useState<EFootballMasterPlayer | null>(null);
   const [activeEfhubCardXI, setActiveEfhubCardXI] = useState<EFootballMasterPlayer | null>(null);
   const [activeEfhubCardSub, setActiveEfhubCardSub] = useState<EFootballMasterPlayer | null>(null);
 
-  const handleSelectEfhubCard = (card: EFootballMasterPlayer) => {
+  // efHUB Link Copy & Load States for each area
+  const [efhubUrlPure23, setEfhubUrlPure23] = useState('');
+  const [isLoadingEfhubPure23, setIsLoadingEfhubPure23] = useState(false);
+  const [efhubErrorPure23, setEfhubErrorPure23] = useState<string | null>(null);
+  const [showStatsPreviewPure23, setShowStatsPreviewPure23] = useState(false);
+
+  const [efhubUrlXI, setEfhubUrlXI] = useState('');
+  const [isLoadingEfhubXI, setIsLoadingEfhubXI] = useState(false);
+  const [efhubErrorXI, setEfhubErrorXI] = useState<string | null>(null);
+  const [showStatsPreviewXI, setShowStatsPreviewXI] = useState(false);
+
+  const [efhubUrlSub, setEfhubUrlSub] = useState('');
+  const [isLoadingEfhubSub, setIsLoadingEfhubSub] = useState(false);
+  const [efhubErrorSub, setEfhubErrorSub] = useState<string | null>(null);
+  const [showStatsPreviewSub, setShowStatsPreviewSub] = useState(false);
+
+  const handleSelectEfhubCard = (card: EFootballMasterPlayer, targetRole: 'pure23' | 'xi' | 'sub') => {
     const cardName = card.fullName || card.commonName || '';
     const cardPos = card.primaryPosition || 'CF';
     const cardRating = card.maxRating || card.baseRating || 90;
@@ -151,7 +176,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
     const cardTeam = card.club || '';
     const cardSecondaries = card.secondaryPositions || [];
 
-    if (efhubModalTarget === 'pure23') {
+    if (targetRole === 'pure23') {
       setActiveEfhubCardPure23(card);
       setSquadPlayerName(cardName);
       setSquadPlayerPos(cardPos);
@@ -160,7 +185,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       setSquadPlayerPlaystyle(cardStyle);
       setSquadPlayerRating(cardRating);
       if (cardTeam) setSquadPlayerTeam(cardTeam);
-    } else if (efhubModalTarget === 'xi') {
+    } else if (targetRole === 'xi') {
       setActiveEfhubCardXI(card);
       setXiName(cardName);
       setXiPos(cardPos);
@@ -169,7 +194,7 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       setXiPlaystyle(cardStyle);
       setXiRating(cardRating);
       if (cardTeam) setXiTeam(cardTeam);
-    } else if (efhubModalTarget === 'sub') {
+    } else if (targetRole === 'sub') {
       setActiveEfhubCardSub(card);
       setSubName(cardName);
       setSubPos(cardPos);
@@ -179,6 +204,233 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
       setSubRating(cardRating);
       if (cardTeam) setSubTeam(cardTeam);
     }
+  };
+
+  const handleLoadPlayerFromEfhubLink = async (rawUrl: string, targetRole: 'pure23' | 'xi' | 'sub') => {
+    const cleanUrl = (rawUrl || '').trim();
+    if (!cleanUrl) {
+      const msg = 'Please paste a player link copied from efhub.com';
+      if (targetRole === 'pure23') setEfhubErrorPure23(msg);
+      else if (targetRole === 'xi') setEfhubErrorXI(msg);
+      else setEfhubErrorSub(msg);
+      return;
+    }
+
+    if (targetRole === 'pure23') {
+      setIsLoadingEfhubPure23(true);
+      setEfhubErrorPure23(null);
+    } else if (targetRole === 'xi') {
+      setIsLoadingEfhubXI(true);
+      setEfhubErrorXI(null);
+    } else {
+      setIsLoadingEfhubSub(true);
+      setEfhubErrorSub(null);
+    }
+
+    try {
+      let resolvedPlayer: EFootballMasterPlayer | null = null;
+
+      // 1. Fetch exact player data from server-side endpoint (which extracts full Next.js RSC stream stats)
+      try {
+        const res = await fetch(`/api/efhub-player?url=${encodeURIComponent(cleanUrl)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.player) {
+            resolvedPlayer = data.player;
+          }
+        }
+      } catch (netErr) {
+        console.warn('Network call to /api/efhub-player notice:', netErr);
+      }
+
+      // 2. Client-side fallback: extract player slug, numeric ID, or name from link and match with master database
+      if (!resolvedPlayer) {
+        const slugMatch = cleanUrl.match(/\/(?:players|player)\/(?:[0-9]+\/)?([a-zA-Z0-9_\-]+)/i);
+        let potentialName = '';
+        if (slugMatch && slugMatch[1] && !/^\d+$/.test(slugMatch[1])) {
+          potentialName = slugMatch[1].replace(/[-_]+/g, ' ').trim();
+        } else if (!cleanUrl.includes('/') && !/^\d+$/.test(cleanUrl)) {
+          potentialName = cleanUrl;
+        }
+
+        if (potentialName) {
+          const matched = EFOOTBALL_MASTER_PLAYERS.find(p => 
+            normalizeString(p.fullName) === normalizeString(potentialName) ||
+            normalizeString(p.commonName) === normalizeString(potentialName) ||
+            p.aliases.some(a => normalizeString(a) === normalizeString(potentialName))
+          );
+          if (matched) {
+            const cards = getAllEfhubCardsForPlayer(matched.fullName);
+            resolvedPlayer = cards[0] || matched;
+          } else {
+            const cards = getAllEfhubCardsForPlayer(potentialName);
+            if (cards.length > 0) resolvedPlayer = cards[0];
+          }
+        }
+      }
+
+      if (resolvedPlayer) {
+        handleSelectEfhubCard(resolvedPlayer, targetRole);
+        if (targetRole === 'pure23') {
+          setEfhubUrlPure23('');
+          setEfhubErrorPure23(null);
+        } else if (targetRole === 'xi') {
+          setEfhubUrlXI('');
+          setEfhubErrorXI(null);
+        } else {
+          setEfhubUrlSub('');
+          setEfhubErrorSub(null);
+        }
+      } else {
+        const errMsg = 'Could not load player from this link. Make sure you copied a player card link from efhub.com (e.g. https://efhub.com/players/88046292727298)';
+        if (targetRole === 'pure23') setEfhubErrorPure23(errMsg);
+        else if (targetRole === 'xi') setEfhubErrorXI(errMsg);
+        else setEfhubErrorSub(errMsg);
+      }
+    } catch (err: any) {
+      const errMsg = err?.message || 'Failed to load player stats.';
+      if (targetRole === 'pure23') setEfhubErrorPure23(errMsg);
+      else if (targetRole === 'xi') setEfhubErrorXI(errMsg);
+      else setEfhubErrorSub(errMsg);
+    } finally {
+      if (targetRole === 'pure23') setIsLoadingEfhubPure23(false);
+      else if (targetRole === 'xi') setIsLoadingEfhubXI(false);
+      else setIsLoadingEfhubSub(false);
+    }
+  };
+
+  // Dedicated interactive bar: "Copy the Player Card from efHUB" -> "Load Players Stats" -> paste space
+  const renderEfhubImportBar = (targetRole: 'pure23' | 'xi' | 'sub') => {
+    const efhubUrl = targetRole === 'pure23' ? efhubUrlPure23 : targetRole === 'xi' ? efhubUrlXI : efhubUrlSub;
+    const setEfhubUrl = targetRole === 'pure23' ? setEfhubUrlPure23 : targetRole === 'xi' ? setEfhubUrlXI : setEfhubUrlSub;
+    const isLoading = targetRole === 'pure23' ? isLoadingEfhubPure23 : targetRole === 'xi' ? isLoadingEfhubXI : isLoadingEfhubSub;
+    const efhubError = targetRole === 'pure23' ? efhubErrorPure23 : targetRole === 'xi' ? efhubErrorXI : efhubErrorSub;
+
+    return (
+      <div className="w-full bg-gradient-to-r from-neutral-900/90 via-neutral-900/60 to-neutral-950/90 p-3 rounded-2xl border border-neutral-800/90 my-2.5 shadow-md">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          {/* 1. Button: Copy the Player Card from efHUB (opens efhub.com in separate external tab) */}
+          <a
+            href="https://efhub.com/players"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-neutral-950 flex items-center justify-center gap-2 shadow-md hover:shadow-cyan-500/20 transition-all shrink-0 cursor-pointer text-center group"
+            title="Open efhub.com in a separate external tab to search and copy player card links"
+          >
+            <ExternalLink className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
+            <span>Copy the Player Card from efHUB</span>
+          </a>
+
+          {/* 2. Button: Load Players Stats (between the space and the Copy button) */}
+          <button
+            type="button"
+            onClick={() => handleLoadPlayerFromEfhubLink(efhubUrl, targetRole)}
+            disabled={isLoading || !efhubUrl.trim()}
+            className="px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 disabled:from-neutral-800 disabled:to-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-neutral-950 flex items-center justify-center gap-1.5 shadow-md transition-all shrink-0 cursor-pointer"
+            title="Load exact player attributes, skills, card details, and positions directly from efhub.com"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-neutral-950" />
+                <span>Loading Stats...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                <span>Load Players Stats</span>
+              </>
+            )}
+          </button>
+
+          {/* 3. Space: text input field to paste copied player link */}
+          <div className="relative flex-1 min-w-[220px]">
+            <input
+              type="text"
+              value={efhubUrl}
+              onChange={(e) => {
+                setEfhubUrl(e.target.value);
+                if (targetRole === 'pure23') setEfhubErrorPure23(null);
+                else if (targetRole === 'xi') setEfhubErrorXI(null);
+                else setEfhubErrorSub(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleLoadPlayerFromEfhubLink(efhubUrl, targetRole);
+                }
+              }}
+              placeholder="Paste efHUB player link here (e.g. efhub.com/players/88046292727298)..."
+              className="w-full pl-3.5 pr-8 py-2.5 text-xs bg-neutral-950 text-white placeholder-neutral-500 border border-neutral-700/80 rounded-xl focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all font-mono"
+            />
+            {efhubUrl && (
+              <button
+                type="button"
+                onClick={() => setEfhubUrl('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white text-xs px-1"
+                title="Clear input"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Error message feedback */}
+        {efhubError && (
+          <div className="flex items-center gap-1.5 text-[11px] text-rose-400 bg-rose-950/40 border border-rose-800/50 px-3 py-1.5 rounded-xl mt-2 animate-fade-in">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{efhubError}</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Stats Preview Accordion for Loaded efHUB Player Card
+  const renderEfhubStatsPreview = (card: EFootballMasterPlayer, isExpanded: boolean, onToggle: () => void) => {
+    const hasAttributes = card.keyAttributes && Object.keys(card.keyAttributes).length > 0;
+    const hasSkills = card.skills && card.skills.length > 0;
+
+    return (
+      <div className="mt-2.5 pt-2.5 border-t border-emerald-500/20 text-xs">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex items-center gap-1 text-[11px] font-bold text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer"
+        >
+          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          <span>{isExpanded ? 'Hide Loaded efHUB Attributes & Skills' : 'Inspect Exact 26 Attributes & Skills from efHUB'}</span>
+        </button>
+
+        {isExpanded && (
+          <div className="mt-2.5 space-y-2 animate-fade-in">
+            {hasAttributes && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-1.5 text-[10px]">
+                {Object.entries(card.keyAttributes!).map(([attr, val]) => (
+                  <div key={attr} className="bg-neutral-900/90 px-2 py-1 rounded border border-neutral-800 flex items-center justify-between">
+                    <span className="text-neutral-400 truncate mr-1">{attr.replace(/([A-Z])/g, ' $1').trim()}</span>
+                    <span className={`font-mono font-black ${Number(val) >= 90 ? 'text-emerald-400' : Number(val) >= 80 ? 'text-teal-300' : Number(val) >= 70 ? 'text-amber-300' : 'text-neutral-300'}`}>
+                      {val}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {hasSkills && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[10px] text-neutral-400 font-semibold mr-1">Skills:</span>
+                {card.skills!.map((sk, i) => (
+                  <span key={i} className="px-2 py-0.5 rounded text-[10px] font-semibold bg-neutral-900 text-neutral-200 border border-neutral-800">
+                    {sk}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Quick Inline Editing State
@@ -572,18 +824,6 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             </div>
             
             <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  setEfhubModalTarget('pure23');
-                  setIsEfhubModalOpen(true);
-                }}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-neutral-950 flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
-              >
-                <Zap className="w-4 h-4 fill-neutral-950" />
-                Select Card from Database
-              </button>
-
               <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
                 typedPlayers.length >= 23 
                   ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' 
@@ -596,52 +836,71 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
             </div>
           </div>
 
+          {/* eFHUB Import Bar: Copy from efHUB -> Load Players Stats -> Paste Space */}
+          {renderEfhubImportBar('pure23')}
+
           {/* Active Linked eFHUB Card Banner */}
           {activeEfhubCardPure23 && (
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-neutral-950 to-teal-950/60 border border-emerald-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in shadow-xl">
-              <div className="flex items-center gap-3">
-                <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-400 to-teal-300 text-neutral-950 shadow-md shrink-0">
-                  {activeEfhubCardPure23.maxRating} OVR · {activeEfhubCardPure23.primaryPosition}
-                </span>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-black text-white text-sm">
-                      {activeEfhubCardPure23.fullName}
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-neutral-900 text-amber-300 border border-neutral-700">
-                      {activeEfhubCardPure23.cardType}
-                    </span>
-                    {activeEfhubCardPure23.boosterName && (
-                      <span className="px-2 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                        {activeEfhubCardPure23.boosterName}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-neutral-950 to-teal-950/60 border border-emerald-500/50 flex flex-col gap-3 text-xs animate-fade-in shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-400 to-teal-300 text-neutral-950 shadow-md shrink-0">
+                    {activeEfhubCardPure23.maxRating} OVR · {activeEfhubCardPure23.primaryPosition}
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black text-white text-sm">
+                        {activeEfhubCardPure23.fullName}
                       </span>
-                    )}
+                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-neutral-900 text-amber-300 border border-neutral-700">
+                        {activeEfhubCardPure23.cardType}
+                      </span>
+                      {activeEfhubCardPure23.club && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-900 text-neutral-300 border border-neutral-800">
+                          {activeEfhubCardPure23.club}
+                        </span>
+                      )}
+                      {activeEfhubCardPure23.playstyle && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-900 text-cyan-300 border border-neutral-800">
+                          {activeEfhubCardPure23.playstyle}
+                        </span>
+                      )}
+                      {activeEfhubCardPure23.boosterName && (
+                        <span className="px-2 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          {activeEfhubCardPure23.boosterName}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-emerald-400 font-semibold mt-0.5 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Full 26 attribute stats, skills, and playstyle linked from eFHUB database for analysis
+                    </p>
                   </div>
-                  <p className="text-[11px] text-emerald-400 font-semibold mt-0.5">
-                    ✓ Full 22+ attribute stats, skills, and playstyle linked from eFHUB database for analysis
-                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  <a
+                    href="https://efhub.com/players"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-neutral-900 border border-neutral-800 hover:border-cyan-500/40 transition-colors inline-flex items-center gap-1"
+                    title="Open efhub.com to browse cards"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    efHUB
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setActiveEfhubCardPure23(null)}
+                    className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-neutral-400 hover:text-rose-400 bg-neutral-900 border border-neutral-800 transition-colors cursor-pointer"
+                  >
+                    Unlink
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEfhubModalTarget('pure23');
-                    setIsEfhubModalOpen(true);
-                  }}
-                  className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-neutral-900 border border-neutral-800 hover:border-cyan-500/40 transition-colors"
-                >
-                  Change Card
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveEfhubCardPure23(null)}
-                  className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-neutral-400 hover:text-rose-400 bg-neutral-900 border border-neutral-800 transition-colors"
-                >
-                  Unlink
-                </button>
-              </div>
+              {/* Collapsible Stats Preview Table */}
+              {renderEfhubStatsPreview(activeEfhubCardPure23, showStatsPreviewPure23, () => setShowStatsPreviewPure23(!showStatsPreviewPure23))}
             </div>
           )}
 
@@ -792,70 +1051,77 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEfhubModalTarget('xi');
-                    setIsEfhubModalOpen(true);
-                  }}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-neutral-950 flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
-                >
-                  <Zap className="w-3.5 h-3.5 fill-neutral-950" />
-                  Select Card from Database
-                </button>
-
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${startingXI.length >= 11 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${startingXI.length >= 11 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
                   {startingXI.length} / 11 XI
                 </span>
               </div>
             </div>
 
+            {/* eFHUB Import Bar: Copy from efHUB -> Load Players Stats -> Paste Space */}
+            {renderEfhubImportBar('xi')}
+
             {/* Active Linked eFHUB Card Banner (Starting XI) */}
             {activeEfhubCardXI && (
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-neutral-950 to-teal-950/60 border border-emerald-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in shadow-xl">
-                <div className="flex items-center gap-3">
-                  <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-400 to-teal-300 text-neutral-950 shadow-md shrink-0">
-                    {activeEfhubCardXI.maxRating} OVR · {activeEfhubCardXI.primaryPosition}
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-black text-white text-sm">
-                        {activeEfhubCardXI.fullName}
-                      </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-neutral-900 text-amber-300 border border-neutral-700">
-                        {activeEfhubCardXI.cardType}
-                      </span>
-                      {activeEfhubCardXI.boosterName && (
-                        <span className="px-2 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                          {activeEfhubCardXI.boosterName}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-neutral-950 to-teal-950/60 border border-emerald-500/50 flex flex-col gap-3 text-xs animate-fade-in shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-400 to-teal-300 text-neutral-950 shadow-md shrink-0">
+                      {activeEfhubCardXI.maxRating} OVR · {activeEfhubCardXI.primaryPosition}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-black text-white text-sm">
+                          {activeEfhubCardXI.fullName}
                         </span>
-                      )}
+                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-neutral-900 text-amber-300 border border-neutral-700">
+                          {activeEfhubCardXI.cardType}
+                        </span>
+                        {activeEfhubCardXI.club && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-900 text-neutral-300 border border-neutral-800">
+                            {activeEfhubCardXI.club}
+                          </span>
+                        )}
+                        {activeEfhubCardXI.playstyle && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-900 text-cyan-300 border border-neutral-800">
+                            {activeEfhubCardXI.playstyle}
+                          </span>
+                        )}
+                        {activeEfhubCardXI.boosterName && (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                            {activeEfhubCardXI.boosterName}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-emerald-400 font-semibold mt-0.5 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Full 26 attribute stats & skills linked from eFHUB database for analysis
+                      </p>
                     </div>
-                    <p className="text-[11px] text-emerald-400 font-semibold mt-0.5">
-                      ✓ Full 22+ attribute stats & skills linked from eFHUB database for analysis
-                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                    <a
+                      href="https://efhub.com/players"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-neutral-900 border border-neutral-800 hover:border-cyan-500/40 transition-colors inline-flex items-center gap-1"
+                      title="Open efhub.com to browse cards"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      efHUB
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setActiveEfhubCardXI(null)}
+                      className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-neutral-400 hover:text-rose-400 bg-neutral-900 border border-neutral-800 transition-colors cursor-pointer"
+                    >
+                      Unlink
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEfhubModalTarget('xi');
-                      setIsEfhubModalOpen(true);
-                    }}
-                    className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-neutral-900 border border-neutral-800 transition-colors"
-                  >
-                    Change Card
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveEfhubCardXI(null)}
-                    className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-neutral-400 hover:text-rose-400 bg-neutral-900 border border-neutral-800 transition-colors"
-                  >
-                    Unlink
-                  </button>
-                </div>
+                {/* Collapsible Stats Preview Table */}
+                {renderEfhubStatsPreview(activeEfhubCardXI, showStatsPreviewXI, () => setShowStatsPreviewXI(!showStatsPreviewXI))}
               </div>
             )}
 
@@ -990,70 +1256,77 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEfhubModalTarget('sub');
-                    setIsEfhubModalOpen(true);
-                  }}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-neutral-950 flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
-                >
-                  <Zap className="w-3.5 h-3.5 fill-neutral-950" />
-                  Select Card from Database
-                </button>
-
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${substitutes.length >= 12 ? 'bg-rose-500/20 text-rose-300' : 'bg-cyan-500/20 text-cyan-300'}`}>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${substitutes.length >= 12 ? 'bg-rose-500/20 text-rose-300' : 'bg-cyan-500/20 text-cyan-300'}`}>
                   {substitutes.length} / 12 Subs
                 </span>
               </div>
             </div>
 
+            {/* eFHUB Import Bar: Copy from efHUB -> Load Players Stats -> Paste Space */}
+            {renderEfhubImportBar('sub')}
+
             {/* Active Linked eFHUB Card Banner (Substitutes) */}
             {activeEfhubCardSub && (
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-cyan-950/70 via-neutral-950 to-blue-950/60 border border-cyan-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in shadow-xl">
-                <div className="flex items-center gap-3">
-                  <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-cyan-400 to-blue-400 text-neutral-950 shadow-md shrink-0">
-                    {activeEfhubCardSub.maxRating} OVR · {activeEfhubCardSub.primaryPosition}
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-black text-white text-sm">
-                        {activeEfhubCardSub.fullName}
-                      </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-neutral-900 text-amber-300 border border-neutral-700">
-                        {activeEfhubCardSub.cardType}
-                      </span>
-                      {activeEfhubCardSub.boosterName && (
-                        <span className="px-2 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                          {activeEfhubCardSub.boosterName}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-950/70 via-neutral-950 to-blue-950/60 border border-cyan-500/50 flex flex-col gap-3 text-xs animate-fade-in shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-cyan-400 to-blue-400 text-neutral-950 shadow-md shrink-0">
+                      {activeEfhubCardSub.maxRating} OVR · {activeEfhubCardSub.primaryPosition}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-black text-white text-sm">
+                          {activeEfhubCardSub.fullName}
                         </span>
-                      )}
+                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-neutral-900 text-amber-300 border border-neutral-700">
+                          {activeEfhubCardSub.cardType}
+                        </span>
+                        {activeEfhubCardSub.club && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-900 text-neutral-300 border border-neutral-800">
+                            {activeEfhubCardSub.club}
+                          </span>
+                        )}
+                        {activeEfhubCardSub.playstyle && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-900 text-cyan-300 border border-neutral-800">
+                            {activeEfhubCardSub.playstyle}
+                          </span>
+                        )}
+                        {activeEfhubCardSub.boosterName && (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                            {activeEfhubCardSub.boosterName}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-cyan-400 font-semibold mt-0.5 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Full 26 attribute stats & skills linked from eFHUB database for analysis
+                      </p>
                     </div>
-                    <p className="text-[11px] text-cyan-400 font-semibold mt-0.5">
-                      ✓ Full 22+ attribute stats & skills linked from eFHUB database for analysis
-                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                    <a
+                      href="https://efhub.com/players"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-neutral-900 border border-neutral-800 hover:border-cyan-500/40 transition-colors inline-flex items-center gap-1"
+                      title="Open efhub.com to browse cards"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      efHUB
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setActiveEfhubCardSub(null)}
+                      className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-neutral-400 hover:text-rose-400 bg-neutral-900 border border-neutral-800 transition-colors cursor-pointer"
+                    >
+                      Unlink
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEfhubModalTarget('sub');
-                      setIsEfhubModalOpen(true);
-                    }}
-                    className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-cyan-400 hover:text-cyan-300 bg-neutral-900 border border-neutral-800 hover:border-cyan-500/40 transition-colors"
-                  >
-                    Change Card
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveEfhubCardSub(null)}
-                    className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-neutral-400 hover:text-rose-400 bg-neutral-900 border border-neutral-800 transition-colors"
-                  >
-                    Unlink
-                  </button>
-                </div>
+                {/* Collapsible Stats Preview Table */}
+                {renderEfhubStatsPreview(activeEfhubCardSub, showStatsPreviewSub, () => setShowStatsPreviewSub(!showStatsPreviewSub))}
               </div>
             )}
 
@@ -1670,14 +1943,6 @@ export const ManualPlayerInput: React.FC<ManualPlayerInputProps> = ({
           </div>
         )}
       </div>
-
-      {/* eFHUB Card Selector Modal */}
-      <EFHubCardSelectorModal
-        isOpen={isEfhubModalOpen}
-        onClose={() => setIsEfhubModalOpen(false)}
-        onSelectPlayer={handleSelectEfhubCard}
-        targetRoleLabel={efhubModalTarget === 'pure23' ? 'Squad Player' : efhubModalTarget === 'xi' ? 'Starting XI Player' : 'Substitute Player'}
-      />
 
     </div>
   );

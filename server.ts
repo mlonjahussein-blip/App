@@ -659,63 +659,238 @@ app.get('/api/efhub-proxy', async (req, res) => {
 // Endpoint to fetch player card details from a PESDB or eFHUB URL or ID
 app.get('/api/efhub-player', async (req, res) => {
   try {
-    const input = (req.query.id || req.query.url) as string;
+    const input = ((req.query.id || req.query.url || '') as string).trim();
     if (!input) {
-      return res.status(400).json({ error: 'Player ID or URL is required.' });
+      return res.status(400).json({ error: 'Player ID or efHUB URL is required.' });
     }
 
     let targetUrl = input;
-    if (!input.startsWith('http://') && !input.startsWith('https://')) {
-      targetUrl = `https://pesdb.net/efootball/players/${input}`;
+    // Canonicalize numeric ID (e.g. 88046292727298) or URL with numeric ID
+    const numIdMatch = input.match(/\b(\d{7,16})\b/);
+    if (numIdMatch && numIdMatch[1]) {
+      targetUrl = `https://efhub.com/players/${numIdMatch[1]}`;
+    } else if (!input.startsWith('http://') && !input.startsWith('https://')) {
+      targetUrl = `https://efhub.com/players/${encodeURIComponent(input)}`;
     }
 
-    let response = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+    // Extract potential player slug or ID from URL
+    let slugName = '';
+    try {
+      const decodedTarget = decodeURIComponent(targetUrl);
+      const urlSlugMatch = decodedTarget.match(/\/(?:players|player)\/(?:[0-9]+\/)?([a-zA-Z0-9_\-\s]+)/i);
+      if (urlSlugMatch && urlSlugMatch[1] && !/^\d+$/.test(urlSlugMatch[1])) {
+        slugName = urlSlugMatch[1].replace(/[-_]+/g, ' ').trim();
       }
-    });
+    } catch (e) {}
 
-    if (!response.ok && !targetUrl.includes('efhub.com')) {
-      targetUrl = `https://efhub.com/players/${input}`;
-      response = await fetch(targetUrl, {
+    let html = '';
+    try {
+      const response = await fetch(targetUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
         }
       });
+      if (response.ok) {
+        html = await response.text();
+      }
+    } catch (fetchErr) {
+      console.warn('Fetch error in /api/efhub-player:', fetchErr);
     }
 
-    if (!response.ok) {
-      return res.status(404).json({ error: `Database returned status ${response.status}` });
+    let name = slugName || 'Unknown Player';
+    let maxRating = 90;
+    let baseRating = 85;
+    let position = 'CF';
+    let playstyle = 'Goal Poacher';
+    let cardType = 'Highlight';
+    let club = 'eFootball Club';
+    let nationality = 'International';
+    let skills: string[] = [];
+    let secondaryPositions: string[] = [];
+    const keyAttributes: Record<string, number> = {};
+
+    // 1. Next.js App Router RSC stream parsing (efhub.com)
+    const EFHUB_SKILL_MAP: Record<string, string> = {
+      doubleTouch: 'Double Touch',
+      flipFlap: 'Flip Flap',
+      marseilleTurn: 'Marseille Turn',
+      sombrero: 'Sombrero',
+      crossOverTurn: 'Cross Over Turn',
+      cutBehindAndTurn: 'Cut Behind & Turn',
+      scotchMove: 'Scotch Move',
+      stepOnSkillControl: 'Sole Control',
+      heading: 'Heading',
+      longRangeShooting: 'Long-Range Shooting',
+      chipShotControl: 'Chip Shot Control',
+      longRangeCurler: 'Long-Range Curler',
+      knuckleShot: 'Knuckle Shot',
+      dippingShot: 'Dipping Shot',
+      risingShot: 'Rising Shot',
+      acrobaticFinishing: 'Acrobatic Finishing',
+      heelTrick: 'Heel Trick',
+      firstTimeShot: 'First-time Shot',
+      oneTouchPass: 'One-touch Pass',
+      throughPassing: 'Through Passing',
+      weightedPass: 'Weighted Pass',
+      pinpointCrossing: 'Pinpoint Crossing',
+      outsideCurler: 'Outside Curler',
+      rabona: 'Rabona',
+      noLookPass: 'No Look Pass',
+      lowLoftedPass: 'Weighted Pass',
+      gkLowPunt: 'GK Low Punt',
+      gkHighPunt: 'GK High Punt',
+      longThrow: 'Long Throw',
+      gkLongThrow: 'GK Long Throw',
+      penaltySpecialist: 'Penalty Specialist',
+      gkPenaltySaver: 'GK Penalty Saver',
+      gamesmanship: 'Gamesmanship',
+      manMarking: 'Man Marking',
+      trackBack: 'Track Back',
+      interception: 'Interception',
+      blocker: 'Blocker',
+      aerialSuperiority: 'Aerial Superiority',
+      slidingTackle: 'Sliding Tackle',
+      acrobaticClear: 'Acrobatic Clear',
+      captaincy: 'Captaincy',
+      superSub: 'Super-sub',
+      fightingSpirit: 'Fighting Spirit',
+      phenomenalPassing: 'Phenomenal Passing',
+      phenomenalFinishing: 'Phenomenal Finishing',
+      fortress: 'Fortress',
+      gamechangingPass: 'Game-Changing Pass',
+      momentumDribbling: 'Momentum Dribbling',
+      longReachTackle: 'Sliding Tackle'
+    };
+
+    const keyMap: Record<string, string> = {
+      offensiveAwareness: 'OffensiveAwareness',
+      offensive_awareness: 'OffensiveAwareness',
+      ballControl: 'BallControl',
+      ball_control: 'BallControl',
+      dribbling: 'Dribbling',
+      tightPossession: 'TightPossession',
+      tight_possession: 'TightPossession',
+      lowPass: 'LowPass',
+      low_pass: 'LowPass',
+      loftedPass: 'LoftedPass',
+      lofted_pass: 'LoftedPass',
+      finishing: 'Finishing',
+      heading: 'Heading',
+      setPieceTaking: 'PlaceKicking',
+      set_piece_taking: 'PlaceKicking',
+      curl: 'Curl',
+      speed: 'Speed',
+      acceleration: 'Acceleration',
+      kickingPower: 'KickingPower',
+      kicking_power: 'KickingPower',
+      jump: 'Jumping',
+      jumping: 'Jumping',
+      physicalContact: 'PhysicalContact',
+      physical_contact: 'PhysicalContact',
+      balance: 'Balance',
+      stamina: 'Stamina',
+      defensiveAwareness: 'DefensiveAwareness',
+      defensive_awareness: 'DefensiveAwareness',
+      ballWinning: 'Tackling',
+      tackling: 'Tackling',
+      defensiveEngagement: 'DefensiveEngagement',
+      defensive_engagement: 'DefensiveEngagement',
+      aggression: 'Aggression',
+      gkAwareness: 'GKAwareness',
+      gk_awareness: 'GKAwareness',
+      gkCatching: 'GKCatching',
+      gk_catching: 'GKCatching',
+      gkClearing: 'GKParrying',
+      gk_parrying: 'GKParrying',
+      gkReflexes: 'GKReflexes',
+      gk_reflexes: 'GKReflexes',
+      gkReach: 'GKReach',
+      gk_reach: 'GKReach'
+    };
+
+    // Extract baseStats from efhub Next.js RSC stream
+    const rscStatsMatch = html.match(/\\\\\"baseStats\\\\\":\s*(\{.+?\}),/) || html.match(/\"baseStats\":\s*(\{.+?\}),/);
+    if (rscStatsMatch) {
+      try {
+        const jsonStr = rscStatsMatch[1].replace(/\\\\\"/g, '"').replace(/\\\\/g, '');
+        const rawStats = JSON.parse(jsonStr);
+        Object.keys(rawStats).forEach(k => {
+          const mappedKey = keyMap[k] || k;
+          keyAttributes[mappedKey] = Number(rawStats[k]);
+        });
+      } catch (e) {}
     }
 
-    const html = await response.text();
+    // Extract playerSkills from efhub Next.js RSC stream
+    const rscSkillsMatch = html.match(/\\\\\"playerSkills\\\\\":\s*(\[.+?\])/) || html.match(/\"playerSkills\":\s*(\[.+?\])/);
+    if (rscSkillsMatch) {
+      try {
+        const jsonStr = rscSkillsMatch[1].replace(/\\\\\"/g, '"');
+        const rawSkills: string[] = JSON.parse(jsonStr);
+        skills = rawSkills.map(sk => EFHUB_SKILL_MAP[sk] || sk.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim());
+      } catch (e) {}
+    }
 
-    // Try parsing rich PESDB JSON data
+    // Extract player object from efhub Next.js RSC stream
+    const rscPlayerMatch = html.match(/\\\\\"player\\\\\":\s*(\{.+?\\\\\"playerId\\\\\":.+?\})/) || html.match(/\"player\":\s*(\{.+?\"playerId\":.+?\})/);
+    let cardImage = '';
+    if (rscPlayerMatch) {
+      try {
+        const jsonStr = rscPlayerMatch[1].replace(/\\\\\"/g, '"').replace(/\\\\/g, '');
+        const p = JSON.parse(jsonStr);
+        if (p.name) name = p.name;
+        if (p.position) position = p.position;
+        if (p.team) club = p.team;
+        if (p.playingStyle) playstyle = p.playingStyle;
+        if (p.imageUrl) cardImage = p.imageUrl;
+        if (p.overallRating) {
+          baseRating = Number(p.overallRating);
+          maxRating = p.levelCap ? Math.min(108, Math.round(baseRating + Math.min(14, p.levelCap * 0.35 + 2))) : baseRating;
+        }
+        if (p.playerType === 5) cardType = 'Epic';
+        else if (p.playerType === 4) cardType = 'Big Time';
+        else if (p.playerType === 3) cardType = 'Show Time';
+        else if (p.playerType === 2) cardType = 'Highlight';
+        else if (p.playerType === 1) cardType = 'Featured';
+        else cardType = 'Standard';
+      } catch (e) {}
+    }
+
+    // Extract additional positions
+    const rscPositionsMatch = html.match(/\\\\\"additionalPositions\\\\\":\s*(\[.+?\])/) || html.match(/\"additionalPositions\":\s*(\[.+?\])/);
+    if (rscPositionsMatch) {
+      try {
+        const jsonStr = rscPositionsMatch[1].replace(/\\\\\"/g, '"');
+        const posArr = JSON.parse(jsonStr);
+        secondaryPositions = posArr.map((p: any) => p.position).filter(Boolean);
+      } catch (e) {}
+    }
+
+    // 2. Parse PESDB script or Next.js JSON fallback if available
     const pesdbScriptMatch = html.match(/<script[^>]*id="player-progression-data"[^>]*>([\s\S]*?)<\/script>/i);
-    let parsedPesdb: any = null;
     if (pesdbScriptMatch && pesdbScriptMatch[1]) {
       try {
-        parsedPesdb = JSON.parse(pesdbScriptMatch[1]);
-      } catch (e) {
-        console.warn('Could not parse pesdb JSON script:', e);
-      }
+        const parsed = JSON.parse(pesdbScriptMatch[1]);
+        if (parsed.compare?.playerName) name = parsed.compare.playerName;
+        if (parsed.databaseMaxOverall) maxRating = parsed.databaseMaxOverall;
+        if (parsed.baseOverall) baseRating = parsed.baseOverall;
+        if (parsed.compare?.attackingPlayingStyle) playstyle = parsed.compare.attackingPlayingStyle;
+        if (parsed.compare?.teamName) club = parsed.compare.teamName;
+        if (parsed.baseStats && Object.keys(keyAttributes).length === 0) {
+          Object.keys(parsed.baseStats).forEach(k => {
+            const mapped = keyMap[k] || k;
+            keyAttributes[mapped] = Number(parsed.baseStats[k]);
+          });
+        }
+      } catch (e) {}
     }
 
     const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
     const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
     const imgMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
 
-    let name = parsedPesdb?.compare?.playerName || 'Unknown Player';
-    let maxRating = parsedPesdb?.databaseMaxOverall || parsedPesdb?.baseOverall || 90;
-    let baseRating = parsedPesdb?.baseOverall || Math.max(70, maxRating - 10);
-    let position = 'CF';
-    let playstyle = parsedPesdb?.compare?.attackingPlayingStyle || parsedPesdb?.compare?.defensivePlayingStyle || 'Goal Poacher';
-    let cardType = parsedPesdb?.compare?.cardType || 'Epic';
-    let club = parsedPesdb?.compare?.teamName || 'eFootball Club';
-    let nationality = parsedPesdb?.compare?.nationality || 'International';
-    let skills: string[] = parsedPesdb?.compare?.playerSkills || ['Double Touch', 'First-time Shot', 'One-touch Pass'];
-
-    if (name === 'Unknown Player' && titleMatch) {
+    if ((name === 'Unknown Player' || !name) && titleMatch) {
       const parts = titleMatch[1].split(/—|-|\|/);
       if (parts[0]) name = parts[0].trim();
       if (parts[1]) {
@@ -730,92 +905,42 @@ app.get('/api/efhub-player', async (req, res) => {
       if (mRate) maxRating = parseInt(mRate[1], 10);
 
       const mPos = desc.match(/rated ([A-Z]{2,3}) in eFootball/i) || desc.match(/\b(GK|CB|LB|RB|LWB|RWB|DMF|CMF|AMF|LMF|RMF|LWF|RWF|SS|CF)\b/);
-      if (mPos) position = mPos[1].toUpperCase();
+      if (mPos && position === 'CF') position = mPos[1].toUpperCase();
 
       const mStyle = desc.match(/Playing style:\s*([^.]+)\./i);
       if (mStyle) playstyle = mStyle[1].trim();
     }
 
-    // Convert PESDB snake_case baseStats to PascalCase keyAttributes
-    const keyAttributes: Record<string, number> = {};
-    if (parsedPesdb?.baseStats) {
-      const statsObj = parsedPesdb.baseStats;
-      const keyMap: Record<string, string> = {
-        offensive_awareness: 'OffensiveAwareness',
-        ball_control: 'BallControl',
-        dribbling: 'Dribbling',
-        tight_possession: 'TightPossession',
-        low_pass: 'LowPass',
-        lofted_pass: 'LoftedPass',
-        finishing: 'Finishing',
-        heading: 'Heading',
-        set_piece_taking: 'PlaceKicking',
-        curl: 'Curl',
-        speed: 'Speed',
-        acceleration: 'Acceleration',
-        kicking_power: 'KickingPower',
-        jumping: 'Jumping',
-        physical_contact: 'PhysicalContact',
-        balance: 'Balance',
-        stamina: 'Stamina',
-        defensive_awareness: 'DefensiveAwareness',
-        tackling: 'Tackling',
-        aggression: 'Aggression',
-        defensive_engagement: 'DefensiveEngagement',
-        gk_awareness: 'GKAwareness',
-        gk_catching: 'GKCatching',
-        gk_parrying: 'GKParrying',
-        gk_reflexes: 'GKReflexes',
-        gk_reach: 'GKReach'
-      };
-
-      Object.keys(statsObj).forEach(k => {
-        const pasName = keyMap[k] || k;
-        keyAttributes[pasName] = Number(statsObj[k]);
-      });
-    }
-
+    // Match or fallback to master database if needed
     const matched = EFOOTBALL_MASTER_PLAYERS.find(p => 
       normalizeString(p.fullName) === normalizeString(name) ||
       normalizeString(p.commonName) === normalizeString(name) ||
-      p.aliases.some(a => normalizeString(a) === normalizeString(name))
+      (slugName && (normalizeString(p.fullName) === normalizeString(slugName) || normalizeString(p.commonName) === normalizeString(slugName))) ||
+      p.aliases.some(a => normalizeString(a) === normalizeString(name) || (slugName && normalizeString(a) === normalizeString(slugName)))
     );
 
-    const generated = getAllEfhubCardsForPlayer(name);
-    const chosen = generated.find(c => c.primaryPosition === position) || generated[0] || {
-      id: `pesdb_${Date.now()}`,
-      fullName: name,
-      commonName: name,
-      aliases: [name.toUpperCase()],
-      primaryPosition: position,
-      secondaryPositions: position === 'CF' ? ['SS'] : position === 'CB' ? ['RB'] : ['CMF'],
-      baseRating: baseRating,
-      maxRating: maxRating,
-      playstyle: playstyle,
-      club: club || matched?.club || 'eFootball Club',
-      nationality: nationality || matched?.nationality || 'International',
-      cardType: cardType || (maxRating >= 102 ? 'Big Time' : maxRating >= 100 ? 'Epic' : maxRating >= 98 ? 'Show Time' : 'Standard'),
-      cardTitle: `${name} Official Card`,
-      keyAttributes: keyAttributes,
-      skills: skills.length > 0 ? skills : (matched?.skills || ['Double Touch', 'First-time Shot', 'One-touch Pass']),
-      efhubUrl: targetUrl
-    };
+    const lookupName = matched ? matched.fullName : name;
+    const generated = getAllEfhubCardsForPlayer(lookupName);
+    const chosen = generated.find(c => c.primaryPosition === position) || generated[0];
 
     const finalPlayer = {
-      ...chosen,
-      fullName: name,
-      commonName: name,
-      primaryPosition: position || chosen.primaryPosition,
-      maxRating: maxRating || chosen.maxRating,
-      baseRating: baseRating || chosen.baseRating,
-      playstyle: playstyle || chosen.playstyle,
-      cardType: cardType || chosen.cardType,
-      club: club || chosen.club,
-      nationality: nationality || chosen.nationality,
-      keyAttributes: Object.keys(keyAttributes).length > 0 ? keyAttributes : chosen.keyAttributes,
-      skills: skills.length > 0 ? skills : chosen.skills,
+      id: `efhub_${Date.now()}`,
+      fullName: lookupName,
+      commonName: chosen?.commonName || lookupName,
+      aliases: [lookupName.toUpperCase()],
+      primaryPosition: position,
+      secondaryPositions: secondaryPositions.length > 0 ? secondaryPositions : (chosen?.secondaryPositions || (position === 'CF' ? ['SS'] : ['CMF'])),
+      baseRating: baseRating || chosen?.baseRating || 85,
+      maxRating: maxRating || chosen?.maxRating || 90,
+      playstyle: playstyle || chosen?.playstyle || 'Goal Poacher',
+      cardType: cardType || chosen?.cardType || 'Highlight',
+      club: club || matched?.club || chosen?.club || 'eFootball Club',
+      nationality: nationality || matched?.nationality || chosen?.nationality || 'International',
+      cardTitle: `${lookupName} efHUB Card`,
+      keyAttributes: Object.keys(keyAttributes).length > 0 ? keyAttributes : (chosen?.keyAttributes || {}),
+      skills: skills.length > 0 ? skills : (chosen?.skills || ['Double Touch', 'First-time Shot', 'One-touch Pass']),
       efhubUrl: targetUrl,
-      imageUrl: imgMatch ? imgMatch[1] : undefined
+      imageUrl: cardImage || (imgMatch ? imgMatch[1] : undefined)
     };
 
     res.json({ success: true, player: finalPlayer });
